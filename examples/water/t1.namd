@@ -1,0 +1,87 @@
+set RUNID 1
+set temperature 240
+set K 1600
+set TAMDFRIC 800
+set LAMUPDATEINTERVAL 1
+set dt 0.002
+set USETAMDFORCES 1
+set LAMDT $dt
+langevinDamping         50
+
+set seed 923458
+
+set thermal_energy [expr $temperature * 0.00198735]
+
+# set the fictitious thermal energy to be some multiple of the physical thermal energy
+set  KBTBAR [expr $thermal_energy * 10]
+
+print "INFO) physical thermal energy is $thermal_energy kcal/mol"
+
+set restrPARAMS    [list [list k $K] [list TAMDkT $KBTBAR] [list TAMDgamma $TAMDFRIC] [list TAMDdt $dt]] 
+
+structure  tip3pE.psf
+coordinates tip3pE.pdb
+bincoordinates rep1999.coor
+extendedsystem tip3pE.xsc
+temperature $temperature
+
+set outputname     out_t${RUNID}
+firsttimestep      0
+
+paraTypeCharmm      on
+parameters par_all22_prot.inp
+parameters tip3p_ewald.par
+
+exclude             scaled1-4
+1-4scaling          1.0
+cutoff              7.0
+switching           on
+switchdist          6.0
+pairlistdist        8.0
+
+timestep            2.0 
+rigidbonds      all
+
+PME on
+wrapall on
+PMEgridspacing 1
+nonbondedFreq       1
+fullElectFrequency  2
+stepspercycle       10
+outputName          $outputname
+
+# Langevin Dynamics
+langevin                on;            # do langevin dynamics
+#langevinDamping is set at the beginning
+langevinTemp            $temperature;   # bath temperature
+langevinHydrogen        no;             # don't couple langevin bath to hydrogens
+
+restartfreq         1000
+dcdfreq             1000
+xstfreq             1000
+outputEnergies      100
+outputpressure      100
+
+tclforces on
+tclforcesscript                 $env(HOME)/cfacv_otfp/cfacv_tclforces.tcl
+set labelPDB                    label.pdb
+set cvINP                       cv.inp
+set TAMDof                      10
+set TAMDoutputlevel 0
+
+set CFACV_doAnalyticalCalc 1
+set XSCFILE tip3pE.xsc
+set CUTOFF 7.0
+set NLCUTOFF 8.0
+set BEGINEVOLVEPARAMETERS 99
+set REPORTPARAMFREQ 100
+set SPLINEMIN 0.0
+set NKNOTS 141
+
+set BINREPORTPARAMFREQ 100
+set BINREPORTPARAMFILE ${outputname}.bsp
+set BINOUTPUTLEVEL 3
+
+set initKnotsINP wcaknots
+
+run 8000000

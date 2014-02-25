@@ -1,0 +1,120 @@
+\documentclass[11pt]{article}
+\usepackage{graphicx}
+\usepackage[margin=1in]{geometry}
+
+\begin{document}
+
+\title{On-the-fly parameterization with Temperature-accelerated MD in NAMD}
+\author{Cameron F. Abrams, cfa22@drexel.edu}
+\date{\today}
+
+\maketitle
+
+\section{Introduction}
+
+This document accompanies the codes and example for on-the-fly
+parameterization of free energies using temperature accelerated MD.
+The purpose of this document is to provide brief explanation of the
+codes and the example, and to suggest directions to work in the
+project.  To use this code effectively, one should already have
+working familiarity with the MD package NAMD~\cite{Phillips2005},
+including its {\tt tclForces} interface.
+
+It is recommended to work through the NAMD tutorials first.  These can
+be found at 
+
+\begin{verbatim}
+http://www.ks.uiuc.edu/Training/Tutorials/namd-index.html.
+\end{verbatim}
+
+It is an excellent idea to work through the first three turorials
+there.
+
+The purpose of on-the-fly parameterization of free energies is to
+compute free energy in some collective variables (CV's) using a
+particular aspect of {\bf temperature-accelerated MD (TAMD)}.  In
+TAMD, a set of CV's is defined, and then a set of dynamical auxiliary
+variables, one per CV, is introduced into an otherwise standard MD
+simulation.  The forces applied to these auxiliary variables arise
+from springs that tether them to the CV's.  It can be shown that in
+the limit of infinitely strong springs, that these forces are negative
+gradients of the free energy.  Thus, a running TAMD simulation and
+provide information on the gradients in free energy, and the idea of
+OTFP is to use that information to iteratively optimize an analytical
+function representing the free energy.  This project is all about
+exploring this idea, finding out when it works and when it doesn't.
+We have already shown that it works for computing effective pair
+potentials for single-site water molecules from all-atom
+MD~\cite{Abrams2012}, but in principle, it ought to work for computing
+any free energy.
+
+\section{The code: {\tt cfacv\_otfp}}
+
+The code for performing on-the-fly parameterization for computing effective pair potentials is called {\tt cfacv\_otfp}.  The code has three main components:
+\begin{enumerate}
+\item The {\tt cfacv.so} shared-object library.  This is compiled using the {\tt makefile} and is comprised of the following source files:
+\begin{enumerate}
+\item {\tt cfacv.h} and {\tt cfacv.c} and {\tt cfacv.i} (the {\tt .i} file is necessary for the program {\tt swig}, which makes the library loadable into TcL scripts.);
+\item {\tt centers.h} and {\tt centers.c};
+\item {\tt chapeau.h} and {\tt chapeau.c}; and
+\item {\tt measurements.h} and {\tt measurements.c}
+\end{enumerate}
+Note that in addition to {\tt gcc}, you need to have both {\tt swig}
+and the GNU scientific library ({\tt gsl}) installed to compile {\tt cfacv.so}.
+\item The associated TcL scripts
+\begin{enumerate}
+\item {\tt cfacv.tcl}
+\item {\tt cfacv\_tclforces.tcl}
+\end{enumerate}
+\item The auxiliary program {\tt catbinsp.c} that reads the binary output of a run.
+\end{enumerate}
+
+The basic idea with {\tt cfacv\_otfp} is to introduce a custom
+collective-variable module into NAMD without altering the NAMD source
+code.  This is possible due to NAMD's native {\tt tclForces}
+capabilility, which is one way of introducing ``external'' forces into
+an MD simulation.  (Note again: working through the {\tt tclForces}
+tutorial is important if you want to understand this.)  The main
+interface between {\tt cfacv\_otfp} and NAMD is the {\tt
+cfacv\_tclforces.tcl} script, which defines the Tcl procedure {\tt
+calcforces} which much exist to use {\tt tclForces}.  Basically all
+this procedure does is to deliver the instantaneous coordinates of all
+relevant atoms to {\tt cfacv.so} for computations, and {\tt cfacv.so}
+delivers back forces that NAMD must then apply to the atoms in that
+time step.
+
+\section{The water example}
+
+The directory {\tt water\_example} contains everything needed to run
+OTFP simulations that can reproduce the data in Fig. 5 of the original
+OTFP paper~\cite{Abrams2012}.  These calculations demonstrate how to
+use OTFP to compute effective coarse-grained pair potentials.  This is
+not a very exciting application but it does prove that gradients
+provided by TAMD can be used to estimate free energies.  (See the
+paper fror an explanation of the potential representation and
+calculation procedures.)  The NAMD configuration file there is called
+{\tt t1.namd}.  You can run the simulation by invoking {\tt namd2}
+with this configuration file, but it assumes you have a directory in
+your home directory called {\tt cfacv\_otfp/} in which must reside
+{\tt cfacv.so}, {\tt cfacv.tcl}, and {\tt cfacv\_tclforces.tcl}.
+There are many parameters that can be changed in this configuration
+file.  I recommend using this example as a starting point for the runs
+needed to reproduce the curves in Fig. 5A and B of the paper.  Note
+that the runs generate (in addition to the standard output of NAMD) a
+binary file that contains running output of the coefficients.
+
+\section{The project}
+
+There are several directions this project can go.  All of the really interesting directions {\bf will require modification of the code}.  That means it is important to understand it and it is expected you will spend significant time early on becoming familiar with it.  Some directions that might be interesting to pursue:
+
+\begin{enumerate}
+\item Can OTFP compute the potential of mean force between two ions in solution?  Between a small drug molecule and a binding site on a protein?  
+\item Can OTFP be generalized to two-, three- and higher-dimensional
+potentials of mean force; for example, can it compute the potential of mean force associated with the configurations of two positive and two negative ions in solution?
+\item Can OTFP compute the potential of mean force associated with large-scale conformational rearrangement of a protein?
+\end{enumerate}
+
+\bibliographystyle{unsrt}
+\bibliography{referencesCFA}
+
+\end{document}
