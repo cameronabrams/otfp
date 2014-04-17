@@ -39,12 +39,6 @@ chapeau * chapeau_alloc ( int m, double rmin, double rmax, int npart ) {
   return ch;
 }
 
-void chapeau_setUpdateInterval ( chapeau * ch, int i ) {
-  if (ch) {
-    ch->updateinterval=i;
-  }
-}
-
 void chapeau_setPeaks ( chapeau * ch, double * peaks ) {
   if (ch) {
     if (peaks) {
@@ -106,12 +100,6 @@ void chapeau_output ( chapeau * ch, int timestep ) {
   }
 }
 
-void chapeau_init_global_accumulators ( chapeau * ch ) {
-  int i,j,p,q;
-  int m=ch->m;
-  gsl_matrix_set_zero(ch->A);
-  gsl_vector_set_zero(ch->b);
-}
 
 void chapeau_init_particle_sums ( chapeau * ch ) {
   int d,i,j;

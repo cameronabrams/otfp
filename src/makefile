@@ -1,38 +1,33 @@
-measurements.o: 	measurements.c measurements.h
-	gcc -O3 -c -fpic -o $@ measurements.c
+# This makefile will compile all c stuff in a shared object
+# that, thanks to SWIG, is ready to be loaded in tcl scripts
 
-measurements_wrap.o:	measurements_wrap.c
-	gcc -O3 -c -fpic -o $@ measurements_wrap.c
+CC=gcc
+CCFLAGS=-O3
+LIBS = -lm -lgsl -lgslcblas
 
-measurements_wrap.c:	measurements.c measurements.h measurements.i
-	swig -tcl8 measurements.i
+OBJ += measurements.o
+OBJ += chapeau.o
+OBJ += centers.o
+OBJ += cfacv.o
+OBJ += cfacv_wrap.o
 
-chapeau.o:	chapeau.c chapeau.h
-	gcc -O3 -c -fpic -o $@ chapeau.c
-
-cfacv.so:  cfacv.o cfacv_wrap.o measurements.o centers.o chapeau.o
-	gcc -O3 -shared -o $@ cfacv.o cfacv_wrap.o measurements.o centers.o chapeau.o -lm -lgsl -lgslcblas
-
-cfacv.o:      cfacv.c cfacv.h
-	gcc -O3 -c -fpic -o $@ cfacv.c
-
-cfacv_wrap.o: cfacv_wrap.c
-	gcc -O3 -c -fpic -o $@ $?
-
+cfacv.so:  $(OBJ) cfacv_wrap.o
+	$(CC) $(CCFLAGS) -shared -o $@ $^ $(LIBS)
+        
+%.o: %.c
+	$(CC) -c -fpic $(CCFLAGS) $<
+ 
 cfacv_wrap.c: cfacv.c cfacv.i cfacv.h
 	swig -tcl8 cfacv.i
 
-centers.o:      centers.c centers.h
-	gcc -O3 -c -fpic -o $@ centers.c
+measurements.o : measurements.h
+chapeau.o : chapeau.h
+centers.o : centers.h
+cfacf.h : measurements.h chapeau.h centers.h
+cfacv.o : cfacv.h
 
-wrapcoords.o:	wrapcoords.c wrapcoords.h
-	gcc -O3 -c -fpic -o $@ wrapcoords.c
 
-wrapcoords_wrap.o:	wrapcoords_wrap.c
-	gcc -O3 -c -fpic -o $@ $?
-
-wrapcoords_wrap.c:	wrapcoords.c wrapcoords.h wrapcoords.i
-	swig -tcl8 wrapcoords.i
+.PHONY: clean
 
 clean:
-	rm *.o *.so *~
+	rm -f *.o *.so cfacv_wrap.c

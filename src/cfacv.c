@@ -324,12 +324,16 @@ int DataSpace_SetupPairCalc ( DataSpace * ds, double Ox, double Oy, double Oz, \
 
   ds->ch=chapeau_alloc(nKnots,spline_min,cutoff,N);
 
-  chapeau_init_global_accumulators(ds->ch);
+  gsl_matrix_set_zero(ds->ch->A);
+  gsl_vector_set_zero(ds->ch->b);
+
   chapeau_setupoutput(ds->ch,splineoutputfile,splineoutputfreq,splineoutputlevel);
-  chapeau_setUpdateInterval(ds->ch,lamupdateinterval);
+
+  ds->ch->updateinterval=lamupdateinterval;
 
   ds->lamfric=0.0;
   ds->lamdt=0.0;
+
   fprintf(stderr,"CFACV_OTFP/DEBUG) setup pair calculation\n");
   fflush(stderr);
 
@@ -519,7 +523,7 @@ int DataSpace_ComputeCVs ( DataSpace * ds ) {
        two aribitrary cv's have different number of centers. */
     for (i=0;i<ds->iM;i++) {
       for (j=0;j<ds->iM;j++) {
-        
+       //XXX What for? 
       }
     }
 
@@ -658,7 +662,7 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 
       //printf("CFACV/C) restraint %i: f %.5lf u %.5lf\n",i,r->f,r->u);
 
-      /* accumulate force increments */
+      /* accumulate force increments in ds->R for each real particle*/
       /* cv->gr[jj][kk] = \partial CV / \partial (kk-coord of center jj of CV) */
       for (j=0;j<r->nCV;j++) {
 	cv=ds->cv[j];
@@ -692,6 +696,7 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
       }
     }
 
+    // Evolution of the z variables
     if (ds->doAnalyticalCalc) {
       int nCV,ii,d,N=ds->N,K=ds->iK;
       double this_force;
@@ -712,7 +717,7 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 	for (j=0;!r->cvc[j];j++);
 	cv=ds->cv[j];
 	ii=cv->ind[0]; // ii = particle-index 
-	dimension = i%3;  // 0 == CARTESIAN_X, 1 = CARTESIAN_Y, 2 = CARTESIAN_Z
+	dimension = i%3;  // 0 = CARTESIAN_X, 1 = CARTESIAN_Y, 2 = CARTESIAN_Z
 	//fprintf(stderr,"#### ts %i ptcl %i d %i z %g f %g\n",timestep,ii,dimension,r->z,-r->f);fflush(stderr);
 	oldz=ds->Z[ii][dimension];
 	ds->accumZ[ii][dimension]+=r->z-oldz;
@@ -761,49 +766,78 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
       //fprintf(stderr,"CFACV/C) DEBUG paircalc
       //ends.\n");fflush(stderr); fflush(stderr); 
 
-      // map the interparticle gradients back into the restraints
-      // compute gradients to be applied to z's from an analytical
-      // function rather than from the atomic forces in this case,
-      // each restraint must have one and only one CV
-      for (i=0;i<N;i++) {
-	ds->F[i][0]=ds->F[i][1]=ds->F[i][2]=0.0;
+
+
+   
+      if (!ds->useTAMDforces) {
+
+        // map the interparticle gradients back into the restraints
+        // compute gradients to be applied to z's from an analytical
+        // function rather than from the atomic forces in this case,
+        // each restraint must have one and only one CV
+
+        for (i=0;i<N;i++) {ds->F[i][0]=ds->F[i][1]=ds->F[i][2]=0.0;}
+
+        for (i=0;i<K;i++) {
+          r=ds->restr[i];
+
+          // each restraint must have one and only one CV
+          for (j=0;!r->cvc[j];j++);
+
+          dimension=i%3;
+
+          ii = ds->cv[j]->ind[0]; // index of particle "i"
+
+          ff=ds->F[ii];
+
+          //fprintf(stderr,"###### ts %i ptcl %i d %i z %g f %g\n",timestep,ii,dimension,r->z,-r->f);fflush(stderr);
+
+          nl=ds->nl[ii];
+          inlc=ds->nlc[ii];
+          for (jj=0;jj<inlc;jj++) {
+            k=nl[jj];
+            r2=ds->rr[ii][k];
+
+            if ( r2 < ds->squaredPairCutoff ) {
+              fi=ds->gr[ii][k]*ds->RR[ii][k][dimension];
+
+   // this is ds->F[ii][dimension]-=fi;;
+              ff[dimension]-= fi;
+              ds->F[k][dimension]+=fi;
+            }
+
+          }
+          r->z=tamdUpdate(ds,r->z,ff[dimension],r->tamdOpt,&r->tamd_noise,&r->tamd_restraint);	
+        }
+      } else {
+        for (i=0;i<K;i++) {
+          r=ds->restr[i];
+          r->z=tamdUpdate(ds,r->z,-r->f,r->tamdOpt,&r->tamd_noise,&r->tamd_restraint);	
+        }
       }
 
-      for (i=0;i<K;i++) {
-	r=ds->restr[i];
-	for (j=0;!r->cvc[j];j++);
-	dimension=i%3;
-	ii = ds->cv[j]->ind[0]; // index of particle "i"
-	ff=ds->F[ii];
-	//fprintf(stderr,"###### ts %i ptcl %i d %i z %g f %g\n",timestep,ii,dimension,r->z,-r->f);fflush(stderr);
-	nl=ds->nl[ii];
-	inlc=ds->nlc[ii];
-	for (jj=0;jj<inlc;jj++) {
-	  k=nl[jj];
-	  r2=ds->rr[ii][k];
-	  if ( r2 < ds->squaredPairCutoff ) {
-	    fi=ds->gr[ii][k]*ds->RR[ii][k][dimension];
-	    ff[dimension]-= fi;
-	    ds->F[k][dimension]+=fi;
-	  }
-	}
-	r->z=tamdUpdate(ds,r->z,ds->useTAMDforces?-r->f:ff[dimension],r->tamdOpt,&r->tamd_noise,&r->tamd_restraint);	
+
+      if (ds->evolveAnalyticalParameters) {
+        ds->nsamples++;
+
+        if (timestep>ds->beginEvolveParameters && !(timestep%ch->updateinterval)) {
+          chapeau_update_peaks(ch,ds->nsamples,timestep);
+          chapeau_output(ch,timestep);
+
+          // report lambda to the log
+          if (ds->reportParamFreq && !(timestep%ds->reportParamFreq)) {
+            fprintf(stdout,"LAMBDA: % 8i",timestep);fflush(stderr);
+            for (i=0;i<ds->ch->m;i++) {
+              fprintf(stdout,"% 17.5lf (%i) ",gsl_vector_get(ds->ch->lam,i),ds->ch->hits[i]);
+            }
+            fprintf(stdout,"\n");
+          }
+
+        }
       }
-      
-      if (ds->evolveAnalyticalParameters) ds->nsamples++;
-      if (ds->evolveAnalyticalParameters&&(timestep>ds->beginEvolveParameters)&&(!(timestep%ch->updateinterval))) {
-	chapeau_update_peaks(ch,ds->nsamples,timestep);
-	chapeau_output(ch,timestep);
-	if (ds->reportParamFreq && !(timestep%ds->reportParamFreq)) {
-	  fprintf(stdout,"LAMBDA: % 8i",timestep);fflush(stderr);
-	  for (i=0;i<ds->ch->m;i++) {
-	    fprintf(stdout,"% 17.5lf (%i) ",gsl_vector_get(ds->ch->lam,i),ds->ch->hits[i]);
-	  }
-	  fprintf(stdout,"\n");
-	}
-      }
-    } // doAnalyticalCalc
-    else { // update z's using the measured forces
+
+
+    } else { // update z's using the measured forces
       for (i=0;i<ds->iK;i++) {
 	r=ds->restr[i];
 	if (r->tamdOpt) {
@@ -814,6 +848,7 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 	}
       }
     }
+
     return 0;
   }
   return -1;

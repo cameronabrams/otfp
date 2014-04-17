@@ -2,14 +2,32 @@
 # Cameron F Abrams
 # 2009-14
 
-# check for base directory name environment variable;
-# if not set, use default
-#if {[info exists env(CFACV_BASEDIR)]} {
-#    set CFACV_BASEDIR $env(CFACV_BASEDIR)
-#} else {
-    set HOME $env(HOME)
-    set CFACV_BASEDIR ${HOME}/cfacv_otfp
-#}
+# # Runing alone
+# set CFACV_BASEDIR $env(PWD)
+# set DIRS_INPUT ..
+# set labelPDB $DIRS_INPUT/label.pdb 
+# set cvINP $DIRS_INPUT/cv.inp
+# proc print { arg } {
+#   puts $arg
+# }
+# set TAMDof                  10
+# set TAMDoutputlevel         0
+# set CFACV_doAnalyticalCalc  1
+# set XSCFILE                 $DIRS_INPUT/tip3pE.xsc
+# set CUTOFF                  7.0
+# set NLCUTOFF                8.0
+# set BEGINEVOLVEPARAMETERS   99
+# set REPORTPARAMFREQ         100
+# set SPLINEMIN               0.0
+# set NKNOTS                  141
+# set BINREPORTPARAMFREQ      100
+# set BINREPORTPARAMFILE      $DIRS_INPUT/alone.bsp
+# set BINOUTPUTLEVEL          3
+# set initKnotsINP            $DIRS_INPUT/wcaknots
+ 
+ 
+# # Runing from NAMD
+# set CFACV_BASEDIR $PWD/OTFP
 
 # will die if CFACV_BASEDIR is invalid
 source ${CFACV_BASEDIR}/cfacv.tcl
@@ -31,17 +49,23 @@ if {$tripped} {
 set serArray {}; # must have for addgroup
 set masses {}
 
-# read the template PDB file that identifies subdomain memberships
+# Read the template PDB file that identifies subdomain memberships
 set nCntr [read_centersPDB $labelPDB serArray masses]
+#nCntr is the number of centers
+#serArray is the atom serial list of each group
+#masses is the atom mass list of each group
 print "CFACV) nCenters $nCntr  masses $masses"
 
-# Set up the subdomains as "groups" for tclforces
+# Set up the centers as "groups" for tclforces. This give 
+# the list groups with the groups ids
 set groups {}
 for {set i 0} { $i < $nCntr } { incr i } {
     if {[info exists TAMDverbose]} {
 	print "addgroup $i :"
 	print "   [lindex $serArray $i]"
     }
+    # addgroup is a NAMD command that return a "gN" id with N a small
+    # integer
     set gid [addgroup [lindex $serArray $i]]
     lappend groups $gid
 }
@@ -50,9 +74,9 @@ for {set i 0} { $i < $nCntr } { incr i } {
 set cvList {}
 set nCV [read_cvs $cvINP cvList $nCntr]
 print "CFACV) nCV $nCV"
-if {[info exists TAMDverbose]} {
-    print "CFACV) cvList: $cvList"
-}
+
+#Now, cvList is some like {CARTESIAN_X 0} {CARTESIAN_Y 0} ....
+if {[info exists TAMDverbose]} {print "CFACV) cvList: $cvList"}
 
 if {!$nCV} {
     print "CFACV) ERROR: Perhaps you need to use mk_tPDB.tcl to generate the cv.inp file?"
@@ -68,55 +92,40 @@ if {[info exists restrINP]} {
     print "CFACV) $nR single-cv restraints created:"
 }
 
-if {[info exists TAMDverbose]} {
-    foreach r $rList {
-	print "CFACV) $r"
-    }
-}
+if {[info exists TAMDverbose]} {foreach r $rList {print "CFACV) $r"}}
+ 
+#Now, rListis something like "{{1 0 0 0 0} {k 1600} {AMDkT 0.19} {TAMDgamma
+#1} {TAMDdt 0.002}} {{0 1 0 0 0} {k 1600} {AMDkT 0.19} {TAMDgamma 1}
+#{TAMDdt 0.002}} ... "
+
 
 # set the pseudorandom number generator seed
-#if {![info exists seed]} {
-#    set seed [clock clicks]   
-    print "CFACV) setting seed to $seed"
-#}
-
+#if {![info exists seed]} {set seed [clock clicks]}
+print "CFACV) setting seed to $seed"
+   
 # declare and allocate data space
+# Here all the previous information is stacked
 set ds [Tcl_NewDataSpace $nCntr $cvList $rList $seed]
 
 # if intercenter pair calcs are needed
 if {[info exists CFACV_doAnalyticalCalc] && $CFACV_doAnalyticalCalc == 1} {
-    if {![info exists USETAMDFORCES]} {
-	set USETAMDFORCES 0
-    }
+
+    if {![info exists USETAMDFORCES]} {set USETAMDFORCES 0}
+
     # currently only option is a pairwise analytical potential
     Tcl_InitializePairCalc $ds $XSCFILE $CUTOFF $NLCUTOFF $BEGINEVOLVEPARAMETERS $USETAMDFORCES $REPORTPARAMFREQ $SPLINEMIN $NKNOTS $BINREPORTPARAMFILE $BINREPORTPARAMFREQ $BINOUTPUTLEVEL $LAMUPDATEINTERVAL
-    if {[info exists initKnotsINP]} {
-	Tcl_DataSpace_InitKnots $ds $initKnotsINP
-    }
+
+    if {[info exists initKnotsINP]} {Tcl_DataSpace_InitKnots $ds $initKnotsINP}
 }
 
 # read z values from a restart file
 set first 1
-if {[info exists restartINP]} {
-    set first [Tcl_Reinitialize $ds $restartINP]
-}
+if {[info exists restartINP]} {set first [Tcl_Reinitialize $ds $restartINP]}
 
-if {[info exists TAMDof]} {
-    set reportFreq $TAMDof
-} else {
-    set reportFreq 1
-}
-
-if {[info exists TAMDbinof]} {
-    set binReportFreq $TAMDbinof
-} else {
-    set binReportFreq 1
-}
-
-
-if {![info exists TAMDoutputlevel]} {
-    set TAMDoutputlevel 3; # default output Z and Theta
-}
+# Some default values regarding output
+if {![info exists TAMDof]}          {set TAMDof 1 }
+if {![info exists TAMDbinof]}       {set TAMDbinof 1 }
+if {![info exists TAMDoutputlevel]} {set TAMDoutputlevel 3}
 
 set TAMDoutputFileFP 0
 if {[info exists TAMDoutputFile]} {
@@ -140,14 +149,15 @@ proc calcforces { } {
     global ds
     global groups
     global first
-    global reportFreq
-    global binReportFreq
+    global TAMDof
+    global TAMDbinof
     global TAMDoutputlevel
     global TAMDoutputFileFP
     global TAMDbinOutputFile
     global TAMDbinOutputFileFP
 
     # load coordinates of requested atoms into associative array
+    # this is a NAMD builtin
     loadcoords p
 
     # perform the update that transmits forces
@@ -155,12 +165,12 @@ proc calcforces { } {
     if {$first==1} { set first 0 }
 
     # report if requested
-    if {[expr {[getstep]%$reportFreq == 0}]} {
+    if {[expr {[getstep]%$TAMDof == 0}]} {
 	DataSpace_ReportRestraints $ds [getstep] $TAMDoutputlevel $TAMDoutputFileFP
     }
 
     # report if requested
-    if {[info exists TAMDbinOutputFile] && [expr {[getstep]%$binReportFreq == 0}]} {
+    if {[info exists TAMDbinOutputFile] && [expr {[getstep]%$TAMDbinof == 0}]} {
 	DataSpace_BinaryReportRestraints $ds [getstep] $TAMDoutputlevel $TAMDbinOutputFileFP
     }
 }

@@ -1,0 +1,270 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.8	//
+A	chapeau.h	/^  gsl_matrix * A, * Abar;$/;"	m	struct:CHAPEAU
+ANGLE	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, NULL_CV};$/;"	e	enum:__anon1
+ATOMCENTERSTRUCT	centers.h	/^typedef struct ATOMCENTERSTRUCT {$/;"	s
+Abar	chapeau.h	/^  gsl_matrix * A, * Abar;$/;"	m	struct:CHAPEAU
+ArrayToList	cfacv.tcl	/^proc ArrayToList {a n} {$/;"	p
+BADCVSTRINGMESSAGE	cfacv.c	/^char * BADCVSTRINGMESSAGE = "NOT FOUND";$/;"	v
+BOND	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, NULL_CV};$/;"	e	enum:__anon1
+CARTESIAN_X	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, NULL_CV};$/;"	e	enum:__anon1
+CARTESIAN_Y	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, NULL_CV};$/;"	e	enum:__anon1
+CARTESIAN_Z	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, NULL_CV};$/;"	e	enum:__anon1
+CENTERSTRUCT	centers.h	/^typedef struct CENTERSTRUCT { $/;"	s
+CFACVC_VERSION	cfacv.h	70;"	d
+CHAPEAU	chapeau.h	/^typedef struct CHAPEAU {$/;"	s
+CHAPEAU_H	chapeau.h	2;"	d
+CVSTRINGS	cfacv.c	/^char * CVSTRINGS[NULL_CV] = {"BOND", "ANGLE", "DIHED", "CARTESIAN_X", "CARTESIAN_Y", "CARTESIAN_Z"};$/;"	v
+CVSTRUCT	cfacv.h	/^typedef struct CVSTRUCT {$/;"	s
+DATASPACESTRUCT	cfacv.h	/^typedef struct DATASPACESTRUCT {$/;"	s
+DIHED	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, NULL_CV};$/;"	e	enum:__anon1
+DataSpace	cfacv.h	/^} DataSpace;$/;"	t	typeref:struct:DATASPACESTRUCT
+DataSpace_AddAtomCenter	cfacv.c	/^int DataSpace_AddAtomCenter ( DataSpace * ds, int n, int * ind, double * m ) {$/;"	f
+DataSpace_AddCV	cfacv.c	/^int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind ) {$/;"	f
+DataSpace_AddRestr	cfacv.c	/^int DataSpace_AddRestr ( DataSpace * ds, double k, double z, int nCV, double * cvc, char * rftypstr, $/;"	f
+DataSpace_AddSmdOpt	cfacv.c	/^int DataSpace_AddSmdOpt  ( DataSpace * ds, int ir, double target, int t0, int t1 ) {$/;"	f
+DataSpace_AddTamdOpt	cfacv.c	/^int DataSpace_AddTamdOpt ( DataSpace * ds, int ir, double g, double kt, double dt ) {$/;"	f
+DataSpace_BinaryReportRestraints	cfacv.c	/^void DataSpace_BinaryReportRestraints ( DataSpace * ds, int step, int outputlevel, FILE * fp ) {$/;"	f
+DataSpace_ComputeCVs	cfacv.c	/^int DataSpace_ComputeCVs ( DataSpace * ds ) {$/;"	f
+DataSpace_InitKnots	cfacv.c	/^int DataSpace_InitKnots ( DataSpace * ds, char * filename ) {$/;"	f
+DataSpace_ReportAll	cfacv.c	/^void DataSpace_ReportAll ( DataSpace * ds ) {$/;"	f
+DataSpace_ReportCV	cfacv.c	/^void DataSpace_ReportCV ( DataSpace * ds, int * active, double * res ) {$/;"	f
+DataSpace_ReportRestraints	cfacv.c	/^void DataSpace_ReportRestraints ( DataSpace * ds, int step, int outputlevel, FILE * fp ) {$/;"	f
+DataSpace_RestrainingForces	cfacv.c	/^int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {$/;"	f
+DataSpace_RestraintEnergy	cfacv.c	/^double DataSpace_RestraintEnergy ( DataSpace * ds ) {$/;"	f
+DataSpace_SetRestraints	cfacv.c	/^int DataSpace_SetRestraints ( DataSpace * ds, double * rval ) {$/;"	f
+DataSpace_SetupPairCalc	cfacv.c	/^int DataSpace_SetupPairCalc ( DataSpace * ds, double Ox, double Oy, double Oz, \\$/;"	f
+DataSpace_centerPos	cfacv.c	/^double * DataSpace_centerPos ( DataSpace * ds, int i ) {$/;"	f
+DataSpace_checkdata	cfacv.c	/^int DataSpace_checkdata ( DataSpace * ds ) {$/;"	f
+DataSpace_dump	cfacv.c	/^int DataSpace_dump ( DataSpace * ds ) {$/;"	f
+DataSpace_getN	cfacv.c	/^int DataSpace_getN ( DataSpace * ds ) {$/;"	f
+F	cfacv.h	/^  double ** F; \/\/ temp storage of cartesian aux variable forces$/;"	m	struct:DATASPACESTRUCT
+HARMONIC	cfacv.h	/^enum {HARMONIC, PERIODIC, NULL_RF};$/;"	e	enum:__anon2
+K	cfacv.h	/^  int K; \/\/ number of restraints$/;"	m	struct:DATASPACESTRUCT
+L	cfacv.h	/^  double L[3]; \/\/ simulation box size$/;"	m	struct:DATASPACESTRUCT
+LJPair	cfacv.c	/^void LJPair ( double * par, double r2, double * gr ) {$/;"	f
+ListToArray	cfacv.tcl	/^proc ListToArray {l} {$/;"	p
+ListToArray_Data	cfacv.tcl	/^proc ListToArray_Data { a l } {$/;"	p
+M	centers.h	/^  double M;$/;"	m	struct:ATOMCENTERSTRUCT
+M	cfacv.h	/^  int M; \/\/ number of CVs$/;"	m	struct:DATASPACESTRUCT
+MAXNBOR	cfacv.h	166;"	d
+M_SQRT3	measurements.h	11;"	d
+Max	cfacv.h	/^  double Min[3], Max[3];$/;"	m	struct:DATASPACESTRUCT
+Min	cfacv.h	/^  double Min[3], Max[3];$/;"	m	struct:DATASPACESTRUCT
+MyParanoiaCheck	cfacv.tcl	/^proc MyParanoiaCheck {ds msg} {$/;"	p
+N	cfacv.h	/^  int N; \/\/ number of centers$/;"	m	struct:DATASPACESTRUCT
+N	chapeau.h	/^  int N; \/\/ number of particles$/;"	m	struct:CHAPEAU
+NULL_CV	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, NULL_CV};$/;"	e	enum:__anon1
+NULL_RF	cfacv.h	/^enum {HARMONIC, PERIODIC, NULL_RF};$/;"	e	enum:__anon2
+NewDataSpace	cfacv.c	/^DataSpace * NewDataSpace ( int N, int M, int K, long int seed ) {$/;"	f
+New_atomCenterStruct	centers.c	/^atomCenterStruct * New_atomCenterStruct ( int n ) {$/;"	f
+New_centerStruct	centers.c	/^centerStruct * New_centerStruct ( int id, int maxN ) {$/;"	f
+New_cvStruct	cfacv.c	/^cvStruct * New_cvStruct ( int typ, int nC, int * ind ) {$/;"	f
+New_restrStruct	cfacv.c	/^restrStruct * New_restrStruct ( double k, double z, int nCV, double * cvc, char * rftypstr, double zmin, double zmax ) {$/;"	f
+New_smdOptStruct	cfacv.c	/^smdOptStruct * New_smdOptStruct ( double target, int t0, int t1, int periodic ) {$/;"	f
+New_tamdOptStruct	cfacv.c	/^tamdOptStruct * New_tamdOptStruct ( double g, double kt, double dt, int riftyp, double half_domain ) {$/;"	f
+Null_centerStruct	centers.c	/^centerStruct * Null_centerStruct ( void ) {$/;"	f
+O	cfacv.h	/^  double O[3]; \/\/ simulation box origin$/;"	m	struct:DATASPACESTRUCT
+PERIODIC	cfacv.h	/^enum {HARMONIC, PERIODIC, NULL_RF};$/;"	e	enum:__anon2
+Permutation	chapeau.h	/^  gsl_permutation * Permutation;$/;"	m	struct:CHAPEAU
+R	cfacv.h	/^  double ** R; \/\/ array of center cartesian coordinates R[i][0\/1\/2]$/;"	m	struct:DATASPACESTRUCT
+RESTRSTRUCT	cfacv.h	/^typedef struct RESTRSTRUCT {$/;"	s
+RFSTRINGS	cfacv.c	/^char * RFSTRINGS[NULL_RF] = {"HARMONIC", "PERIODIC"};$/;"	v
+RR	cfacv.h	/^  double *** RR; \/\/ array of intercenter distances components$/;"	m	struct:DATASPACESTRUCT
+SIN_THRESH	measurements.c	177;"	d	file:
+SMDOPTSTRUCT	cfacv.h	/^typedef struct SMDOPTSTRUCT {$/;"	s
+TAMDOPTSTRUCT	cfacv.h	/^typedef struct TAMDOPTSTRUCT {$/;"	s
+Tcl_DataSpace_InitKnots	cfacv.tcl	/^proc Tcl_DataSpace_InitKnots { ds filename } {$/;"	p
+Tcl_InitializePairCalc	cfacv.tcl	/^proc Tcl_InitializePairCalc { ds XSCFILE cutoff nlcutoff begin_evolve usetamdforces reportparamfreq spline_min nKnots splineoutputfile splineoutputfreq splineoutputlevel updateinterval } {$/;"	p
+Tcl_NewDataSpace	cfacv.tcl	/^proc Tcl_NewDataSpace { nC cvL rL seed } {$/;"	p
+Tcl_ObserveDataSpace	cfacv.tcl	/^proc Tcl_ObserveDataSpace { ds cntrSel frame } {$/;"	p
+Tcl_Reinitialize	cfacv.tcl	/^proc Tcl_Reinitialize { ds restartINP } {$/;"	p
+Tcl_UpdateDataSpace	cfacv.tcl	/^proc Tcl_UpdateDataSpace { ds lC groups first timestep } {$/;"	p
+Xi	cfacv.h	/^  unsigned short * Xi;$/;"	m	struct:DATASPACESTRUCT
+Z	cfacv.h	/^  double ** Z; \/\/ temp storage of cartesian aux variables$/;"	m	struct:DATASPACESTRUCT
+_CENTERS_H_	centers.h	2;"	d
+_CFACV_H_	cfacv.h	68;"	d
+_MEASUREMENTS_H_	measurements.h	2;"	d
+ac	cfacv.h	/^  atomCenterStruct ** ac; \/\/ defined in centers.h$/;"	m	struct:DATASPACESTRUCT
+accumZ	cfacv.h	/^  double ** accumZ;$/;"	m	struct:DATASPACESTRUCT
+alpha	chapeau.h	/^  double alpha;$/;"	m	struct:CHAPEAU
+assign_center_betas	cfacv.tcl	/^proc assign_center_betas { p includeH } {$/;"	p
+atomCenterStruct	centers.h	/^} atomCenterStruct;$/;"	t	typeref:struct:ATOMCENTERSTRUCT
+b	chapeau.h	/^  gsl_vector * b, * bbar;$/;"	m	struct:CHAPEAU
+bbar	chapeau.h	/^  gsl_vector * b, * bbar;$/;"	m	struct:CHAPEAU
+beginEvolveParameters	cfacv.h	/^  int beginEvolveParameters;$/;"	m	struct:DATASPACESTRUCT
+bin_sort	centers.c	/^int bin_sort ( int * bin, double * x, double * y, double * z, int nAtoms, int nCenters, int nCycles, $/;"	f
+calcforces	cfacv_tclforces.tcl	/^proc calcforces { } {$/;"	p
+centerStruct	centers.h	/^} centerStruct;$/;"	t	typeref:struct:CENTERSTRUCT
+centerStruct_SwapMembers	centers.c	/^void centerStruct_SwapMembers ( centerStruct * c, centerStruct * d, int i, int j ) {$/;"	f
+centerStruct_addMember	centers.c	/^void centerStruct_addMember ( centerStruct * c, int i ) {$/;"	f
+centerStruct_binnify	centers.c	/^void centerStruct_binnify ( centerStruct * c, int * bin, int * id, double * rg ) {$/;"	f
+centerStruct_randomSwapMember	centers.c	/^void centerStruct_randomSwapMember (centerStruct * c, centerStruct * d, int * i, int * j ) {$/;"	f
+centerStruct_rg	centers.c	/^void centerStruct_rg ( centerStruct * c, double * x, double * y, double * z ) {$/;"	f
+centerStruct_split	centers.c	/^void centerStruct_split ( centerStruct * c, double * x, double * y, double * z, int nAtom ) {$/;"	f
+center_selections	cfacv.tcl	/^proc center_selections { molID serArray } {$/;"	p
+cfacvBanner	cfacv.c	/^void cfacvBanner ( void ) {$/;"	f
+cfacv_banner	cfacv.tcl	/^proc cfacv_banner { argv } {$/;"	p
+ch	cfacv.h	/^  chapeau * ch;$/;"	m	struct:DATASPACESTRUCT
+chapeau	chapeau.h	/^} chapeau;$/;"	t	typeref:struct:CHAPEAU
+chapeau_alloc	chapeau.c	/^chapeau * chapeau_alloc ( int m, double rmin, double rmax, int npart ) {$/;"	f
+chapeau_increment_global_accumulators	chapeau.c	/^void chapeau_increment_global_accumulators ( chapeau * ch, int i, double * F ) {$/;"	f
+chapeau_increment_particle_sum	chapeau.c	/^void chapeau_increment_particle_sum ( chapeau * ch, int i, int j, double * Zij, double zij ) {$/;"	f
+chapeau_init_particle_sums	chapeau.c	/^void chapeau_init_particle_sums ( chapeau * ch ) {$/;"	f
+chapeau_output	chapeau.c	/^void chapeau_output ( chapeau * ch, int timestep ) {$/;"	f
+chapeau_pair_eval_g	chapeau.c	/^void chapeau_pair_eval_g ( chapeau * ch, double z, double * u, double * g_r ) {$/;"	f
+chapeau_setPeaks	chapeau.c	/^void chapeau_setPeaks ( chapeau * ch, double * peaks ) {$/;"	f
+chapeau_setupoutput	chapeau.c	/^void chapeau_setupoutput ( chapeau * ch, char * filename, int outputFreq, int outputLevel ) {$/;"	f
+chapeau_update_peaks	chapeau.c	/^void chapeau_update_peaks ( chapeau * ch, int nsamples, int timestep ) {$/;"	f
+cm	centers.h	/^  double cm[3];$/;"	m	struct:CENTERSTRUCT
+create_single_cv_restraints	cfacv.tcl	/^proc create_single_cv_restraints { ncv restrList restrPARAMS } {$/;"	p
+cv	cfacv.h	/^  cvStruct ** cv;$/;"	m	struct:DATASPACESTRUCT
+cvStruct	cfacv.h	/^} cvStruct;$/;"	t	typeref:struct:CVSTRUCT
+cv_getityp	cfacv.c	/^int cv_getityp ( char * typ ) {$/;"	f
+cv_getstyp	cfacv.c	/^char * cv_getstyp ( int ityp ) {$/;"	f
+cvc	cfacv.h	/^  double * cvc;          \/\/ the coefficient each collective variable$/;"	m	struct:RESTRSTRUCT
+cvc_getcvi	cfacv.tcl	/^proc cvc_getcvi { cvc } {$/;"	p
+doAnalyticalCalc	cfacv.h	/^  int doAnalyticalCalc; \/\/ indicates whether or not we are to perform$/;"	m	struct:DATASPACESTRUCT
+dr	chapeau.h	/^  double rmin, rmax, dr, idr;  \/\/ range and increment or argument of$/;"	m	struct:CHAPEAU
+dt	cfacv.h	/^  double dt;           \/\/ timestep (ps)$/;"	m	struct:TAMDOPTSTRUCT
+energyFunc	cfacv.h	/^  restrEnergyFunc energyFunc;   \/\/ pointer to the restraining energy function$/;"	m	struct:RESTRSTRUCT
+evolveAnalyticalParameters	cfacv.h	/^  int evolveAnalyticalParameters;$/;"	m	struct:DATASPACESTRUCT
+f	cfacv.h	/^  double f;              \/\/ force on restraint$/;"	m	struct:RESTRSTRUCT
+forceFunc	cfacv.h	/^  restrForceFunc forceFunc;     \/\/ pointer to the restraining force function$/;"	m	struct:RESTRSTRUCT
+gamma	cfacv.h	/^  double gamma;        \/\/ fictitious friction (1\/ps)$/;"	m	struct:TAMDOPTSTRUCT
+generate_cv	cfacv.tcl	/^proc generate_cv { cvOpt p } {$/;"	p
+getArg	cfacv.tcl	/^proc getArg { argv key altkey def } {$/;"	p
+ginv	cfacv.h	/^  double ginv;         \/\/ inverse friction$/;"	m	struct:TAMDOPTSTRUCT
+gr	cfacv.h	/^  double ** gr;  \/\/ cartesian gradients of this CV wrt contributing$/;"	m	struct:CVSTRUCT
+gr	cfacv.h	/^  double ** gr;\/\/ array of intercenter pe gradients divided by r2$/;"	m	struct:DATASPACESTRUCT
+hL	cfacv.h	/^  double hL[3]; \/\/ simulation box half-size$/;"	m	struct:DATASPACESTRUCT
+half_domain	cfacv.h	/^  double half_domain;  \/\/ half-domain size of periodic CV$/;"	m	struct:TAMDOPTSTRUCT
+half_domain	cfacv.h	/^  double half_domain;$/;"	m	struct:RESTRSTRUCT
+handle_pair	cfacv.c	/^double handle_pair ( DataSpace * ds, int i, int j ) {$/;"	f
+hits	chapeau.h	/^  int * hits;  \/\/ number of hits in each bin value of r$/;"	m	struct:CHAPEAU
+iK	cfacv.h	/^  int iK;$/;"	m	struct:DATASPACESTRUCT
+iM	cfacv.h	/^  int iM;$/;"	m	struct:DATASPACESTRUCT
+iN	centers.h	/^  int iN;$/;"	m	struct:CENTERSTRUCT
+iN	cfacv.h	/^  int iN;$/;"	m	struct:DATASPACESTRUCT
+id	centers.h	/^  int id;$/;"	m	struct:CENTERSTRUCT
+idr	chapeau.h	/^  double rmin, rmax, dr, idr;  \/\/ range and increment or argument of$/;"	m	struct:CHAPEAU
+increment	cfacv.h	/^  double increment;    \/\/ increment of steered variable per timestep$/;"	m	struct:SMDOPTSTRUCT
+ind	centers.h	/^  int * ind;$/;"	m	struct:ATOMCENTERSTRUCT
+ind	cfacv.h	/^  int * ind;     \/\/ indices in the atom\/atom-group array generated by$/;"	m	struct:CVSTRUCT
+initialize_base_template	cfacv.tcl	/^proc initialize_base_template { pdb } {$/;"	p
+initval	cfacv.h	/^  double initval;      \/\/ initial value of steered variable$/;"	m	struct:SMDOPTSTRUCT
+intArrayToList	cfacv.tcl	/^proc intArrayToList {a n} {$/;"	p
+intListToArray	cfacv.tcl	/^proc intListToArray {l} {$/;"	p
+intListToArray_Data	cfacv.tcl	/^proc intListToArray_Data {a l} {$/;"	p
+invinterval	cfacv.h	/^  double invinterval;  \/\/ 1\/(t1-t0)$/;"	m	struct:SMDOPTSTRUCT
+k	cfacv.h	/^  double k;               \/\/ spring constant$/;"	m	struct:RESTRSTRUCT
+kT	cfacv.h	/^  double kT;           \/\/ fictitious thermal energy (kcal\/mol)$/;"	m	struct:TAMDOPTSTRUCT
+lam	chapeau.h	/^  gsl_vector * lam;    \/\/ vector of coefficients -- these are what OTFP optimizes!$/;"	m	struct:CHAPEAU
+lambar	chapeau.h	/^  gsl_vector * lambar; \/\/ $/;"	m	struct:CHAPEAU
+lamdt	cfacv.h	/^  double lamdt;$/;"	m	struct:DATASPACESTRUCT
+lamfric	cfacv.h	/^  double lamfric;$/;"	m	struct:DATASPACESTRUCT
+left	centers.h	/^  pcenterStruct left; \/* only used in residue blocking *\/$/;"	m	struct:CENTERSTRUCT
+left	chapeau.c	/^double left ( chapeau * ch, int m, double z, double zmin ) {$/;"	f
+m	centers.h	/^  double * m;$/;"	m	struct:ATOMCENTERSTRUCT
+m	chapeau.h	/^  int m; \/\/ number of peaks$/;"	m	struct:CHAPEAU
+mList	centers.h	/^  int * mList;$/;"	m	struct:CENTERSTRUCT
+main	catbinsp.c	/^int main ( int argc, char * argv[] ) {$/;"	f
+max	cfacv.h	/^  double max;$/;"	m	struct:RESTRSTRUCT
+maxN	centers.h	/^  int maxN;$/;"	m	struct:CENTERSTRUCT
+min	cfacv.h	/^  double min;             \/\/ min, max, half_domain for periodic boundaries$/;"	m	struct:RESTRSTRUCT
+mt	cfacv.h	/^  double ** mt; \/\/ metric tensor$/;"	m	struct:DATASPACESTRUCT
+my_binfopen	cfacv.c	/^FILE * my_binfopen ( char * name, char * code, unsigned int outputLevel, DataSpace * ds ) {$/;"	f
+my_fopen	cfacv.c	/^FILE * my_fopen ( char * name, char * code ) {$/;"	f
+my_getangle	measurements.c	/^double my_getangle ( double p0[3], double p1[3], double p2[3], double g0[3], double g1[3], double g2[3] ) {$/;"	f
+my_getbond	measurements.c	/^double my_getbond ( double p0[3], double p1[3], double g0[3], double g1[3] ) {$/;"	f
+my_getcellsize	cfacv.tcl	/^proc my_getcellsize { XSCFILE } {$/;"	p
+my_getdihed	measurements.c	/^double my_getdihed ( double p1[3], double p2[3], double p3[3], double p4[3],$/;"	f
+my_getorigin	cfacv.tcl	/^proc my_getorigin { XSCFILE } {$/;"	p
+my_whitenoise	measurements.c	/^double my_whitenoise ( unsigned short xsubi[3]  ) {$/;"	f
+mycopy	measurements.c	/^int mycopy ( double a[3], double b[3] ) {$/;"	f
+mycross	measurements.c	/^int mycross ( double c[3], double a[3], double b[3] ) {$/;"	f
+myddot	measurements.c	/^int myddot ( double A[][3], double a[3] ) {$/;"	f
+mydiff	measurements.c	/^int mydiff ( double c[3], double a[3], double b[3] ) {$/;"	f
+mydot	measurements.c	/^double mydot ( double a[3], double b[3] ) {$/;"	f
+mymatvec	measurements.c	/^int mymatvec ( double z[3], double A[][3], double a[3] ) {$/;"	f
+mynorm	measurements.c	/^double mynorm ( double a[3] ) {$/;"	f
+myscale	measurements.c	/^int myscale ( double x, double a[3] ) {$/;"	f
+mysum	measurements.c	/^int mysum ( double c[3], double a[3], double b[3] ) {$/;"	f
+mytdot	measurements.c	/^int mytdot ( double A[][3], double a[3], double b[3] ) {$/;"	f
+n	centers.h	/^  int n;$/;"	m	struct:ATOMCENTERSTRUCT
+nC	cfacv.h	/^  int nC;        \/\/ count of atoms or atom-groups that contribute to this CV$/;"	m	struct:CVSTRUCT
+nCV	cfacv.h	/^  int nCV;               \/\/ number of collective variables in SYSTEM$/;"	m	struct:RESTRSTRUCT
+newlam	chapeau.h	/^  gsl_vector * newlam; \/\/$/;"	m	struct:CHAPEAU
+nl	cfacv.h	/^  int ** nl;$/;"	m	struct:DATASPACESTRUCT
+nlDispThresh	cfacv.h	/^  double nlDispThresh;$/;"	m	struct:DATASPACESTRUCT
+nlTrig	cfacv.h	/^  int nlTrig;$/;"	m	struct:DATASPACESTRUCT
+nl_squaredPairCutoff	cfacv.h	/^  double nl_squaredPairCutoff;$/;"	m	struct:DATASPACESTRUCT
+nlc	cfacv.h	/^  int * nlc;$/;"	m	struct:DATASPACESTRUCT
+noise	cfacv.h	/^  double noise;        \/\/ noise$/;"	m	struct:TAMDOPTSTRUCT
+nsamples	cfacv.h	/^  int nsamples;$/;"	m	struct:DATASPACESTRUCT
+ofp	chapeau.h	/^  FILE * ofp;$/;"	m	struct:CHAPEAU
+outputFreq	chapeau.h	/^  int outputFreq;$/;"	m	struct:CHAPEAU
+outputLevel	chapeau.h	/^  int outputLevel;$/;"	m	struct:CHAPEAU
+output_cv	cfacv.tcl	/^proc output_cv { cvList fileName } {$/;"	p
+pcenterStruct	centers.h	/^typedef struct CENTERSTRUCT * pcenterStruct;$/;"	t	typeref:struct:CENTERSTRUCT
+periodic	cfacv.h	/^  int periodic;        \/\/ flag indicating whether restraint is$/;"	m	struct:TAMDOPTSTRUCT
+pt	measurements.c	/^void pt ( double * angles, double * hx, double * hy, double * hz, double * ox, double * oy, double * oz, int n) {$/;"	f
+re_Harmonic	cfacv.c	/^double re_Harmonic ( double k, double v, double z, double half_domain ) {$/;"	f
+re_HarmonicCartPBC	cfacv.c	/^double re_HarmonicCartPBC ( double k, double v, double z, double half_domain ) {$/;"	f
+re_Periodic	cfacv.c	/^double re_Periodic ( double k, double v, double z, double half_domain ) {$/;"	f
+read_centersPDB	cfacv.tcl	/^proc read_centersPDB { templatePdb serArr mass } {$/;"	p
+read_centersVMD	cfacv.tcl	/^proc read_centersVMD { pL mL fileName molID } {$/;"	p
+read_centers_residLists	cfacv.tcl	/^proc read_centers_residLists { ridL fileName } {$/;"	p
+read_cvs	cfacv.tcl	/^proc read_cvs { cv_file cv_list nMon } {$/;"	p
+read_restraints	cfacv.tcl	/^proc read_restraints { restr_file ncv restrList } {$/;"	p
+reportParamFreq	cfacv.h	/^  int reportParamFreq;$/;"	m	struct:DATASPACESTRUCT
+report_centers	cfacv.tcl	/^proc report_centers { p fileName } {$/;"	p
+restr	cfacv.h	/^  restrStruct ** restr;$/;"	m	struct:DATASPACESTRUCT
+restrEnergyFunc	cfacv.h	/^typedef double (*restrEnergyFunc) ( double, double, double, double );$/;"	t
+restrForceFunc	cfacv.h	/^typedef double (*restrForceFunc) ( double, double, double, double );$/;"	t
+restrStruct	cfacv.h	/^} restrStruct;$/;"	t	typeref:struct:RESTRSTRUCT
+restr_getcvc	cfacv.tcl	/^proc restr_getcvc { r } {$/;"	p
+restr_getopt	cfacv.tcl	/^proc restr_getopt { r key altkey def } {$/;"	p
+restr_getoptlist	cfacv.tcl	/^proc restr_getoptlist { r } {$/;"	p
+rf_Harmonic	cfacv.c	/^double rf_Harmonic ( double k, double v, double z, double half_domain ) {$/;"	f
+rf_HarmonicCartPBC	cfacv.c	/^double rf_HarmonicCartPBC ( double k, double v, double z, double half_domain ) {$/;"	f
+rf_Periodic	cfacv.c	/^double rf_Periodic ( double k, double v, double z, double half_domain ) {$/;"	f
+rf_getityp	cfacv.c	/^int rf_getityp ( char * typ ) {$/;"	f
+rf_getstyp	cfacv.c	/^char * rf_getstyp ( int ityp ) {$/;"	f
+rfityp	cfacv.h	/^  int rfityp;                   \/\/ type of the restraining function$/;"	m	struct:RESTRSTRUCT
+rg	centers.h	/^  double rg;$/;"	m	struct:CENTERSTRUCT
+rgyr_sort	centers.c	/^int rgyr_sort (centerStruct * c, int * bin, double * x, double * y, double * z, int nAtom, int minAtom, double * rg, unsigned int Seed  ) {$/;"	f
+right	centers.h	/^  pcenterStruct right;$/;"	m	struct:CENTERSTRUCT
+right	chapeau.c	/^double right ( chapeau * ch, int m, double z, double zmin ) {$/;"	f
+rmax	chapeau.h	/^  double rmin, rmax, dr, idr;  \/\/ range and increment or argument of$/;"	m	struct:CHAPEAU
+rmin	chapeau.h	/^  double rmin, rmax, dr, idr;  \/\/ range and increment or argument of$/;"	m	struct:CHAPEAU
+rr	cfacv.h	/^  double ** rr;\/\/ array of intercenter squared distances$/;"	m	struct:DATASPACESTRUCT
+s	chapeau.h	/^  double *** s;  \/\/ [particle][dimension][peak]$/;"	m	struct:CHAPEAU
+smdOpt	cfacv.h	/^  smdOptStruct * smdOpt;   \/\/ pointer to the smd options structure$/;"	m	struct:RESTRSTRUCT
+smdOptInit	cfacv.c	/^int smdOptInit ( smdOptStruct * smd, double initval, int periodic ) {$/;"	f
+smdOptStruct	cfacv.h	/^} smdOptStruct;$/;"	t	typeref:struct:SMDOPTSTRUCT
+smdUpdate	cfacv.c	/^double smdUpdate ( double z, double increment, int OK ) {$/;"	f
+smdUpdateFunc	cfacv.h	/^typedef double (*smdUpdateFunc) (double, double, int );$/;"	t
+smdUpdate_Periodic	cfacv.c	/^double smdUpdate_Periodic ( double z, double increment, int OK ) {$/;"	f
+squaredPairCutoff	cfacv.h	/^  double squaredPairCutoff;$/;"	m	struct:DATASPACESTRUCT
+t0	cfacv.h	/^  int t0;              \/\/ timestep to begin steering$/;"	m	struct:SMDOPTSTRUCT
+t1	cfacv.h	/^  int t1;              \/\/ timestep to end steering (and hold restraint fixed)$/;"	m	struct:SMDOPTSTRUCT
+tamdOpt	cfacv.h	/^  tamdOptStruct * tamdOpt; \/\/ pointer to the tamd options structure$/;"	m	struct:RESTRSTRUCT
+tamdOptStruct	cfacv.h	/^} tamdOptStruct;$/;"	t	typeref:struct:TAMDOPTSTRUCT
+tamdUpdate	cfacv.c	/^double tamdUpdate ( DataSpace * ds, double z, double f, tamdOptStruct * tamd, double * noise, double * res ) {$/;"	f
+tamd_noise	cfacv.h	/^  double tamd_noise;$/;"	m	struct:RESTRSTRUCT
+tamd_restraint	cfacv.h	/^  double tamd_restraint;$/;"	m	struct:RESTRSTRUCT
+target	cfacv.h	/^  double target;       \/\/ target value of steered variable$/;"	m	struct:SMDOPTSTRUCT
+typ	cfacv.h	/^  int typ;       \/\/ collective variable type$/;"	m	struct:CVSTRUCT
+u	cfacv.h	/^  double u;              \/\/ potential energy stored by restraint$/;"	m	struct:RESTRSTRUCT
+update	cfacv.h	/^  smdUpdateFunc update; \/\/ function used to update steered variable$/;"	m	struct:SMDOPTSTRUCT
+updateinterval	chapeau.h	/^  int updateinterval;$/;"	m	struct:CHAPEAU
+useTAMDforces	cfacv.h	/^  int useTAMDforces; \/\/ indicates whether tamd forces are used to$/;"	m	struct:DATASPACESTRUCT
+val	cfacv.h	/^  double val;             \/\/ restraint value$/;"	m	struct:RESTRSTRUCT
+val	cfacv.h	/^  double val;    \/\/ value of the CV$/;"	m	struct:CVSTRUCT
+within_range	cfacv.tcl	/^proc within_range {selList selB r} {$/;"	p
+z	cfacv.h	/^  double z;               \/\/ target value$/;"	m	struct:RESTRSTRUCT
