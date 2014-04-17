@@ -3,7 +3,7 @@
 //#define _PARANOIA_ 1
 
 void cfacvBanner ( void ) {
-  printf("CFACV/C) Version %.2f\n",CFACVC_VERSION);
+  printf("CFACV/C) Version (Git Hash): %s\n",VERSION);
 }
 
 FILE * my_fopen ( char * name, char * code ) {
@@ -532,7 +532,6 @@ int DataSpace_ComputeCVs ( DataSpace * ds ) {
   return -1;
 }
 
-
 int DataSpace_InitKnots ( DataSpace * ds, char * filename ) {
   if (ds) {
     chapeau * ch = ds->ch;
@@ -568,11 +567,14 @@ double handle_pair ( DataSpace * ds, int i, int j ) {
   }
   ds->gr[i][j]=ds->gr[j][i]=0.0;
   if ( r2 < ds->squaredPairCutoff ) {
-    R=sqrt(r2);
-    chapeau_pair_eval_g(ch,R,&u,&gr_r);
-    ds->gr[i][j]=gr_r;
-    ds->gr[j][i]=gr_r;
-    chapeau_increment_particle_sum(ch,i,j,&ds->RR[i][j][0],R);
+    //Alexis// I add this if to avoid interpolations below rmin
+    if ( r2 >= ch->rmin*ch->rmin ) {
+      R=sqrt(r2);
+      chapeau_pair_eval_g(ch,R,&u,&gr_r);
+      ds->gr[i][j]=gr_r;
+      ds->gr[j][i]=gr_r;
+      chapeau_increment_particle_sum(ch,i,j,&ds->RR[i][j][0],R);
+    }
   }
   ds->rr[i][j]=r2;
   ds->rr[j][i]=r2;
@@ -853,7 +855,6 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
   }
   return -1;
 }
-
 
 double DataSpace_RestraintEnergy ( DataSpace * ds ) {
   if (ds) {

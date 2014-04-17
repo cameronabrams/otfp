@@ -11,6 +11,10 @@ OBJ += centers.o
 OBJ += cfacv.o
 OBJ += cfacv_wrap.o
 
+GIT_VERSION := $(shell git describe --abbrev=4 --dirty --always 2>/dev/null || cat version 2>/dev/null || echo unknown )
+CCFLAGS+=-DVERSION=\"$(GIT_VERSION)\"
+
+
 cfacv.so:  $(OBJ) cfacv_wrap.o
 	$(CC) $(CCFLAGS) -shared -o $@ $^ $(LIBS)
         
@@ -20,14 +24,17 @@ cfacv.so:  $(OBJ) cfacv_wrap.o
 cfacv_wrap.c: cfacv.c cfacv.i cfacv.h
 	swig -tcl8 cfacv.i
 
+version: force
+	@echo '$(GIT_VERSION)' | cmp -s - $@ || echo '$(GIT_VERSION)' > $@
+ 
 measurements.o : measurements.h
 chapeau.o : chapeau.h
 centers.o : centers.h
 cfacf.h : measurements.h chapeau.h centers.h
-cfacv.o : cfacv.h
+cfacv.o : cfacv.h version
+        
 
-
-.PHONY: clean
+.PHONY: clean force
 
 clean:
 	rm -f *.o *.so cfacv_wrap.c

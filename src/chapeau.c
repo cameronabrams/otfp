@@ -49,14 +49,43 @@ void chapeau_setPeaks ( chapeau * ch, double * peaks ) {
 }
 
 double right ( chapeau * ch, int m, double z, double zmin ) {
+/* If m is the left bin of z (i.e. m=(int)((z-ch->rmin)/ch->dr) )
+   give the fraction of dr to the nearest right bin:
+  
+     return           /-x-/
+ o    x/dr           z        
+ |               o   |        
+ |       o       |   |   o    
+ |       |       |   |   |    
+ |       |       |   v   |    
+ +-------+-------+-------+--- 
+ 0       1      m=2      3    
+ rmin  rmin+dr 
+
+*/
   return 1.0-ch->idr*(z-(m*ch->dr+zmin));
 }
 
 double left ( chapeau * ch, int m, double z, double zmin ) {
+/* If m is the right bin of z (i.e. m=(int)((z-ch->rmin)/ch->dr)+1 )
+   give the fraction of dr to the nearest right bin:
+  
+     return      /-x-/
+ o    x/dr           z   
+ |               o   |   
+ |       o       |   |   o
+ |       |       |   |   |
+ |       |       |   v   |
+ +-------+-------+-------+---
+ 0       1       2     m=3
+ rmin  rmin+dr 
+
+*/
   return ch->idr*(z-((m-1)*ch->dr+zmin));
 }
 
 void chapeau_pair_eval_g ( chapeau * ch, double z, double * u, double * g_r ) {
+  // interpolation at z of the value of u and g_r
   int m=(int)((z-ch->rmin)/ch->dr);
 /*   fprintf(stdout,"### z %g z[%i] %g : interpolating between [%i](%g,%g)(%g) and [%i](%g,%g)(%g)\n", */
 /* 	  z,m,gsl_vector_get(ch->lam,m),m,ch->rmin+m*ch->dr, */

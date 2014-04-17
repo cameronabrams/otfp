@@ -67,8 +67,6 @@
 #ifndef _CFACV_H_
 #define _CFACV_H_
 
-#define CFACVC_VERSION 0.10
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
