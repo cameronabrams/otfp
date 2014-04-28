@@ -42,6 +42,7 @@ DataSpace_centerPos	cfacv.c	/^double * DataSpace_centerPos ( DataSpace * ds, int
 DataSpace_checkdata	cfacv.c	/^int DataSpace_checkdata ( DataSpace * ds ) {$/;"	f
 DataSpace_dump	cfacv.c	/^int DataSpace_dump ( DataSpace * ds ) {$/;"	f
 DataSpace_getN	cfacv.c	/^int DataSpace_getN ( DataSpace * ds ) {$/;"	f
+DataSpace_pairmasks	cfacv.c	/^int * DataSpace_pairmasks ( DataSpace * ds ) {$/;"	f
 F	cfacv.h	/^  double ** F; \/\/ temp storage of cartesian aux variable forces$/;"	m	struct:DATASPACESTRUCT
 GCC_HASCLASSVISIBILITY	cfacv_wrap.c	82;"	d	file:
 HARMONIC	cfacv.h	/^enum {HARMONIC, PERIODIC, NULL_RF};$/;"	e	enum:__anon4
@@ -426,6 +427,7 @@ m	centers.h	/^  double * m;$/;"	m	struct:ATOMCENTERSTRUCT
 m	chapeau.h	/^  int m; \/\/ number of peaks$/;"	m	struct:CHAPEAU
 mList	centers.h	/^  int * mList;$/;"	m	struct:CENTERSTRUCT
 main	catbinsp.c	/^int main ( int argc, char * argv[] ) {$/;"	f
+mask	chapeau.h	/^  int * mask;  \/\/ [particle]$/;"	m	struct:CHAPEAU
 max	cfacv.h	/^  double max;$/;"	m	struct:RESTRSTRUCT
 maxN	centers.h	/^  int maxN;$/;"	m	struct:CENTERSTRUCT
 method	cfacv_wrap.c	/^  swig_wrapper   method;$/;"	m	struct:swig_method	file:
@@ -489,7 +491,7 @@ pvalue	cfacv_wrap.c	/^    void   *pvalue;$/;"	m	struct:swig_const_info	file:
 re_Harmonic	cfacv.c	/^double re_Harmonic ( double k, double v, double z, double half_domain ) {$/;"	f
 re_HarmonicCartPBC	cfacv.c	/^double re_HarmonicCartPBC ( double k, double v, double z, double half_domain ) {$/;"	f
 re_Periodic	cfacv.c	/^double re_Periodic ( double k, double v, double z, double half_domain ) {$/;"	f
-read_centersPDB	cfacv.tcl	/^proc read_centersPDB { templatePdb serArr mass } {$/;"	p
+read_centersPDB	cfacv.tcl	/^proc read_centersPDB { templatePdb serArr mass mk pk} {$/;"	p
 read_centersVMD	cfacv.tcl	/^proc read_centersVMD { pL mL fileName molID } {$/;"	p
 read_centers_residLists	cfacv.tcl	/^proc read_centers_residLists { ridL fileName } {$/;"	p
 read_cvs	cfacv.tcl	/^proc read_cvs { cv_file cv_list nMon } {$/;"	p

@@ -161,7 +161,7 @@ smdOptStruct * New_smdOptStruct ( double target, int t0, int t1, int periodic );
 restrStruct * New_restrStruct ( double k, double z, int nCV, double * cvc, char * rftypstr, double zmin, double zmax  );
 
 #ifndef MAXNBOR
-#define MAXNBOR 100
+#define MAXNBOR 250
 #endif
 
 typedef struct DATASPACESTRUCT {

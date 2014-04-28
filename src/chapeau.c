@@ -22,6 +22,8 @@ chapeau * chapeau_alloc ( int m, double rmin, double rmax, int npart ) {
       ch->s[i][d]=(double*)calloc(m,sizeof(double));
     }
   }
+
+  ch->mask=(int*)calloc(npart,sizeof(int));
   
   ch->b=gsl_vector_calloc(m);
   ch->A=gsl_matrix_calloc(m,m);

@@ -346,6 +346,11 @@ int DataSpace_getN ( DataSpace * ds ) {
   else return -1;
 }
 
+int * DataSpace_pairmasks ( DataSpace * ds ) {
+  if (ds) {return ds->ch->mask;}
+  return NULL;
+}
+ 
 double * DataSpace_centerPos ( DataSpace * ds, int i ) {
   if (ds) {
     if (i<ds->N) {
@@ -738,6 +743,10 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 	  nlc=ds->nlc;
 	  nlc[i]=0;
 	  for (j=i+1;j<N;j++) {
+
+            // only when the sum is cero the interaction is count
+            if (ds->ch->mask[i] + ds->ch->mask[j]) continue;
+
 	    r2=handle_pair(ds,i,j);
 	    // add to i's neighborlist
 	    if ( r2 < ds->nl_squaredPairCutoff ) {
@@ -747,6 +756,7 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 		exit(-1);
 	      }
 	    }
+
 	  }
 	  // FINALIZE this time-step's particle-i tallies
 	  chapeau_increment_global_accumulators(ch,i,&ds->F[i][0]);

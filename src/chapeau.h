@@ -30,6 +30,12 @@ typedef struct CHAPEAU {
 
   // single-particle-sums; initialize at every step, every particle
   double *** s;  // [particle][dimension][peak]
+  
+  // This mask allows to control each interacion.
+  // each mask item have the value 0,-1,1 or 2
+  // Interaction is done when mask[i]+mask[j]=0
+  // Here int because unsigned is not safe with swig
+  int * mask;  // [particle]
 
   // global accumulators
   gsl_vector * b, * bbar;

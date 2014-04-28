@@ -2,6 +2,8 @@
 # Cameron F Abrams
 # 2009-14
 
+#### Check for necessary parameters set in main config. file
+
 # # Runing alone
 # set CFACV_BASEDIR $env(PWD)
 # set DIRS_INPUT ..
@@ -28,29 +30,30 @@
  
 # # Runing from NAMD
 # set CFACV_BASEDIR $PWD/OTFP
-
+ 
 # will die if CFACV_BASEDIR is invalid
 source ${CFACV_BASEDIR}/cfacv.tcl
 
 cfacv_banner NAMD
 
-# Check for necessary parameters set in main config. file
 set tripped 0
 foreach key {labelPDB cvINP} {
     if {![info exists $key]} {
 	print "CFACV) ERROR: you must set $key in the NAMD config. file."
-	set tripped 1
+	exit
     }
 }
-if {$tripped} {
-    exit
-}
+if {![info exists pairmask]} {set pairmask ""}
+
+
+
+#### Get the groups using the addgroup of tclforces
 
 set serArray {}; # must have for addgroup
 set masses {}
 
 # Read the template PDB file that identifies subdomain memberships
-set nCntr [read_centersPDB $labelPDB serArray masses]
+set nCntr [read_centersPDB $labelPDB serArray masses mask pairmask]
 #nCntr is the number of centers
 #serArray is the atom serial list of each group
 #masses is the atom mass list of each group
@@ -116,6 +119,11 @@ if {[info exists CFACV_doAnalyticalCalc] && $CFACV_doAnalyticalCalc == 1} {
     Tcl_InitializePairCalc $ds $XSCFILE $CUTOFF $NLCUTOFF $BEGINEVOLVEPARAMETERS $USETAMDFORCES $REPORTPARAMFREQ $SPLINEMIN $NKNOTS $BINREPORTPARAMFILE $BINREPORTPARAMFREQ $BINOUTPUTLEVEL $LAMUPDATEINTERVAL
 
     if {[info exists initKnotsINP]} {Tcl_DataSpace_InitKnots $ds $initKnotsINP}
+
+    # Pair potentinal interaction Mask
+    intListToArray_Data [DataSpace_pairmasks $ds ] $mask
+    print "CFACV) The mask interaction is $mask"
+              
 }
 
 # read z values from a restart file

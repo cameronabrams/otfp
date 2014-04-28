@@ -163,9 +163,11 @@ proc intArrayToList {a n} {
 #  return value is the number of centers
 #
 ###############################################################
-proc read_centersPDB { templatePdb serArr mass } {
+proc read_centersPDB { templatePdb serArr mass mk pk} {
     upvar $serArr serArray
     upvar $mass masses
+    upvar $mk mask
+    upvar $pk pairmask
 
     # Open and read the pdb. Put all it in lines variable.
     set inStream [open $templatePdb r]
@@ -175,32 +177,25 @@ proc read_centersPDB { templatePdb serArr mass } {
 
     # Get list indices with the center numbers and Nmon as the number of
     # centers
-    set n 0
     set indices {}
     foreach line $lines {
 	set cardstr [string range $line 0 3]
-	set occustr [string trim [string range $line 54 59]]
 	set betastr [string trim [string range $line 60 65]]
-	#print "o|$occustr|b|$betastr|"
-	#if {$cardstr eq "ATOM" && $betastr ne "0.00"} 
+	# if the beta field is nonzero, it is assumed to be an integer
+	# that indicates which center this atom belongs to
 	if {([string equal $cardstr "ATOM"]) && [expr 0==[string equal $betastr "0.00"]]} {
-	    set t [expr int($betastr)-1]
-#	    print "DB: found betastr |$betastr| => group $t"
-	    set index [lsearch $indices $t]
-	    if { [expr $index == -1] } {
-		lappend indices $t
-	    }
-	}
-	incr n
+          lappend indices [expr int($betastr)-1]
+        }
     }
-    set indices [lsort -integer $indices]
+    set indices [lsort -integer -unique $indices]
     set nMon [llength $indices]
     print "DB: read_centersPDB: indices $indices nMon $nMon"
 
-    # contruct the void list of masses and atom serial ID
+    # contruct the void list of masses, atom serial and mask ID
     for {set i 0} {$i < $nMon} {incr i} {
 	lappend serArray {}
 	lappend masses 0.0
+        lappend mask 0
     }
 
     # append list of masses and serials ID to each group index
@@ -208,19 +203,14 @@ proc read_centersPDB { templatePdb serArr mass } {
     foreach line $lines {
 	set cardstr [string range $line 0 3]
 	set serlstr [string trim [string range $line 5 11]]
-        # occustr is used to hold atomic mass in amu.
-	set occustr [string trim [string range $line 54 59]]
+	set occustr [string trim [string range $line 54 59]] ;# used to hold atomic mass in amu.
 	set betastr [string trim [string range $line 60 65]]
-	# if the beta field is nonzero, it is assumed to be an integer
-	# that indicates which center this atom belongs to
-	#if {$cardstr eq "ATOM" && $betastr ne "0.00"} 
 	if {([string equal $cardstr "ATOM"]) && [expr 0==[string equal $betastr "0.00"]]} {
-	    # identify which center to which this atom belongs
-	    set t [expr int($betastr)-1]
-	    # extract that center's current list of atom indices from the list of lists
-	    set nlist [lindex $serArray $t]
-	    # add this index to the list; index is serial-1
+	    
+	    set t [expr int($betastr)-1] ; #Center index
+	    set nlist [lindex $serArray $t] ; # get atom index list for center $t
 
+	    # add this index to the list; index is serial-1
 	    # since begining with 100000, serial numbers are stored and
 	    # read in hex, need to check whether this is a hex number
 	    # -- I'll do this by seeing if it is not an integer
@@ -230,14 +220,33 @@ proc read_centersPDB { templatePdb serArr mass } {
 	    } else {
 		set serl [expr 0x$serlstr]
 	    }
-	
 	    lappend nlist $serl
 	    # return the newly appended list of indices to the list of lists
 	    set serArray [lreplace $serArray $t $t $nlist]
+
 	    # update the mass of this pseudoatom
 	    set am [expr double($occustr)]
-	#    print "DB: read_centersPDB: atom serial $serlstr mass $am to mon $t"
 	    set masses [lreplace $masses $t $t [expr [lindex $masses $t] + $am]]
+
+
+            if {[expr 0==[string equal $pairmask ""]]} {
+              # Here I assign a mask value to each atom.
+              # Each atom of the center have to be the same resid ID in templatePdb
+              # This value can be -1,0,1 or 2
+              # Interaction occur only when mask[i]+mask[j]=0
+              # The variable pairmask have two resnames and only the 
+              # couples with that two names will interac. For example:
+              # if the sistem have 6 centers with resides "A  B  C  A  B  D"
+              # then if pairmask is "A A" the mask is       "0  2  2  0  2  2"
+              # then if pairmask is "A B" the mask is       "1 -1  2  1 -1  2"
+              set aux=0
+              if {[string equal $resname [lindex $pairmask 0]]} {set aux [expr $aux+1]}
+              if {[string equal $resname [lindex $pairmask 1]]} {set aux [expr $aux-1]}
+              if {[expr -1==[lsearch $pairmask $resname]]} {set aux 2}
+              set mask [lreplace $mask $t $t $aux]
+            }
+
+
 	}
 	incr n
     }
@@ -246,6 +255,9 @@ proc read_centersPDB { templatePdb serArr mass } {
 #    print "DB: serArray : $serArray"
     return $nMon
 }
+
+
+
 
 proc center_selections { molID serArray } {
     set p {}
