@@ -203,6 +203,7 @@ proc read_centersPDB { templatePdb serArr mass mk pk} {
     foreach line $lines {
 	set cardstr [string range $line 0 3]
 	set serlstr [string trim [string range $line 5 11]]
+	set resname [string trim [string range $line 13 15]]
 	set occustr [string trim [string range $line 54 59]] ;# used to hold atomic mass in amu.
 	set betastr [string trim [string range $line 60 65]]
 	if {([string equal $cardstr "ATOM"]) && [expr 0==[string equal $betastr "0.00"]]} {
@@ -239,7 +240,7 @@ proc read_centersPDB { templatePdb serArr mass mk pk} {
               # if the sistem have 6 centers with resides "A  B  C  A  B  D"
               # then if pairmask is "A A" the mask is       "0  2  2  0  2  2"
               # then if pairmask is "A B" the mask is       "1 -1  2  1 -1  2"
-              set aux=0
+              set aux 0
               if {[string equal $resname [lindex $pairmask 0]]} {set aux [expr $aux+1]}
               if {[string equal $resname [lindex $pairmask 1]]} {set aux [expr $aux-1]}
               if {[expr -1==[lsearch $pairmask $resname]]} {set aux 2}

@@ -302,6 +302,7 @@ _wrap_DataSpace_centerPos	cfacv_wrap.c	/^_wrap_DataSpace_centerPos(ClientData cl
 _wrap_DataSpace_checkdata	cfacv_wrap.c	/^_wrap_DataSpace_checkdata(ClientData clientData SWIGUNUSED, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]) {$/;"	f
 _wrap_DataSpace_dump	cfacv_wrap.c	/^_wrap_DataSpace_dump(ClientData clientData SWIGUNUSED, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]) {$/;"	f
 _wrap_DataSpace_getN	cfacv_wrap.c	/^_wrap_DataSpace_getN(ClientData clientData SWIGUNUSED, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]) {$/;"	f
+_wrap_DataSpace_pairmasks	cfacv_wrap.c	/^_wrap_DataSpace_pairmasks(ClientData clientData SWIGUNUSED, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]) {$/;"	f
 _wrap_NewDataSpace	cfacv_wrap.c	/^_wrap_NewDataSpace(ClientData clientData SWIGUNUSED, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]) {$/;"	f
 _wrap_array_getitem	cfacv_wrap.c	/^_wrap_array_getitem(ClientData clientData SWIGUNUSED, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]) {$/;"	f
 _wrap_array_setitem	cfacv_wrap.c	/^_wrap_array_setitem(ClientData clientData SWIGUNUSED, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]) {$/;"	f

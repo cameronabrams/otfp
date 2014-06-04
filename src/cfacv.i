@@ -17,6 +17,7 @@ extern void cfacvBanner ( void );
 extern FILE * my_fopen ( char * name, char * code );
 extern DataSpace * NewDataSpace ( int N, int M, int K, long int seed ) ;
 extern int DataSpace_SetupPairCalc ( DataSpace * ds, double Ox, double Oy, double Oz, double Lx, double Ly, double Lz, double cutoff, double nlcutoff, int beginEvolve, int useTAMDforces, int reportParamFreq, double spline_min, int nKnots, char * splineoutputfile, int splineoutputfreq, int splineoutputlevel, int lamupdateinterval );
+extern int * DataSpace_pairmasks ( DataSpace * ds );
 extern int DataSpace_AddAtomCenter ( DataSpace * ds, int n, int * ind, double * m );
 extern int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind ) ;
 extern int DataSpace_AddRestr ( DataSpace * ds, double k, double targ, int nCV, double * cvc, char * rftypstr, double zmin, double zmax  );
