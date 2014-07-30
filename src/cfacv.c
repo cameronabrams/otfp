@@ -58,32 +58,22 @@ cvStruct * New_cvStruct ( int typ, int nC, int * ind ) {
   return newcv;
 }
 
-double rf_Harmonic ( double k, double v, double z, double half_domain ) {
-  return -k*(v-z);
-}
-
-double rf_HarmonicCartPBC ( double k, double v, double z, double half_domain ) {
+double rf_HarmonicCartPBC ( double k, double v, double z, int pbc, double half_domain ) {
   double tmp=v-z;
-  if (tmp>half_domain) {
-    //    fprintf(stderr,"CFACV/C) DEBUG: -MICing %.5lf > %.5lf\n",tmp,half_domain);fflush(stderr);
-    tmp-=2*half_domain;
-  }
-  if (tmp<-half_domain) {
-    //    fprintf(stderr,"CFACV/C) DEBUG: +MICing %.5lf > %.5lf\n",tmp,half_domain);fflush(stderr);
-    tmp+=2*half_domain;
+  if (pbc) {
+    if (tmp>half_domain) {tmp-=2*half_domain;}
+    if (tmp<-half_domain) {tmp+=2*half_domain;}
   }
   return -k*tmp;
 }
 
-double re_HarmonicCartPBC ( double k, double v, double z, double half_domain ) {
+double re_HarmonicCartPBC ( double k, double v, double z, int pbc, double half_domain ) {
   double tmp=v-z;
-  if (tmp>half_domain) tmp-=2*half_domain;
-  if (tmp<-half_domain) tmp+=2*half_domain;
+  if (pbc) {
+    if (tmp>half_domain) tmp-=2*half_domain;
+    if (tmp<-half_domain) tmp+=2*half_domain;
+  }
   return 0.5*k*tmp*tmp;
-}
-
-double re_Harmonic ( double k, double v, double z, double half_domain ) {
-  return 0.5*k*(v-z)*(v-z);
 }
 
 double rf_Periodic ( double k, double v, double z, double half_domain ) {
@@ -92,7 +82,7 @@ double rf_Periodic ( double k, double v, double z, double half_domain ) {
   if (_PARANOIA_) {
     if ((dz!=dz)||(k!=k)||(half_domain!=half_domain)) {
       fprintf(stderr,"CFACV/C/PARANOIA) Tripped in rf_Periodic\n");
-      fprintf(stderr,"CFACV/C/PARANOIA) k %.5lf v %.5lf z %.5lf dz %.5lf half_domain %.5lf\n",
+      fprintf(stderr,"CFACV/C/PARANOIA) k %.5f v %.5f z %.5f dz %.5f half_domain %.5f\n",
 	      k,v,z,dz,half_domain);
       fprintf(stderr,"Program exits\n");
       fflush(stderr);
@@ -135,8 +125,8 @@ restrStruct * New_restrStruct ( double k, double z, int nCV, double * cvc, char 
     newr->energyFunc = re_HarmonicCartPBC;
   }
   else if (newr->rfityp==PERIODIC) {
-    newr->forceFunc = rf_Periodic;
-    newr->energyFunc = re_Periodic;
+  //  newr->forceFunc = rf_Periodic;
+  //  newr->energyFunc = re_Periodic;
   }
   
   return newr;
@@ -206,7 +196,7 @@ int smdOptInit ( smdOptStruct * smd, double initval, int periodic ) {
       } 
     }
     smd->increment=dist*smd->invinterval;
-    printf("CFACV/C) smd increment is %.5lf based on target %.5lf and initval %.5lf\n",
+    printf("CFACV/C) smd increment is %.5f based on target %.5f and initval %.5f\n",
 	   smd->increment,smd->target,smd->initval);
     return 0;
   }
@@ -263,20 +253,35 @@ void LJPair ( double * par, double r2, double * gr ) {
     double s12=s6*s6;
     double r12i=r6i*r6i;
     *gr=-12*ep/r2*((s12*r12i)-(s6*r6i));
-/*     fprintf(stderr,"CFACV/C) DEBUG: LJPair: ep %.5lf sig %.5lf r2 %.5lf r6i %.5lf r12i %.5lf s6 %.5lf s12 %.5lf gr %.5lf\n", */
+/*     fprintf(stderr,"CFACV/C) DEBUG: LJPair: ep %.5f sig %.5f r2 %.5f r6i %.5f r12i %.5f s6 %.5f s12 %.5f gr %.5f\n", */
 /* 	    ep,sig,r2,r6i,r12i,s6,s12,*gr);fflush(stderr); */
   } else {
     *gr=0.0;
   }
 }
 
-int DataSpace_SetupPairCalc ( DataSpace * ds, double Ox, double Oy, double Oz, \
-			      double Lx, double Ly, double Lz, double cutoff, double nlcutoff,
+int DataSpace_SetupPBC ( DataSpace * ds, int pbc, double Ox, double Oy, double Oz, \
+			      double Lx, double Ly, double Lz ) {
+  ds->pbc=pbc;
+  ds->O[0]=Ox;
+  ds->O[1]=Oy;
+  ds->O[2]=Oz;
+  ds->L[0]=Lx;  ds->hL[0]=Lx/2.;
+  ds->L[1]=Ly;  ds->hL[1]=Ly/2.;
+  ds->L[2]=Lz;  ds->hL[2]=Lz/2.;
+  ds->Max[0]=ds->L[0]-ds->O[0]; ds->Min[0]=ds->Max[0]-ds->L[0];
+  ds->Max[1]=ds->L[1]-ds->O[1]; ds->Min[1]=ds->Max[1]-ds->L[1];
+  ds->Max[2]=ds->L[2]-ds->O[2]; ds->Min[2]=ds->Max[2]-ds->L[2];
+ 
+}
+int DataSpace_SetupPairCalc ( DataSpace * ds, double cutoff, double nlcutoff,
 			      int beginEvolve, int useTAMDforces, int reportParamFreq, double spline_min, int nKnots, 
 			      char * splineoutputfile, int splineoutputfreq, int splineoutputlevel, 
-			      int lamupdateinterval ) {
+			      int lamupdateinterval, int cvnum ) {
   int i,j;
   int N=ds->N; // number of centers
+  char buf[12];
+
   fprintf(stderr,"CFACV/C) DEBUG DataSpace_SetupPairCalc N %i\n",N);fflush(stderr);
   ds->doAnalyticalCalc=1;
   ds->useTAMDforces=useTAMDforces;
@@ -310,26 +315,23 @@ int DataSpace_SetupPairCalc ( DataSpace * ds, double Ox, double Oy, double Oz, \
     ds->gr[i]=(double*)malloc(N*sizeof(double));
     for (j=0;j<N;j++) ds->RR[i][j]=(double*)malloc(3*sizeof(double));
   }
-  ds->O[0]=Ox;
-  ds->O[1]=Oy;
-  ds->O[2]=Oz;
-  ds->L[0]=Lx;  ds->hL[0]=Lx/2.;
-  ds->L[1]=Ly;  ds->hL[1]=Ly/2.;
-  ds->L[2]=Lz;  ds->hL[2]=Lz/2.;
-  ds->Max[0]=ds->L[0]-ds->O[0]; ds->Min[0]=ds->Max[0]-ds->L[0];
-  ds->Max[1]=ds->L[1]-ds->O[1]; ds->Min[1]=ds->Max[1]-ds->L[1];
-  ds->Max[2]=ds->L[2]-ds->O[2]; ds->Min[2]=ds->Max[2]-ds->L[2];
- 
+
+  i=N*(N-1)/2; // The upper triangular half of a rectangular matrix
+  ds->ch_id=(int*)malloc(i*sizeof(int));
+
   ds->nsamples=0;
+  ds->ch_num=cvnum;
+    
+  ds->ch=(chapeau**)malloc(ds->ch_num*sizeof(chapeau*));
+  for (i=0;i<ds->ch_num;i++) {
+    ds->ch[i]=chapeau_alloc(nKnots,spline_min,cutoff,N);
 
-  ds->ch=chapeau_alloc(nKnots,spline_min,cutoff,N);
-
-  gsl_matrix_set_zero(ds->ch->A);
-  gsl_vector_set_zero(ds->ch->b);
-
-  chapeau_setupoutput(ds->ch,splineoutputfile,splineoutputfreq,splineoutputlevel);
-
-  ds->ch->updateinterval=lamupdateinterval;
+    gsl_matrix_set_zero(ds->ch[i]->A);
+    gsl_vector_set_zero(ds->ch[i]->b);
+    sprintf(buf, "ch%d_%s", i,splineoutputfile);
+    chapeau_setupoutput(ds->ch[i],buf,splineoutputfreq,splineoutputlevel);
+    ds->ch[i]->updateinterval=lamupdateinterval;
+  }
 
   ds->lamfric=0.0;
   ds->lamdt=0.0;
@@ -346,8 +348,8 @@ int DataSpace_getN ( DataSpace * ds ) {
   else return -1;
 }
 
-int * DataSpace_pairmasks ( DataSpace * ds ) {
-  if (ds) {return ds->ch->mask;}
+int * DataSpace_chid ( DataSpace * ds ) {
+  if (ds) {return ds->ch_id;}
   return NULL;
 }
  
@@ -382,7 +384,7 @@ int DataSpace_dump ( DataSpace * ds ) {
     for (i=0;i<ds->N;i++) {
       fprintf(stderr,"%i ",i);
       for (j=0;j<3;j++)
-	fprintf(stderr,"%.5lf ",ds->R[i][j]);
+	fprintf(stderr,"%.5f ",ds->R[i][j]);
       fprintf(stderr,"\n");
       fflush(stderr);
     }
@@ -447,16 +449,16 @@ int DataSpace_AddTamdOpt ( DataSpace * ds, int ir, double g, double kt, double d
   return -1;
 }
 
-int DataSpace_AddSmdOpt  ( DataSpace * ds, int ir, double target, int t0, int t1 ) {
-  if (ds) {
-    if (ir < ds->iK ) {
-      ds->restr[ir]->smdOpt=New_smdOptStruct(target,t0,t1,(int)(ds->restr[ir]->forceFunc==rf_Periodic));
-      return ir;
-    }
-    return -1;
-  }
-  return -1;
-}
+//int DataSpace_AddSmdOpt  ( DataSpace * ds, int ir, double target, int t0, int t1 ) {
+//  if (ds) {
+//    if (ir < ds->iK ) {
+//      ds->restr[ir]->smdOpt=New_smdOptStruct(target,t0,t1,(int)(ds->restr[ir]->forceFunc==rf_Periodic));
+//      return ir;
+//    }
+//    return -1;
+//  }
+//  return -1;
+//}
 
 int DataSpace_SetRestraints ( DataSpace * ds, double * rval ) {
   int i;
@@ -464,17 +466,15 @@ int DataSpace_SetRestraints ( DataSpace * ds, double * rval ) {
   for (i=0;i<ds->iK;i++) {
     r=ds->restr[i];
     r->z=rval[i];
-    printf("CFACV/C) Reinitialize Z[%i] = %.5lf\n",i,r->z);
+    printf("CFACV/C) Reinitialize Z[%i] = %.5f\n",i,r->z);
   }
   return 0;
 }
 
 int DataSpace_ComputeCVs ( DataSpace * ds ) {
   if (ds) {
-    int i,j,k,dimension,ii;
-    double tmp;
-    cvStruct * cvi, * cvj, * cv;
-    restrStruct * r;
+    int i,j;
+    cvStruct * cvi;
     /* clear out the metric tensor */
     for (i=0;i<ds->M;i++) {
       for (j=0;j<ds->M;j++) {
@@ -497,7 +497,7 @@ int DataSpace_ComputeCVs ( DataSpace * ds ) {
 #ifdef _PARANOIA_
 	if (_PARANOIA_) {
 	  if (cvi->val!=cvi->val) {
-	    fprintf(stderr,"CFACV/C/PARANOIA) Tripped at dihed cvi->val %.5lf\n",cvi->val);
+	    fprintf(stderr,"CFACV/C/PARANOIA) Tripped at dihed cvi->val %.5f\n",cvi->val);
 	    fprintf(stderr,"Program exits.\n");
 	    fflush(stderr);
 	    exit(-1);
@@ -524,22 +524,24 @@ int DataSpace_ComputeCVs ( DataSpace * ds ) {
 	cvi->gr[0][2]=1.0;
       }
     }
-    /* metric tensor: innermost loop is loop over all centers; problem is
-       two aribitrary cv's have different number of centers. */
-    for (i=0;i<ds->iM;i++) {
-      for (j=0;j<ds->iM;j++) {
-       //XXX What for? 
-      }
-    }
+
+    //   //XXX What for?  
+    ///* metric tensor: innermost loop is loop over all centers; problem is
+    //   two aribitrary cv's have different number of centers. */
+    //for (i=0;i<ds->iM;i++) {
+    //  for (j=0;j<ds->iM;j++) {
+    //
+    //  }
+    //}
 
     return 0;
   }
   return -1;
 }
 
-int DataSpace_InitKnots ( DataSpace * ds, char * filename ) {
+int DataSpace_InitKnots ( DataSpace * ds, char * filename, int j) {
   if (ds) {
-    chapeau * ch = ds->ch;
+    chapeau * ch = ds->ch[j];
     FILE * fp = fopen(filename,"r");
     double * knots=(double*)calloc(ch->m,sizeof(double));
     int i=0;
@@ -553,43 +555,77 @@ int DataSpace_InitKnots ( DataSpace * ds, char * filename ) {
     fprintf(stdout,"INFO) Read %i knot values from %s\n",i,filename);
     fflush(stdout);
   }
+  return 0;
 }
 
 double handle_pair ( DataSpace * ds, int i, int j ) {
-  int k;
-  double tmp,t2,R,u,gr_r,r2;
-  chapeau * ch=ds->ch;
+  int k,m;
+  double tmp,t2,R,gr_r,r2;//u
+
+
   r2=0.0;
   for (k=0;k<3;k++) {
     tmp=ds->Z[i][k]-ds->Z[j][k];
     // minimum image convention
-    while (tmp>ds->hL[k]) tmp-=ds->L[k];
-    while (tmp<-ds->hL[k]) tmp+=ds->L[k];
+    if(ds->pbc) {
+      while (tmp>ds->hL[k]) tmp-=ds->L[k];
+      while (tmp<-ds->hL[k]) tmp+=ds->L[k];
+    }
     ds->RR[i][j][k]=tmp;
     ds->RR[j][i][k]=-tmp;
     t2=tmp*tmp;
     r2+=t2;
   }
-  ds->gr[i][j]=ds->gr[j][i]=0.0;
-  if ( r2 < ds->squaredPairCutoff ) {
-    //Alexis// I add this if to avoid interpolations below rmin
-    if ( r2 >= ch->rmin*ch->rmin ) {
-      R=sqrt(r2);
-      chapeau_pair_eval_g(ch,R,&u,&gr_r);
-      ds->gr[i][j]=gr_r;
-      ds->gr[j][i]=gr_r;
-      chapeau_increment_particle_sum(ch,i,j,&ds->RR[i][j][0],R);
-    }
-  }
+
+
   ds->rr[i][j]=r2;
   ds->rr[j][i]=r2;
+  ds->gr[i][j]=ds->gr[j][i]=0.0;
+
+  // Early return if no chapeau object is asociated with this pair
+  k=j+(ds->N-2)*i-(i-1)*i/2-1;
+  if ( ds->ch_id[k] == -1 ) return r2;
+            
+  // Early return if the pair distance is above the cut radius
+  if ( r2 > ds->squaredPairCutoff ) return r2;
+
+  // Early return to avoid interpolations below rmin
+  chapeau * ch=ds->ch[ ds->ch_id[k] ];
+  if ( r2 <= ch->rmin*ch->rmin ) return r2;
+
+  // interpolation at z of the value of u and g_r
+  R=sqrt(r2);
+  m=(int)((R-ch->rmin)*ch->idr);
+
+  /*fprintf(stdout,"### z %g z[%i] %g : interpolating between [%i](%g,%g)(%g) and [%i](%g,%g)(%g)\n", 
+   R,m,gsl_vector_get(ch->lam,m),m,ch->rmin+m*ch->dr,
+   gsl_vector_get(ch->lam,m),gsl_vector_get(ch->lam,m)*right(ch,m,R,ch->rmin), 
+   m+1,ch->rmin+(m+1)*ch->dr,gsl_vector_get(ch->lam,m+1),gsl_vector_get(ch->lam,m+1)*left(ch,m+1,R,ch->rmin)); */
+
+  ch->hits[m]++; 
+
+  //Alexis// Variable u not seems to be used
+  //u=gsl_vector_get(ch->lam,m+1)*left(ch,m+1,z,ch->rmin)+gsl_vector_get(ch->lam,m)*right(ch,m,z,ch->rmin);
+  gr_r=(gsl_vector_get(ch->lam,m+1)-gsl_vector_get(ch->lam,m))/(R*ch->dr);
+  ds->gr[i][j]=gr_r;
+  ds->gr[j][i]=gr_r;
+
+  // incrementa particle sum acumulators
+  tmp=1.0/(R*ch->dr); 
+  for (k=0;k<3;k++) {
+    t2=ds->RR[i][j][k]*tmp;
+    ch->s[i][k][m]-=t2;
+    ch->s[i][k][m+1]+=t2;
+    ch->s[j][k][m]+=t2;
+    ch->s[j][k][m+1]-=t2;
+  }
+
   return r2;
 }
 
 int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
   if (ds) {
     int i,j,jj,k;
-    double v, u, f, kr, z, dz;
     cvStruct * cv;
     restrStruct * r;
     double * cvc;
@@ -616,8 +652,8 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 #ifdef _PARANOIA_
 	if (_PARANOIA_) {
 	  if (r->val!=r->val) {
-	    fprintf(stderr,"CFACV/C/PARANOIA) Tripped at r->val %.5lf\n",r->val);
-	    fprintf(stderr,"CFACV/C/PARANOIA) cvc[%i] %.5lf cv->val %.5lf\n",j,cv->val);
+	    fprintf(stderr,"CFACV/C/PARANOIA) Tripped at r->val %.5f\n",r->val);
+	    fprintf(stderr,"CFACV/C/PARANOIA) cvc[%i] %.5f cv->val %.5f\n",j,cv->val);
 	    fprintf(stderr,"Program exits.\n");
 	    fflush(stderr);
 	    exit(-1);
@@ -630,13 +666,13 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 	if (r->tamdOpt) {
 	  r->z=r->val;
 	}
-	if (r->smdOpt) {
-	  r->z=r->val;
-	  smdOptInit(r->smdOpt,r->val,(int)(r->forceFunc==rf_Periodic));	  
-	}
+	//if (r->smdOpt) {
+	//  r->z=r->val;
+	//  smdOptInit(r->smdOpt,r->val,(int)(r->forceFunc==rf_Periodic));	  
+	//}
       }
     }
-      //printf("CFACV/C) %i restraint %i val %.4lf targ %.4lf\n",timestep,i,r->val,r->z);
+      //printf("CFACV/C) %i restraint %i val %.4f targ %.4f\n",timestep,i,r->val,r->z);
 
     /* compute forces on all restraints */
     for (i=0;i<ds->iK;i++) {
@@ -663,11 +699,11 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 	}
       }
 
-      r->f=r->forceFunc(r->k,r->val,r->z,ds->hL[dimension]);
+      r->f=r->forceFunc(r->k,r->val,r->z,ds->pbc,ds->hL[dimension]);
       
-      r->u=r->energyFunc(r->k,r->val,r->z,ds->hL[dimension]);
+      r->u=r->energyFunc(r->k,r->val,r->z,ds->pbc,ds->hL[dimension]);
 
-      //printf("CFACV/C) restraint %i: f %.5lf u %.5lf\n",i,r->f,r->u);
+      //printf("CFACV/C) restraint %i: f %.5f u %.5f\n",i,r->f,r->u);
 
       /* accumulate force increments in ds->R for each real particle*/
       /* cv->gr[jj][kk] = \partial CV / \partial (kk-coord of center jj of CV) */
@@ -687,11 +723,11 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 		  ||(ds->R[cv->ind[jj]][1]!=ds->R[cv->ind[jj]][1])
 		  ||(ds->R[cv->ind[jj]][2]!=ds->R[cv->ind[jj]][2])) {
 		fprintf(stderr,"CFACV/C/PARANOIA) Tripped.\n");
-		fprintf(stderr,"CFACV/C/PARANOIA) r->cvc[%i] %.5lf\n",j,r->cvc[j]);
-		fprintf(stderr,"CFACV/C/PARANOIA) cv->gr[%i][0] %.5lf\n",jj,cv->gr[jj][0]);
-		fprintf(stderr,"CFACV/C/PARANOIA) cv->gr[%i][1] %.5lf\n",jj,cv->gr[jj][1]);
-		fprintf(stderr,"CFACV/C/PARANOIA) cv->gr[%i][2] %.5lf\n",jj,cv->gr[jj][2]);
-		fprintf(stderr,"CFACV/C/PARANOIA) r->f %.5lf\n",r->f);
+		fprintf(stderr,"CFACV/C/PARANOIA) r->cvc[%i] %.5f\n",j,r->cvc[j]);
+		fprintf(stderr,"CFACV/C/PARANOIA) cv->gr[%i][0] %.5f\n",jj,cv->gr[jj][0]);
+		fprintf(stderr,"CFACV/C/PARANOIA) cv->gr[%i][1] %.5f\n",jj,cv->gr[jj][1]);
+		fprintf(stderr,"CFACV/C/PARANOIA) cv->gr[%i][2] %.5f\n",jj,cv->gr[jj][2]);
+		fprintf(stderr,"CFACV/C/PARANOIA) r->f %.5f\n",r->f);
 		fprintf(stderr,"Program exits\n");
 		fflush(stderr);
 		exit(-1);
@@ -705,49 +741,55 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 
     // Evolution of the z variables
     if (ds->doAnalyticalCalc) {
-      int nCV,ii,d,N=ds->N,K=ds->iK;
-      double this_force;
+      int ii,N=ds->N,K=ds->iK;
       int dimension;
-      double r2,t2,R,gr,gr_r;
+      double r2;//,t2,R,gr,gr_r;
       //double total_force[3];
-      double tmp,oldz,*ff,fi;
-      chapeau * ch=ds->ch;
+      double oldz,*ff,fi;
       int * nl, * nlc, inlc;
+      int ic;
+      chapeau * ch;
 
       ds->nlTrig=0;
 
-      // copy r->z from each restraint/CV into ds->Z[][] and 
-      // r->f into ds->F[][]...
-      // restraint-index into particle-dimension index...
       for (i=0;i<K;i++) {
+
+        // Obtain the cvs involved from the restrains.
+        // Get cv index and particle index
 	r=ds->restr[i];     
 	for (j=0;!r->cvc[j];j++);
 	cv=ds->cv[j];
-	ii=cv->ind[0]; // ii = particle-index 
+	ii=cv->ind[0];
 	dimension = i%3;  // 0 = CARTESIAN_X, 1 = CARTESIAN_Y, 2 = CARTESIAN_Z
-	//fprintf(stderr,"#### ts %i ptcl %i d %i z %g f %g\n",timestep,ii,dimension,r->z,-r->f);fflush(stderr);
+
+        // Check if the neigh is needed to update. FIXME: Better 3D criterion?
 	oldz=ds->Z[ii][dimension];
 	ds->accumZ[ii][dimension]+=r->z-oldz;
 	if (!first && fabs(ds->accumZ[ii][dimension])>ds->nlDispThresh) ds->nlTrig=1;
+
+        // Save each 3 cartessian cvs values and forces into Z and F respectivesly
 	ds->Z[ii][dimension]=r->z;
-	ds->F[ii][dimension]=-r->f; // k(theta-z)
+	ds->F[ii][dimension]=-r->f; // k(theta-z)=fuerza del grupo
       }
      
       // begin the N2 loop that fills accumulators and computes analytical gradient
-      chapeau_init_particle_sums(ch);
+      for (ic=0;ic<ds->ch_num;ic++) {
+        chapeau_init_particle_sums(ds->ch[ic]);
+      }
+
       if (first || ds->nlTrig) {
 	fprintf(stderr,"CFACV_OTFP/INFO) resetting neighborlists @ %i\n",timestep);
 	for (i=0;i<N;i++) {
+
+          // Neighborhood
 	  ds->accumZ[i][0]=ds->accumZ[i][1]=ds->accumZ[i][2]=0.0;
 	  nl=ds->nl[i];
 	  nlc=ds->nlc;
 	  nlc[i]=0;
 	  for (j=i+1;j<N;j++) {
 
-            // only when the sum is cero the interaction is count
-            if (ds->ch->mask[i] + ds->ch->mask[j]) continue;
-
 	    r2=handle_pair(ds,i,j);
+
 	    // add to i's neighborlist
 	    if ( r2 < ds->nl_squaredPairCutoff ) {
 	      nl[nlc[i]++]=j;
@@ -758,29 +800,35 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 	    }
 
 	  }
-	  // FINALIZE this time-step's particle-i tallies
-	  chapeau_increment_global_accumulators(ch,i,&ds->F[i][0]);
-	  //	  for (d=0;d<3;d++) ds->F[i][d]=0.0;
+
+	  // FINALIZE this time-step's particle-i tallies in all the chapeaus
+          for (ic=0;ic<ds->ch_num;ic++) {
+	    chapeau_increment_global_accumulators(ds->ch[ic],i,&ds->F[i][0]);
+          }
+
 	}
+
       } else {
+
 	for (i=0;i<N;i++) {  
+
 	  nl=ds->nl[i];
 	  inlc=ds->nlc[i];
+
 	  for (jj=0;jj<inlc;jj++) {
 	    j=nl[jj];
 	    r2=handle_pair(ds,i,j);
 	  }
-	  // FINALIZE this time-step's particle-i tallies
-	  chapeau_increment_global_accumulators(ch,i,&ds->F[i][0]);
-	  //	  for (d=0;d<3;d++) ds->F[i][d]=0.0;
+
+          for (ic=0;ic<ds->ch_num;ic++) {
+	    chapeau_increment_global_accumulators(ds->ch[ic],i,&ds->F[i][0]);
+          }
+
 	}
-      } // end of pair loop with neighborlist reconstruction
-      //fprintf(stderr,"CFACV/C) DEBUG paircalc
-      //ends.\n");fflush(stderr); fflush(stderr); 
+      }
 
 
-
-   
+      // Moving the z variables
       if (!ds->useTAMDforces) {
 
         // map the interparticle gradients back into the restraints
@@ -829,22 +877,27 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
       }
 
 
+      // Solving the chapeau equations
       if (ds->evolveAnalyticalParameters) {
         ds->nsamples++;
 
-        if (timestep>ds->beginEvolveParameters && !(timestep%ch->updateinterval)) {
-          chapeau_update_peaks(ch,ds->nsamples,timestep);
-          chapeau_output(ch,timestep);
+        for (ic=0;ic<ds->ch_num;ic++) {
+          ch=ds->ch[ic];
 
-          // report lambda to the log
-          if (ds->reportParamFreq && !(timestep%ds->reportParamFreq)) {
-            fprintf(stdout,"LAMBDA: % 8i",timestep);fflush(stderr);
-            for (i=0;i<ds->ch->m;i++) {
-              fprintf(stdout,"% 17.5lf (%i) ",gsl_vector_get(ds->ch->lam,i),ds->ch->hits[i]);
+          if (timestep>ds->beginEvolveParameters && !(timestep % ch->updateinterval)) {
+            chapeau_update_peaks(ch,ds->nsamples,timestep);
+            chapeau_output(ch,timestep);
+
+            // report lambda to the log
+            if (ds->reportParamFreq && !(timestep%ds->reportParamFreq)) {
+              fprintf(stdout,"CH[% 2i] LAMBDA: % 8i",ic,timestep);fflush(stderr);
+              for (i=0;i<ch->m;i++) {
+                fprintf(stdout,"% 17.5f (%li) ",gsl_vector_get(ch->lam,i),ch->hits[i]);
+              }
+              fprintf(stdout,"\n");
             }
-            fprintf(stdout,"\n");
-          }
 
+          }
         }
       }
 
@@ -896,28 +949,28 @@ void DataSpace_ReportAll ( DataSpace * ds ) {
     printf("CFACV_OTFP/C) DataSpace: %i Centers, %i CV's, %i Restraints\n",
 	   ds->N, ds->iM, ds->iK);
     for (i=0;i<ds->N;i++) {
-      printf("CFACV_OTFP/C)  Center %i : %.5lf %.5lf %.5lf\n",
+      printf("CFACV_OTFP/C)  Center %i : %.5f %.5f %.5f\n",
 	     i,ds->R[i][0],ds->R[i][1],ds->R[i][2]);
     }
     for (i=0;i<ds->iM;i++) {
-      printf("CFACV_OTFP/C)      CV %i : typ %s val %.5lf ind ",i,cv_getstyp(ds->cv[i]->typ),
+      printf("CFACV_OTFP/C)      CV %i : typ %s val %.5f ind ",i,cv_getstyp(ds->cv[i]->typ),
 	     ds->cv[i]->val);
       for (j=0;j<ds->cv[i]->nC;j++) printf("%i ",ds->cv[i]->ind[j]);
       printf(" grads: ");
       for (j=0;j<ds->cv[i]->nC;j++) 
-	for (k=0;k<3;k++) printf("%.5lf ",ds->cv[i]->gr[j][k]);
+	for (k=0;k<3;k++) printf("%.5f ",ds->cv[i]->gr[j][k]);
       printf("\n");
     }
     for (i=0;i<ds->iK;i++) {
-      printf("CFACV_OTFP/C)       R %i : k %.3lf z %.3lf cvc ",i,ds->restr[i]->k,ds->restr[i]->z);
-      for (j=0;j<ds->restr[i]->nCV;j++) printf("%.2lf ",ds->restr[i]->cvc[j]);
+      printf("CFACV_OTFP/C)       R %i : k %.3f z %.3f cvc ",i,ds->restr[i]->k,ds->restr[i]->z);
+      for (j=0;j<ds->restr[i]->nCV;j++) printf("%.2f ",ds->restr[i]->cvc[j]);
       if (ds->restr[i]->tamdOpt) {
 	printf("TAMD(kT=%.2f,gamma=%.2f,dt=%.3f) ",
 	       ds->restr[i]->tamdOpt->kT,
 	       ds->restr[i]->tamdOpt->gamma,
 	       ds->restr[i]->tamdOpt->dt);
       }
-      printf(" typ %s min %.5lf max %.5lf\n",rf_getstyp(ds->restr[i]->rfityp),ds->restr[i]->min,ds->restr[i]->max);
+      printf(" typ %s min %.5f max %.5f\n",rf_getstyp(ds->restr[i]->rfityp),ds->restr[i]->min,ds->restr[i]->max);
       printf("\n");
     }
     
@@ -930,28 +983,28 @@ void DataSpace_ReportRestraints ( DataSpace * ds, int step, int outputlevel, FIL
   if (outputlevel & 1) {
     fprintf(fp,"CFACV_OTFP/C) Z  % 10i ",step);
     for (i=0;i<ds->iK;i++) {
-      fprintf(fp,"% 11.5lf",ds->restr[i]->z);
+      fprintf(fp,"% 11.5f",ds->restr[i]->z);
     }
     fprintf(fp,"\n");
   }
   if (outputlevel & 2) {
     fprintf(fp,"CFACV_OTFP/C) Th % 10i ",step);
     for (i=0;i<ds->iK;i++) {
-      fprintf(fp,"% 11.5lf",ds->restr[i]->val);
+      fprintf(fp,"% 11.5f",ds->restr[i]->val);
     }
     fprintf(fp,"\n");
   }
   if (outputlevel & 4) {
     fprintf(fp,"CFACV_OTFP/C) FD % 10i ",step);
     for (i=0;i<ds->iK;i++) {
-      fprintf(fp,"% 11.5lf",ds->restr[i]->tamd_restraint);
+      fprintf(fp,"% 11.5f",ds->restr[i]->tamd_restraint);
     }
     fprintf(fp,"\n");
   }
   if (outputlevel & 8) {
     fprintf(fp,"CFACV_OTFP/C) ND % 10i ",step);
     for (i=0;i<ds->iK;i++) {
-      fprintf(fp,"% 11.5lf",ds->restr[i]->tamd_noise);
+      fprintf(fp,"% 11.5f",ds->restr[i]->tamd_noise);
     }
     fprintf(fp,"\n");
   }

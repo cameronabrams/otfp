@@ -126,7 +126,7 @@ set restrPARAMS       [list [list k $K] [list TAMDkT $KBTBAR] [list TAMDgamma $T
 # CVs and group definition
 set labelPDB          label.pdb ;# PDB file with group ID (1-based) in beta position
 set cvINP             cv.inp ;# list of CVs types togeter with it's parameters
-set pairmask          "SOD CLA"
+set pairmask          "{SOD CLA} {SOD SOD} {CLA CLA}"
 
 set DEBUG                   0
 set PARANOIA                0
@@ -167,6 +167,6 @@ set LAMUPDATEINTERVAL       50000
 # run 10000000  ;# 20ns
 # run 8000000   ;# 16ns
 # run 5000000   ;# 10ns
-# run 500000    ;# 1ns
+run 500000    ;# 1ns
 # run 250000    ;# 500ps
-run 50000     ;# 100ps
+# run 50000     ;# 100ps

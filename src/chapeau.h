@@ -18,15 +18,12 @@ typedef struct CHAPEAU {
   double rmin, rmax, dr, idr;  // range and increment or argument of
 			       // pair potential
 
-  gsl_vector * lam;    // vector of coefficients -- these are what OTFP optimizes!
-  gsl_vector * lambar; // 
-  gsl_vector * newlam; //
- 
-  int * hits;  // number of hits in each bin value of r
-
-  FILE * ofp;
+  FILE * ofp; // for output chapeu
   int outputFreq;
   int outputLevel;
+
+  FILE * ofs; // for save current chapeu status
+  // file name is the same of ofp but with a .restart prefix
 
   // single-particle-sums; initialize at every step, every particle
   double *** s;  // [particle][dimension][peak]
@@ -37,11 +34,10 @@ typedef struct CHAPEAU {
   // Here int because unsigned is not safe with swig
   int * mask;  // [particle]
 
-  // global accumulators
-  gsl_vector * b, * bbar;
-  gsl_matrix * A, * Abar;
-
-  gsl_permutation * Permutation;
+  gsl_vector * b;
+  gsl_matrix * A;
+  gsl_vector * lam;    // vector of coefficients -- these are what OTFP optimizes!
+  long * hits;  // number of hits in each bin value of r
 
   double alpha;
   int updateinterval;
@@ -58,6 +54,8 @@ void chapeau_pair_eval_g ( chapeau * ch, double z, double * u, double * g_r );
 
 void chapeau_setupoutput ( chapeau * ch, char * filename, int outputFreq, int outputLevel );
 void chapeau_output ( chapeau * ch, int timestep );
+void chapeau_savestate ( chapeau * ch, int timestep );
+chapeau * chapeau_allocloadstate ( char * filename ) ;
 
 void chapeau_init_global_accumulators ( chapeau * ch );
 

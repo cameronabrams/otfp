@@ -163,11 +163,11 @@ proc intArrayToList {a n} {
 #  return value is the number of centers
 #
 ###############################################################
-proc read_centersPDB { templatePdb serArr mass mk pk} {
+proc read_centersPDB { templatePdb serArr mass pk ch} {
     upvar $serArr serArray
     upvar $mass masses
-    upvar $mk mask
     upvar $pk pairmask
+    upvar $ch ch_id
 
     # Open and read the pdb. Put all it in lines variable.
     set inStream [open $templatePdb r]
@@ -191,11 +191,11 @@ proc read_centersPDB { templatePdb serArr mass mk pk} {
     set nMon [llength $indices]
     print "DB: read_centersPDB: indices $indices nMon $nMon"
 
-    # contruct the void list of masses, atom serial and mask ID
+    # contruct the void list of masses, atom serial and reslist
     for {set i 0} {$i < $nMon} {incr i} {
 	lappend serArray {}
 	lappend masses 0.0
-        lappend mask 0
+        lappend reslist 0
     }
 
     # append list of masses and serials ID to each group index
@@ -203,7 +203,7 @@ proc read_centersPDB { templatePdb serArr mass mk pk} {
     foreach line $lines {
 	set cardstr [string range $line 0 3]
 	set serlstr [string trim [string range $line 5 11]]
-	set resname [string trim [string range $line 13 15]]
+	set resname [string trim [string range $line 17 20]]
 	set occustr [string trim [string range $line 54 59]] ;# used to hold atomic mass in amu.
 	set betastr [string trim [string range $line 60 65]]
 	if {([string equal $cardstr "ATOM"]) && [expr 0==[string equal $betastr "0.00"]]} {
@@ -229,35 +229,42 @@ proc read_centersPDB { templatePdb serArr mass mk pk} {
 	    set am [expr double($occustr)]
 	    set masses [lreplace $masses $t $t [expr [lindex $masses $t] + $am]]
 
-
-            if {[expr 0==[string equal $pairmask ""]]} {
-              # Here I assign a mask value to each atom.
-              # Each atom of the center have to be the same resid ID in templatePdb
-              # This value can be -1,0,1 or 2
-              # Interaction occur only when mask[i]+mask[j]=0
-              # The variable pairmask have two resnames and only the 
-              # couples with that two names will interac. For example:
-              # if the sistem have 6 centers with resides "A  B  C  A  B  D"
-              # then if pairmask is "A A" the mask is       "0  2  2  0  2  2"
-              # then if pairmask is "A B" the mask is       "1 -1  2  1 -1  2"
-              set aux 0
-              if {[string equal $resname [lindex $pairmask 0]]} {set aux [expr $aux+1]}
-              if {[string equal $resname [lindex $pairmask 1]]} {set aux [expr $aux-1]}
-              if {[expr -1==[lsearch $pairmask $resname]]} {set aux 2}
-              set mask [lreplace $mask $t $t $aux]
-            }
-
+            # Renames
+            set reslist [lreplace $reslist $t $t $resname]
 
 	}
 	incr n
+    }
+
+    set k 0
+    set test [expr 0==[string equal $pairmask ""]]
+    for {set i 0} {$i < $nMon} {incr i} {
+      for {set j [expr $i+1]} {$j < $nMon} {incr j} {
+
+        if $test {
+          set pair1 "[lindex $reslist $i] [lindex $reslist $j]" ;# e.g. "SOD CLA"
+          set pair2 "[lindex $reslist $j] [lindex $reslist $i]" ;# e.g. "CLA SOD"
+          set a [lsearch $pairmask $pair1]
+          set b [lsearch $pairmask $pair2]
+          
+          set k [expr {$a>$b? $a: $b}]
+        }
+
+        # with the next expresion the [expr $j+($nCntr-2)*$i-($i-1)*$i/2-1] element of ch_id is
+        # -1 for non intereset pair, or the corresponding n-index or the $pairmask.
+        lappend ch_id $k
+      }
+    }
+
+    if {([string equal [lsort -unique $ch_id] "-1"])} {
+      puts "ERROR: No residues found to accelerate"
+      exit
     }
 
     print "DB: returning nMon $nMon"
 #    print "DB: serArray : $serArray"
     return $nMon
 }
-
-
 
 
 proc center_selections { molID serArray } {
@@ -883,13 +890,20 @@ proc Tcl_NewDataSpace { nC cvL rL seed } {
 }
 
 
-proc Tcl_InitializePairCalc { ds XSCFILE cutoff nlcutoff begin_evolve usetamdforces reportparamfreq spline_min nKnots splineoutputfile splineoutputfreq splineoutputlevel updateinterval } {
-    set LL [my_getcellsize $XSCFILE]
-    set O [my_getorigin $XSCFILE]
-    print "CFACV) DEBUG: Tcl_InitializePairCalc box size [lindex $LL 0] [lindex $LL 1] [lindex $LL 2]"
-    print "CFACV) DEBUG: Tcl_InitializePairCalc origin   [lindex $O 0] [lindex $O 1] [lindex $O 2]"
-    DataSpace_SetupPairCalc $ds [lindex $O 0] [lindex $O 1] [lindex $O 2] [lindex $LL 0] [lindex $LL 1] [lindex $LL 2] $cutoff $nlcutoff $begin_evolve $usetamdforces $reportparamfreq $spline_min $nKnots $splineoutputfile $splineoutputfreq $splineoutputlevel $updateinterval
-    print "CFACV) INFO: Pair calc initialized"
+proc Tcl_InitializePairCalc { ds XSCFILE cutoff nlcutoff begin_evolve usetamdforces reportparamfreq spline_min nKnots splineoutputfile splineoutputfreq splineoutputlevel updateinterval cvnum} {
+    
+    DataSpace_SetupPairCalc $ds $cutoff $nlcutoff $begin_evolve $usetamdforces $reportparamfreq $spline_min $nKnots $splineoutputfile $splineoutputfreq $splineoutputlevel $updateinterval $cvnum
+
+    if [string equal $XSCFILE "off"] {
+      print "CFACV) DEBUG: Tcl_InitializePairCalc nobox"
+      DataSpace_SetupPBC $ds 0  0 0 0  0 0 0
+    } else {
+      print "CFACV) DEBUG: Tcl_InitializePairCalc box size [lindex $LL 0] [lindex $LL 1] [lindex $LL 2]"
+      print "CFACV) DEBUG: Tcl_InitializePairCalc origin   [lindex $O 0] [lindex $O 1] [lindex $O 2]"
+      set LL [my_getcellsize $XSCFILE]
+      set O [my_getorigin $XSCFILE]
+      DataSpace_SetupPBC $ds 1 [lindex $O 0] [lindex $O 1] [lindex $O 2] [lindex $LL 0] [lindex $LL 1] [lindex $LL 2] 
+    }
 }
 
 proc Tcl_Reinitialize { ds restartINP } {

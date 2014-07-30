@@ -2,6 +2,7 @@
 # that, thanks to SWIG, is ready to be loaded in tcl scripts
 
 CC=gcc
+# CCFLAGS=-O0 -g -Wall -Wpedantic
 CCFLAGS=-O3
 LIBS = -lm -lgsl -lgslcblas
 
@@ -15,6 +16,8 @@ GIT_VERSION := $(shell git describe --abbrev=4 --dirty --always 2>/dev/null || c
 CCFLAGS+=-DVERSION=\"$(GIT_VERSION)\"
 
 
+all: cfacv.so chapadd catbinsp
+
 cfacv.so:  $(OBJ) cfacv_wrap.o
 	$(CC) $(CCFLAGS) -shared -o $@ $^ $(LIBS)
         
@@ -26,9 +29,17 @@ cfacv_wrap.c: cfacv.c cfacv.i cfacv.h
 
 version: force
 	@echo '$(GIT_VERSION)' | cmp -s - $@ || echo '$(GIT_VERSION)' > $@
+
+
+catbinsp: catbinsp.o
+	$(CC) $(CCFLAGS) -o $@ $^ $(LIBS)
  
+chapadd: addchapeaus.o chapeau.o
+	$(CC) $(CCFLAGS) -o $@ $^ $(LIBS)
+
 measurements.o : measurements.h
 chapeau.o : chapeau.h
+addchapeaus.o : chapeau.h
 centers.o : centers.h
 cfacf.h : measurements.h chapeau.h centers.h
 cfacv.o : cfacv.h version
