@@ -119,8 +119,8 @@ typedef struct SMDOPTSTRUCT {
 
 // The Restraint structure
 enum {HARMONIC, PERIODIC, NULL_RF};
-typedef double (*restrForceFunc) ( double, double, double, double );
-typedef double (*restrEnergyFunc) ( double, double, double, double );
+typedef double (*restrForceFunc) ( double, double, double, int, double );
+typedef double (*restrEnergyFunc) ( double, double, double, int, double );
 typedef struct RESTRSTRUCT {
   double k;               // spring constant
   double z;               // target value
@@ -161,7 +161,7 @@ smdOptStruct * New_smdOptStruct ( double target, int t0, int t1, int periodic );
 restrStruct * New_restrStruct ( double k, double z, int nCV, double * cvc, char * rftypstr, double zmin, double zmax  );
 
 #ifndef MAXNBOR
-#define MAXNBOR 100
+#define MAXNBOR 250
 #endif
 
 typedef struct DATASPACESTRUCT {
@@ -181,11 +181,14 @@ typedef struct DATASPACESTRUCT {
   // below are bits for doing TAMD/OTFP of pairwise intercenter
   // potentials represented as piecewise-continuous linear functions
 
-  double squaredPairCutoff;
+  // PBC
+  int pbc;
   double O[3]; // simulation box origin
   double L[3]; // simulation box size
   double hL[3]; // simulation box half-size
   double Min[3], Max[3];
+
+  double squaredPairCutoff;
   double ** Z; // temp storage of cartesian aux variables
   double ** F; // temp storage of cartesian aux variable forces
   double *** RR; // array of intercenter distances components
@@ -200,7 +203,11 @@ typedef struct DATASPACESTRUCT {
   double ** accumZ;
   double nlDispThresh;
   int nlTrig;
-  chapeau * ch;
+
+  int ch_num;
+  int * ch_id;
+  chapeau ** ch;
+
   // for evolution of the parameterization
   double lamfric;
   double lamdt;
@@ -219,8 +226,10 @@ typedef struct DATASPACESTRUCT {
 } DataSpace;
 
 FILE * my_fopen ( char * name, char * code ) ;
+int * DataSpace_chid ( DataSpace * ds );
 DataSpace * NewDataSpace ( int N, int M, int K, long int seed );
-int DataSpace_SetupPairCalc ( DataSpace * ds, double Ox, double Oy, double Oz, double Lx, double Ly, double Lz, double cutoff, double nlcutoff, int beginEvolve, int useTAMDforces, int reportParamFreq, double spline_min, int nKnots, char * splineoutputfile, int splineoutputfreq, int splineoutputlevel, int lamupdateinterval );
+int DataSpace_SetupPBC ( DataSpace * ds, int pbc, double Ox, double Oy, double Oz, double Lx, double Ly, double Lz );
+int DataSpace_SetupPairCalc ( DataSpace * ds, double cutoff, double nlcutoff, int beginEvolve, int useTAMDforces, int reportParamFreq, double spline_min, int nKnots, char * splineoutputfile, int splineoutputfreq, int splineoutputlevel, int lamupdateinterval, int cvnum );
 int DataSpace_getN ( DataSpace * ds );
 double * DataSpace_centerPos ( DataSpace * ds, int i );
 int DataSpace_AddAtomCenter ( DataSpace * ds, int n, int * ind, double * m );
@@ -239,5 +248,5 @@ int DataSpace_checkdata ( DataSpace * ds );
 int DataSpace_dump ( DataSpace * ds ); 
 FILE * my_binfopen ( char * name, char * code, unsigned int outputLevel, DataSpace * ds );
 void DataSpace_BinaryReportRestraints ( DataSpace * ds, int step, int outputlevel, FILE * fp );
-int DataSpace_InitKnots ( DataSpace * ds, char * filename );
+int DataSpace_InitKnots ( DataSpace * ds, char * filename, int j);
 #endif

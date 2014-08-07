@@ -179,13 +179,13 @@ int mymatvec ( double z[3], double A[][3], double a[3] ) {
 
 double my_getdihed ( double p1[3], double p2[3], double p3[3], double p4[3],
 		     double g1[3], double g2[3], double g3[3], double g4[3] ) {
-  double R12[3], R23[3], R34[3], r12, r23, r34;
+  double R12[3], R23[3], R34[3];//, r12, r23, r34;
   double C12[3], C23[3], C123[3], c12, c23, c123;
   double cos_phi, sin_phi, phi;
 
-  mydiff(R12,p2,p1);     r12=mynorm(R12);
-  mydiff(R23,p3,p2);     r23=mynorm(R23);
-  mydiff(R34,p4,p3);     r34=mynorm(R34);
+  mydiff(R12,p2,p1);     //r12=mynorm(R12);
+  mydiff(R23,p3,p2);     //r23=mynorm(R23);
+  mydiff(R34,p4,p3);     //r34=mynorm(R34);
   mycross(C12,R12,R23);  c12=mynorm(C12);
   mycross(C23,R23,R34);  c23=mynorm(C23);
   mycross(C123,R23,C12); c123=mynorm(C123);
@@ -201,15 +201,15 @@ double my_getdihed ( double p1[3], double p2[3], double p3[3], double p4[3],
 #ifdef _PARANOIA_
   if (_PARANOIA_) {
     if (phi!=phi) {
-      fprintf(stderr,"CFACV/C/PARANOIA) Tripped in my_getdihed: phi %.5lf\n",phi);
-      fprintf(stderr,"CFACV/C/PARANOIA) cos_phi %.5lf\n",cos_phi);
+      fprintf(stderr,"CFACV/C/PARANOIA) Tripped in my_getdihed: phi %.5f\n",phi);
+      fprintf(stderr,"CFACV/C/PARANOIA) cos_phi %.5f\n",cos_phi);
       fprintf(stderr,"Program exits.\n");
       exit(-1);
     }
   }
 #endif
 
-  //  printf("COS) cos_phi % 10.4lf phi % 10.4lf = % 10.4lf deg\n",cos_phi,phi,180/M_PI*phi);
+  //  printf("COS) cos_phi % 10.4f phi % 10.4f = % 10.4f deg\n",cos_phi,phi,180/M_PI*phi);
 
   myscale(1.0/c23,C23);
   
@@ -244,7 +244,7 @@ double my_getdihed ( double p1[3], double p2[3], double p3[3], double p4[3],
     g3[0]= dc2[0]-dc3[0];    g3[1]= dc2[1]-dc3[1];    g3[2]= dc2[2]-dc3[2];
     g4[0]= dc3[0];           g4[1]= dc3[1];           g4[2]= dc3[2];
 
-/*     printf("COS) % 10.4lf deg g0 % 10.4lf% 10.4lf% 10.4lf g1 % 10.4lf% 10.4lf% 10.4lf g2 % 10.4lf% 10.4lf% 10.4lf g3 % 10.4lf% 10.4lf% 10.4lf\n", */
+/*     printf("COS) % 10.4f deg g0 % 10.4f% 10.4f% 10.4f g1 % 10.4f% 10.4f% 10.4f g2 % 10.4f% 10.4f% 10.4f g3 % 10.4f% 10.4f% 10.4f\n", */
 /* 	   phi*180/M_PI,g1[0],g1[1],g1[2],g2[0],g2[1],g2[2],g3[0],g3[1],g3[2],g4[0],g4[1],g4[2]); */
   }
   else {
@@ -254,11 +254,11 @@ double my_getdihed ( double p1[3], double p2[3], double p3[3], double p4[3],
     double c123_r=1.0/c123;
 
     if (c123_r!=c123_r) {
-      fprintf(stderr,"ERROR: nan in sin-dihed @ c123 %.5lf\n",c123);
+      fprintf(stderr,"ERROR: nan in sin-dihed @ c123 %.5f\n",c123);
       exit(-1);
     }
     if (rct!=rct) {
-      fprintf(stderr,"ERROR: nan in sin-dihed @ rct %.5lf\n",rct);
+      fprintf(stderr,"ERROR: nan in sin-dihed @ rct %.5f\n",rct);
       exit(-1);
     }
 
@@ -298,7 +298,7 @@ double my_getdihed ( double p1[3], double p2[3], double p3[3], double p4[3],
     g3[0]= ds2[0]-ds3[0];    g3[1]= ds2[1]-ds3[1];    g3[2]= ds2[2]-ds3[2];
     g4[0]= ds3[0];           g4[1]= ds3[1];           g4[2]= ds3[2];
 
-/*     printf("SIN) % 10.4lf deg g0 % 10.4lf% 10.4lf% 10.4lf g1 % 10.4lf% 10.4lf% 10.4lf g2 % 10.4lf% 10.4lf% 10.4lf g3 % 10.4lf% 10.4lf% 10.4lf\n", */
+/*     printf("SIN) % 10.4f deg g0 % 10.4f% 10.4f% 10.4f g1 % 10.4f% 10.4f% 10.4f g2 % 10.4f% 10.4f% 10.4f g3 % 10.4f% 10.4f% 10.4f\n", */
 /* 	   phi*180/M_PI,g1[0],g1[1],g1[2],g2[0],g2[1],g2[2],g3[0],g3[1],g3[2],g4[0],g4[1],g4[2]); */
   }
 

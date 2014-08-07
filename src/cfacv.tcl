@@ -163,9 +163,11 @@ proc intArrayToList {a n} {
 #  return value is the number of centers
 #
 ###############################################################
-proc read_centersPDB { templatePdb serArr mass } {
+proc read_centersPDB { templatePdb serArr mass pk ch} {
     upvar $serArr serArray
     upvar $mass masses
+    upvar $pk pairmask
+    upvar $ch ch_id
 
     # Open and read the pdb. Put all it in lines variable.
     set inStream [open $templatePdb r]
@@ -175,32 +177,25 @@ proc read_centersPDB { templatePdb serArr mass } {
 
     # Get list indices with the center numbers and Nmon as the number of
     # centers
-    set n 0
     set indices {}
     foreach line $lines {
 	set cardstr [string range $line 0 3]
-	set occustr [string trim [string range $line 54 59]]
 	set betastr [string trim [string range $line 60 65]]
-	#print "o|$occustr|b|$betastr|"
-	#if {$cardstr eq "ATOM" && $betastr ne "0.00"} 
+	# if the beta field is nonzero, it is assumed to be an integer
+	# that indicates which center this atom belongs to
 	if {([string equal $cardstr "ATOM"]) && [expr 0==[string equal $betastr "0.00"]]} {
-	    set t [expr int($betastr)-1]
-#	    print "DB: found betastr |$betastr| => group $t"
-	    set index [lsearch $indices $t]
-	    if { [expr $index == -1] } {
-		lappend indices $t
-	    }
-	}
-	incr n
+          lappend indices [expr int($betastr)-1]
+        }
     }
-    set indices [lsort -integer $indices]
+    set indices [lsort -integer -unique $indices]
     set nMon [llength $indices]
     print "DB: read_centersPDB: indices $indices nMon $nMon"
 
-    # contruct the void list of masses and atom serial ID
+    # contruct the void list of masses, atom serial and reslist
     for {set i 0} {$i < $nMon} {incr i} {
 	lappend serArray {}
 	lappend masses 0.0
+        lappend reslist 0
     }
 
     # append list of masses and serials ID to each group index
@@ -208,19 +203,15 @@ proc read_centersPDB { templatePdb serArr mass } {
     foreach line $lines {
 	set cardstr [string range $line 0 3]
 	set serlstr [string trim [string range $line 5 11]]
-        # occustr is used to hold atomic mass in amu.
-	set occustr [string trim [string range $line 54 59]]
+	set resname [string trim [string range $line 17 20]]
+	set occustr [string trim [string range $line 54 59]] ;# used to hold atomic mass in amu.
 	set betastr [string trim [string range $line 60 65]]
-	# if the beta field is nonzero, it is assumed to be an integer
-	# that indicates which center this atom belongs to
-	#if {$cardstr eq "ATOM" && $betastr ne "0.00"} 
 	if {([string equal $cardstr "ATOM"]) && [expr 0==[string equal $betastr "0.00"]]} {
-	    # identify which center to which this atom belongs
-	    set t [expr int($betastr)-1]
-	    # extract that center's current list of atom indices from the list of lists
-	    set nlist [lindex $serArray $t]
-	    # add this index to the list; index is serial-1
+	    
+	    set t [expr int($betastr)-1] ; #Center index
+	    set nlist [lindex $serArray $t] ; # get atom index list for center $t
 
+	    # add this index to the list; index is serial-1
 	    # since begining with 100000, serial numbers are stored and
 	    # read in hex, need to check whether this is a hex number
 	    # -- I'll do this by seeing if it is not an integer
@@ -230,22 +221,51 @@ proc read_centersPDB { templatePdb serArr mass } {
 	    } else {
 		set serl [expr 0x$serlstr]
 	    }
-	
 	    lappend nlist $serl
 	    # return the newly appended list of indices to the list of lists
 	    set serArray [lreplace $serArray $t $t $nlist]
+
 	    # update the mass of this pseudoatom
 	    set am [expr double($occustr)]
-	#    print "DB: read_centersPDB: atom serial $serlstr mass $am to mon $t"
 	    set masses [lreplace $masses $t $t [expr [lindex $masses $t] + $am]]
+
+            # Renames
+            set reslist [lreplace $reslist $t $t $resname]
+
 	}
 	incr n
+    }
+
+    set k 0
+    set test [expr 0==[string equal $pairmask ""]]
+    for {set i 0} {$i < $nMon} {incr i} {
+      for {set j [expr $i+1]} {$j < $nMon} {incr j} {
+
+        if $test {
+          set pair1 "[lindex $reslist $i] [lindex $reslist $j]" ;# e.g. "SOD CLA"
+          set pair2 "[lindex $reslist $j] [lindex $reslist $i]" ;# e.g. "CLA SOD"
+          set a [lsearch $pairmask $pair1]
+          set b [lsearch $pairmask $pair2]
+          
+          set k [expr {$a>$b? $a: $b}]
+        }
+
+        # with the next expresion the [expr $j+($nCntr-2)*$i-($i-1)*$i/2-1] element of ch_id is
+        # -1 for non intereset pair, or the corresponding n-index or the $pairmask.
+        lappend ch_id $k
+      }
+    }
+
+    if {([string equal [lsort -unique $ch_id] "-1"])} {
+      puts "ERROR: No residues found to accelerate"
+      exit
     }
 
     print "DB: returning nMon $nMon"
 #    print "DB: serArray : $serArray"
     return $nMon
 }
+
 
 proc center_selections { molID serArray } {
     set p {}
@@ -870,13 +890,20 @@ proc Tcl_NewDataSpace { nC cvL rL seed } {
 }
 
 
-proc Tcl_InitializePairCalc { ds XSCFILE cutoff nlcutoff begin_evolve usetamdforces reportparamfreq spline_min nKnots splineoutputfile splineoutputfreq splineoutputlevel updateinterval } {
-    set LL [my_getcellsize $XSCFILE]
-    set O [my_getorigin $XSCFILE]
-    print "CFACV) DEBUG: Tcl_InitializePairCalc box size [lindex $LL 0] [lindex $LL 1] [lindex $LL 2]"
-    print "CFACV) DEBUG: Tcl_InitializePairCalc origin   [lindex $O 0] [lindex $O 1] [lindex $O 2]"
-    DataSpace_SetupPairCalc $ds [lindex $O 0] [lindex $O 1] [lindex $O 2] [lindex $LL 0] [lindex $LL 1] [lindex $LL 2] $cutoff $nlcutoff $begin_evolve $usetamdforces $reportparamfreq $spline_min $nKnots $splineoutputfile $splineoutputfreq $splineoutputlevel $updateinterval
-    print "CFACV) INFO: Pair calc initialized"
+proc Tcl_InitializePairCalc { ds XSCFILE cutoff nlcutoff begin_evolve usetamdforces reportparamfreq spline_min nKnots splineoutputfile splineoutputfreq splineoutputlevel updateinterval cvnum} {
+    
+    DataSpace_SetupPairCalc $ds $cutoff $nlcutoff $begin_evolve $usetamdforces $reportparamfreq $spline_min $nKnots $splineoutputfile $splineoutputfreq $splineoutputlevel $updateinterval $cvnum
+
+    if [string equal $XSCFILE "off"] {
+      print "CFACV) DEBUG: Tcl_InitializePairCalc nobox"
+      DataSpace_SetupPBC $ds 0  0 0 0  0 0 0
+    } else {
+      print "CFACV) DEBUG: Tcl_InitializePairCalc box size [lindex $LL 0] [lindex $LL 1] [lindex $LL 2]"
+      print "CFACV) DEBUG: Tcl_InitializePairCalc origin   [lindex $O 0] [lindex $O 1] [lindex $O 2]"
+      set LL [my_getcellsize $XSCFILE]
+      set O [my_getorigin $XSCFILE]
+      DataSpace_SetupPBC $ds 1 [lindex $O 0] [lindex $O 1] [lindex $O 2] [lindex $LL 0] [lindex $LL 1] [lindex $LL 2] 
+    }
 }
 
 proc Tcl_Reinitialize { ds restartINP } {

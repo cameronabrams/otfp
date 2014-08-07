@@ -2,6 +2,8 @@
 # Cameron F Abrams
 # 2009-14
 
+#### Check for necessary parameters set in main config. file
+
 # # Runing alone
 # set CFACV_BASEDIR $env(PWD)
 # set DIRS_INPUT ..
@@ -28,32 +30,38 @@
  
 # # Runing from NAMD
 # set CFACV_BASEDIR $PWD/OTFP
-
+ 
 # will die if CFACV_BASEDIR is invalid
 source ${CFACV_BASEDIR}/cfacv.tcl
 
 cfacv_banner NAMD
 
-# Check for necessary parameters set in main config. file
 set tripped 0
 foreach key {labelPDB cvINP} {
     if {![info exists $key]} {
 	print "CFACV) ERROR: you must set $key in the NAMD config. file."
-	set tripped 1
+	exit
     }
 }
-if {$tripped} {
-    exit
-}
+
+# pairmask holds the list of pair potential types 
+# e.g. {{SOD CLA} {CLA CLA} {SOD SOD}}
+if {![info exists pairmask]} {set pairmask ""}
+
+
+#### Get the groups using the addgroup of tclforces
 
 set serArray {}; # must have for addgroup
 set masses {}
+set ch_id {}
 
 # Read the template PDB file that identifies subdomain memberships
-set nCntr [read_centersPDB $labelPDB serArray masses]
+set nCntr [read_centersPDB $labelPDB serArray masses pairmask ch_id]
 #nCntr is the number of centers
 #serArray is the atom serial list of each group
 #masses is the atom mass list of each group
+#ch_id holds the chapeau object for the ij pair type
+
 print "CFACV) nCenters $nCntr  masses $masses"
 
 # Set up the centers as "groups" for tclforces. This give 
@@ -113,9 +121,24 @@ if {[info exists CFACV_doAnalyticalCalc] && $CFACV_doAnalyticalCalc == 1} {
     if {![info exists USETAMDFORCES]} {set USETAMDFORCES 0}
 
     # currently only option is a pairwise analytical potential
-    Tcl_InitializePairCalc $ds $XSCFILE $CUTOFF $NLCUTOFF $BEGINEVOLVEPARAMETERS $USETAMDFORCES $REPORTPARAMFREQ $SPLINEMIN $NKNOTS $BINREPORTPARAMFILE $BINREPORTPARAMFREQ $BINOUTPUTLEVEL $LAMUPDATEINTERVAL
+    set aux  [llength $pairmask]
+    Tcl_InitializePairCalc $ds $XSCFILE $CUTOFF $NLCUTOFF $BEGINEVOLVEPARAMETERS $USETAMDFORCES $REPORTPARAMFREQ $SPLINEMIN $NKNOTS $BINREPORTPARAMFILE $BINREPORTPARAMFREQ $BINOUTPUTLEVEL $LAMUPDATEINTERVAL $aux
 
-    if {[info exists initKnotsINP]} {Tcl_DataSpace_InitKnots $ds $initKnotsINP}
+    # FIXME. Add a index to load a  initial knots file for each chapeau
+    # if {[info exists initKnotsINP]} {Tcl_DataSpace_InitKnots $ds $initKnotsINP}
+
+    # Pair potentinal interaction
+    intListToArray_Data [DataSpace_chid $ds ] $ch_id
+    print "CFACV) The pair chapeau (map in vector) is:"
+    for {set i 0} { $i < $nCntr } { incr i } {
+      set aux ""
+      for {set j 0} { $j <= $i } { incr j } {set aux "$aux  "}
+      for {set j [expr $i+1]} { $j < $nCntr } { incr j } {
+        set aux "$aux [lindex $ch_id [expr $j+($nCntr-2)*$i-($i-1)*$i/2-1]]"
+      }
+      puts $aux
+    }
+              
 }
 
 # read z values from a restart file
@@ -166,11 +189,11 @@ proc calcforces { } {
 
     # report if requested
     if {[expr {[getstep]%$TAMDof == 0}]} {
-	DataSpace_ReportRestraints $ds [getstep] $TAMDoutputlevel $TAMDoutputFileFP
+        DataSpace_ReportRestraints $ds [getstep] $TAMDoutputlevel $TAMDoutputFileFP
     }
 
     # report if requested
     if {[info exists TAMDbinOutputFile] && [expr {[getstep]%$TAMDbinof == 0}]} {
-	DataSpace_BinaryReportRestraints $ds [getstep] $TAMDoutputlevel $TAMDbinOutputFileFP
+        DataSpace_BinaryReportRestraints $ds [getstep] $TAMDoutputlevel $TAMDbinOutputFileFP
     }
 }
