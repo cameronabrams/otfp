@@ -44,7 +44,10 @@ DataSpace_dump	cfacv.c	/^int DataSpace_dump ( DataSpace * ds ) {$/;"	f
 DataSpace_getN	cfacv.c	/^int DataSpace_getN ( DataSpace * ds ) {$/;"	f
 F	cfacv.h	/^  double ** F; \/\/ temp storage of cartesian aux variable forces$/;"	m	struct:DATASPACESTRUCT
 GCC_HASCLASSVISIBILITY	cfacv_wrap.c	82;"	d	file:
-HARMONIC	cfacv.h	/^enum {HARMONIC, PERIODIC, NULL_RF};$/;"	e	enum:__anon4
+HARMCUTO	cfacv.h	/^enum {HARMONIC, HARMCUTO, PERIODIC, NULL_RF};$/;"	e	enum:__anon4
+HARMONIC	cfacv.h	/^enum {HARMONIC, HARMCUTO, PERIODIC, NULL_RF};$/;"	e	enum:__anon4
+HarmonicCartPBC	cfacv.c	/^int HarmonicCartPBC ( restrStruct * r, int pbc, double half_domain ) {$/;"	f
+HarmonicCartPBC_cutoff	cfacv.c	/^int HarmonicCartPBC_cutoff ( restrStruct * r, int pbc, double half_domain ) {$/;"	f
 K	cfacv.h	/^  int K; \/\/ number of restraints$/;"	m	struct:DATASPACESTRUCT
 L	cfacv.h	/^  double L[3]; \/\/ simulation box size$/;"	m	struct:DATASPACESTRUCT
 LJPair	cfacv.c	/^void LJPair ( double * par, double r2, double * gr ) {$/;"	f
@@ -54,7 +57,7 @@ ListToArray	cfacv.tcl	/^proc ListToArray {l} {$/;"	p
 ListToArray_Data	cfacv.tcl	/^proc ListToArray_Data { a l } {$/;"	p
 M	centers.h	/^  double M;$/;"	m	struct:ATOMCENTERSTRUCT
 M	cfacv.h	/^  int M; \/\/ number of CVs$/;"	m	struct:DATASPACESTRUCT
-MAXNBOR	cfacv.h	164;"	d
+MAXNBOR	cfacv.h	171;"	d
 M_SQRT3	measurements.h	11;"	d
 Max	cfacv.h	/^  double Min[3], Max[3];$/;"	m	struct:DATASPACESTRUCT
 Min	cfacv.h	/^  double Min[3], Max[3];$/;"	m	struct:DATASPACESTRUCT
@@ -62,7 +65,7 @@ MyParanoiaCheck	cfacv.tcl	/^proc MyParanoiaCheck {ds msg} {$/;"	p
 N	cfacv.h	/^  int N; \/\/ number of centers$/;"	m	struct:DATASPACESTRUCT
 N	chapeau.h	/^  int N; \/\/ number of particles$/;"	m	struct:CHAPEAU
 NULL_CV	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, NULL_CV};$/;"	e	enum:__anon3
-NULL_RF	cfacv.h	/^enum {HARMONIC, PERIODIC, NULL_RF};$/;"	e	enum:__anon4
+NULL_RF	cfacv.h	/^enum {HARMONIC, HARMCUTO, PERIODIC, NULL_RF};$/;"	e	enum:__anon4
 NewDataSpace	cfacv.c	/^DataSpace * NewDataSpace ( int N, int M, int K, long int seed ) {$/;"	f
 New_atomCenterStruct	centers.c	/^atomCenterStruct * New_atomCenterStruct ( int n ) {$/;"	f
 New_centerStruct	centers.c	/^centerStruct * New_centerStruct ( int id, int maxN ) {$/;"	f
@@ -72,10 +75,10 @@ New_smdOptStruct	cfacv.c	/^smdOptStruct * New_smdOptStruct ( double target, int 
 New_tamdOptStruct	cfacv.c	/^tamdOptStruct * New_tamdOptStruct ( double g, double kt, double dt, int riftyp, double half_domain ) {$/;"	f
 Null_centerStruct	centers.c	/^centerStruct * Null_centerStruct ( void ) {$/;"	f
 O	cfacv.h	/^  double O[3]; \/\/ simulation box origin$/;"	m	struct:DATASPACESTRUCT
-PERIODIC	cfacv.h	/^enum {HARMONIC, PERIODIC, NULL_RF};$/;"	e	enum:__anon4
+PERIODIC	cfacv.h	/^enum {HARMONIC, HARMCUTO, PERIODIC, NULL_RF};$/;"	e	enum:__anon4
 R	cfacv.h	/^  double ** R; \/\/ array of center cartesian coordinates R[i][0\/1\/2]$/;"	m	struct:DATASPACESTRUCT
 RESTRSTRUCT	cfacv.h	/^typedef struct RESTRSTRUCT {$/;"	s
-RFSTRINGS	cfacv.c	/^char * RFSTRINGS[NULL_RF] = {"HARMONIC", "PERIODIC"};$/;"	v
+RFSTRINGS	cfacv.c	/^char * RFSTRINGS[NULL_RF] = {"HARMONIC","HARMCUTO", "PERIODIC"};$/;"	v
 RR	cfacv.h	/^  double *** RR; \/\/ array of intercenter distances components$/;"	m	struct:DATASPACESTRUCT
 SIN_THRESH	measurements.c	177;"	d	file:
 SMDOPTSTRUCT	cfacv.h	/^typedef struct SMDOPTSTRUCT {$/;"	s
@@ -264,7 +267,7 @@ Tcl_ObserveDataSpace	cfacv.tcl	/^proc Tcl_ObserveDataSpace { ds cntrSel frame } 
 Tcl_Reinitialize	cfacv.tcl	/^proc Tcl_Reinitialize { ds restartINP } {$/;"	p
 Tcl_UpdateDataSpace	cfacv.tcl	/^proc Tcl_UpdateDataSpace { ds lC groups first timestep } {$/;"	p
 ULLONG_MAX	cfacv_wrap.c	1670;"	d	file:
-Xi	cfacv.h	/^  unsigned short * Xi;$/;"	m	struct:DATASPACESTRUCT
+Xi	cfacv.h	/^unsigned short * Xi;$/;"	v
 Z	cfacv.h	/^  double ** Z; \/\/ temp storage of cartesian aux variables$/;"	m	struct:DATASPACESTRUCT
 _CENTERS_H_	centers.h	2;"	d
 _CFACV_H_	cfacv.h	68;"	d
@@ -349,8 +352,6 @@ ch_num	cfacv.h	/^  int ch_num;$/;"	m	struct:DATASPACESTRUCT
 chapeau	chapeau.h	/^} chapeau;$/;"	t	typeref:struct:CHAPEAU
 chapeau_alloc	chapeau.c	/^chapeau * chapeau_alloc ( int m, double rmin, double rmax, int npart ) {$/;"	f
 chapeau_allocloadstate	chapeau.c	/^chapeau * chapeau_allocloadstate ( char * filename ) {$/;"	f
-chapeau_increment_global_accumulators	chapeau.c	/^void chapeau_increment_global_accumulators ( chapeau * ch, int i, double * F ) {$/;"	f
-chapeau_init_particle_sums	chapeau.c	/^void chapeau_init_particle_sums ( chapeau * ch ) {$/;"	f
 chapeau_output	chapeau.c	/^void chapeau_output ( chapeau * ch, int timestep ) {$/;"	f
 chapeau_savestate	chapeau.c	/^void chapeau_savestate ( chapeau * ch, int timestep ) {$/;"	f
 chapeau_setPeaks	chapeau.c	/^void chapeau_setPeaks ( chapeau * ch, double * peaks ) {$/;"	f
@@ -381,10 +382,11 @@ doAnalyticalCalc	cfacv.h	/^  int doAnalyticalCalc; \/\/ indicates whether or not
 dr	chapeau.h	/^  double rmin, rmax, dr, idr;  \/\/ range and increment or argument of$/;"	m	struct:CHAPEAU
 dt	cfacv.h	/^  double dt;           \/\/ timestep (ps)$/;"	m	struct:TAMDOPTSTRUCT
 dvalue	cfacv_wrap.c	/^    double dvalue;$/;"	m	struct:swig_const_info	file:
-energyFunc	cfacv.h	/^  restrEnergyFunc energyFunc;   \/\/ pointer to the restraining energy function$/;"	m	struct:RESTRSTRUCT
+energyFunc	cfacv.h	/^  int (*energyFunc)(struct RESTRSTRUCT * self, int pbc, double half_domain);$/;"	m	struct:RESTRSTRUCT
 evolveAnalyticalParameters	cfacv.h	/^  int evolveAnalyticalParameters;$/;"	m	struct:DATASPACESTRUCT
 f	cfacv.h	/^  double f;              \/\/ force on restraint$/;"	m	struct:RESTRSTRUCT
-forceFunc	cfacv.h	/^  restrForceFunc forceFunc;     \/\/ pointer to the restraining force function$/;"	m	struct:RESTRSTRUCT
+fes_from_bonds	cfacv.c	/^int fes_from_bonds( DataSpace * ds ) { $/;"	f
+fes_from_distances	cfacv.c	/^int fes_from_distances ( DataSpace * ds, int first, int timestep ) {$/;"	f
 gamma	cfacv.h	/^  double gamma;        \/\/ fictitious friction (1\/ps)$/;"	m	struct:TAMDOPTSTRUCT
 generate_cv	cfacv.tcl	/^proc generate_cv { cvOpt p } {$/;"	p
 get	cfacv_wrap.c	/^  char * (*get)(ClientData, Tcl_Interp *, char *, char *, int);$/;"	m	struct:__anon2	file:
@@ -398,6 +400,7 @@ hL	cfacv.h	/^  double hL[3]; \/\/ simulation box half-size$/;"	m	struct:DATASPAC
 half_domain	cfacv.h	/^  double half_domain;  \/\/ half-domain size of periodic CV$/;"	m	struct:TAMDOPTSTRUCT
 half_domain	cfacv.h	/^  double half_domain;$/;"	m	struct:RESTRSTRUCT
 handle_pair	cfacv.c	/^double handle_pair ( DataSpace * ds, int i, int j ) {$/;"	f
+handler	cfacv.c	/^void handler(int sig) {$/;"	f
 hashtable	cfacv_wrap.c	/^  Tcl_HashTable       hashtable;$/;"	m	struct:swig_class	file:
 hits	chapeau.h	/^  long * hits;  \/\/ number of hits in each bin value of r$/;"	m	struct:CHAPEAU
 iK	cfacv.h	/^  int iK;$/;"	m	struct:DATASPACESTRUCT
@@ -490,7 +493,6 @@ pt	measurements.c	/^void pt ( double * angles, double * hx, double * hy, double 
 ptr	cfacv_wrap.c	/^SWIG_Tcl_ConvertPacked(Tcl_Interp *SWIGUNUSEDPARM(interp) , Tcl_Obj *obj, void *ptr, int sz, swig_type_info *ty) {$/;"	v
 ptype	cfacv_wrap.c	/^    swig_type_info **ptype;$/;"	m	struct:swig_const_info	file:
 pvalue	cfacv_wrap.c	/^    void   *pvalue;$/;"	m	struct:swig_const_info	file:
-re_HarmonicCartPBC	cfacv.c	/^double re_HarmonicCartPBC ( double k, double v, double z, int pbc, double half_domain ) {$/;"	f
 re_Periodic	cfacv.c	/^double re_Periodic ( double k, double v, double z, double half_domain ) {$/;"	f
 read_centersPDB	cfacv.tcl	/^proc read_centersPDB { templatePdb serArr mass pk ch} {$/;"	p
 read_centersVMD	cfacv.tcl	/^proc read_centersVMD { pL mL fileName molID } {$/;"	p
@@ -500,13 +502,11 @@ read_restraints	cfacv.tcl	/^proc read_restraints { restr_file ncv restrList } {$
 reportParamFreq	cfacv.h	/^  int reportParamFreq;$/;"	m	struct:DATASPACESTRUCT
 report_centers	cfacv.tcl	/^proc report_centers { p fileName } {$/;"	p
 restr	cfacv.h	/^  restrStruct ** restr;$/;"	m	struct:DATASPACESTRUCT
-restrEnergyFunc	cfacv.h	/^typedef double (*restrEnergyFunc) ( double, double, double, int, double );$/;"	t
-restrForceFunc	cfacv.h	/^typedef double (*restrForceFunc) ( double, double, double, int, double );$/;"	t
 restrStruct	cfacv.h	/^} restrStruct;$/;"	t	typeref:struct:RESTRSTRUCT
+restrUpdate	cfacv.c	/^int restrUpdate ( restrStruct * r, double f ) {$/;"	f
 restr_getcvc	cfacv.tcl	/^proc restr_getcvc { r } {$/;"	p
 restr_getopt	cfacv.tcl	/^proc restr_getopt { r key altkey def } {$/;"	p
 restr_getoptlist	cfacv.tcl	/^proc restr_getoptlist { r } {$/;"	p
-rf_HarmonicCartPBC	cfacv.c	/^double rf_HarmonicCartPBC ( double k, double v, double z, int pbc, double half_domain ) {$/;"	f
 rf_Periodic	cfacv.c	/^double rf_Periodic ( double k, double v, double z, double half_domain ) {$/;"	f
 rf_getityp	cfacv.c	/^int rf_getityp ( char * typ ) {$/;"	f
 rf_getstyp	cfacv.c	/^char * rf_getstyp ( int ityp ) {$/;"	f
@@ -569,6 +569,7 @@ t1	cfacv.h	/^  int t1;              \/\/ timestep to end steering (and hold rest
 tamdOpt	cfacv.h	/^  tamdOptStruct * tamdOpt; \/\/ pointer to the tamd options structure$/;"	m	struct:RESTRSTRUCT
 tamdOptStruct	cfacv.h	/^} tamdOptStruct;$/;"	t	typeref:struct:TAMDOPTSTRUCT
 tamdUpdate	cfacv.c	/^double tamdUpdate ( DataSpace * ds, double z, double f, tamdOptStruct * tamd, double * noise, double * res ) {$/;"	f
+tamd_evolve	cfacv.h	/^  int tamd_evolve;        \/\/ Indicate when z must evolve. When tamd_evolve goes$/;"	m	struct:RESTRSTRUCT
 tamd_noise	cfacv.h	/^  double tamd_noise;$/;"	m	struct:RESTRSTRUCT
 tamd_restraint	cfacv.h	/^  double tamd_restraint;$/;"	m	struct:RESTRSTRUCT
 target	cfacv.h	/^  double target;       \/\/ target value of steered variable$/;"	m	struct:SMDOPTSTRUCT

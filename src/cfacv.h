@@ -118,9 +118,8 @@ typedef struct SMDOPTSTRUCT {
 
 
 // The Restraint structure
-enum {HARMONIC, PERIODIC, NULL_RF};
-typedef double (*restrForceFunc) ( double, double, double, int, double );
-typedef double (*restrEnergyFunc) ( double, double, double, int, double );
+enum {HARMONIC, HARMCUTO, PERIODIC, NULL_RF};
+
 typedef struct RESTRSTRUCT {
   double k;               // spring constant
   double z;               // target value
@@ -139,14 +138,22 @@ typedef struct RESTRSTRUCT {
                          // with only one non-zero value (of 1) that
                          // indicates which CV this restraint is
                          // applied to.
+
   tamdOptStruct * tamdOpt; // pointer to the tamd options structure
   double tamd_noise;
   double tamd_restraint;
   smdOptStruct * smdOpt;   // pointer to the smd options structure
+
   int rfityp;                   // type of the restraining function
                                 // (Harmonic or Periodic)
-  restrForceFunc forceFunc;     // pointer to the restraining force function
-  restrEnergyFunc energyFunc;   // pointer to the restraining energy function
+
+  int tamd_evolve;        // Indicate when z must evolve. When tamd_evolve goes
+                          // from 0 to 1 z value is initialized
+
+  // pointer to the restraining energy and force function
+  //restrEnergyFunc energyFunc;   
+  int (*energyFunc)(struct RESTRSTRUCT * self, int pbc, double half_domain);
+
 } restrStruct;
 
 
@@ -171,7 +178,6 @@ typedef struct DATASPACESTRUCT {
   int iN;
   int iM;
   int iK;
-  unsigned short * Xi;
   double ** R; // array of center cartesian coordinates R[i][0/1/2]
   atomCenterStruct ** ac; // defined in centers.h
   cvStruct ** cv;
@@ -225,6 +231,14 @@ typedef struct DATASPACESTRUCT {
   
 } DataSpace;
 
+
+
+
+
+//The random seed
+unsigned short * Xi;
+
+// Other subroutines
 FILE * my_fopen ( char * name, char * code ) ;
 int * DataSpace_chid ( DataSpace * ds );
 DataSpace * NewDataSpace ( int N, int M, int K, long int seed );
@@ -249,4 +263,8 @@ int DataSpace_dump ( DataSpace * ds );
 FILE * my_binfopen ( char * name, char * code, unsigned int outputLevel, DataSpace * ds );
 void DataSpace_BinaryReportRestraints ( DataSpace * ds, int step, int outputlevel, FILE * fp );
 int DataSpace_InitKnots ( DataSpace * ds, char * filename, int j);
+
+int fes_from_bonds( DataSpace * ds ); 
+int fes_from_distances( DataSpace * ds, int first, int timestep ) ; 
+
 #endif

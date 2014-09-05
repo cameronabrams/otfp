@@ -29,4 +29,6 @@ int main ( int argc, char * argv[] ) {
     fflush(ch[0]->ofp);
   }
 
+  return 0;
+
 }

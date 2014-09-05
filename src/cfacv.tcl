@@ -851,6 +851,12 @@ proc Tcl_NewDataSpace { nC cvL rL seed } {
         set RestraintFunction [string toupper [restr_getopt $r "RestraintFunction" "rf"  HARMONIC]]
 	set zmin [restr_getopt $r "Minimum" "min" 0.00]
 	set zmax [restr_getopt $r "Maximum" "max" 0.00]
+        if { $RestraintFunction == "HARMCUTO" } {
+          if { $zmax == 0.00 } {
+            print "restrian max needed for HARMCUTO"
+            exit
+          }
+	}
 	if { $RestraintFunction == "PERIODIC" } {
 	    set zmin [expr -1*acos(-1)]
 	    set zmax [expr acos(-1)]
@@ -891,17 +897,15 @@ proc Tcl_NewDataSpace { nC cvL rL seed } {
 
 
 proc Tcl_InitializePairCalc { ds XSCFILE cutoff nlcutoff begin_evolve usetamdforces reportparamfreq spline_min nKnots splineoutputfile splineoutputfreq splineoutputlevel updateinterval cvnum} {
-    
     DataSpace_SetupPairCalc $ds $cutoff $nlcutoff $begin_evolve $usetamdforces $reportparamfreq $spline_min $nKnots $splineoutputfile $splineoutputfreq $splineoutputlevel $updateinterval $cvnum
-
     if [string equal $XSCFILE "off"] {
       print "CFACV) DEBUG: Tcl_InitializePairCalc nobox"
       DataSpace_SetupPBC $ds 0  0 0 0  0 0 0
     } else {
-      print "CFACV) DEBUG: Tcl_InitializePairCalc box size [lindex $LL 0] [lindex $LL 1] [lindex $LL 2]"
-      print "CFACV) DEBUG: Tcl_InitializePairCalc origin   [lindex $O 0] [lindex $O 1] [lindex $O 2]"
       set LL [my_getcellsize $XSCFILE]
       set O [my_getorigin $XSCFILE]
+      print "CFACV) DEBUG: Tcl_InitializePairCalc box size [lindex $LL 0] [lindex $LL 1] [lindex $LL 2]"
+      print "CFACV) DEBUG: Tcl_InitializePairCalc origin   [lindex $O 0] [lindex $O 1] [lindex $O 2]"
       DataSpace_SetupPBC $ds 1 [lindex $O 0] [lindex $O 1] [lindex $O 2] [lindex $LL 0] [lindex $LL 1] [lindex $LL 2] 
     }
 }

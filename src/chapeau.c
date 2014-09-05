@@ -237,35 +237,8 @@ chapeau * chapeau_allocloadstate ( char * filename ) {
     return ch;
 }
     
-void chapeau_init_particle_sums ( chapeau * ch ) {
-  int d,i,j;
-  int m=ch->m;
-  for (j=0;j<ch->N;j++) for (d=0;d<3;d++) for (i=0;i<m;i++) ch->s[j][d][i]=0.0;
-}
-
-// increment the global accumulators by what is currently in the single-particle accumulators
-void chapeau_increment_global_accumulators ( chapeau * ch, int i, double * F ) {
-  int m,n;//,d;
-  int N=ch->m;
-  double ** s=ch->s[i];
-  gsl_vector * b = ch->b;
-  gsl_matrix * A = ch->A;
-  //  for (d=0;d<3;d++) {
-    for (m=0;m<N;m++) {
-      b->data[m]+=F[0]*s[0][m]+F[1]*s[1][m]+F[2]*s[2][m];
-      //gsl_vector_set(ch->b,m,gsl_vector_get(ch->b,m)+F[0]*s[0][m]+F[1]*s[1][m]+F[2]*s[2][m]);
-      for (n=0;n<N;n++) {
-	A->data[m*A->tda+n]+=s[0][m]*s[0][n]+s[1][m]*s[1][n]+s[2][m]*s[2][n];
-	//gsl_matrix_set(ch->A,m,n,gsl_matrix_get(ch->A,m,n)+s[0][m]*s[0][n]+s[1][m]*s[1][n]+s[2][m]*s[2][n]);
-	//fprintf(stderr,"*** iga %i %i %g\n",m,n,gsl_matrix_get(ch->A,m,n));
-      }
-    }
-    //}
-}
-
 void chapeau_update_peaks ( chapeau * ch, int nsamples, int timestep ) {
-  int i,j,J,I,ii,jj;
-  int N=ch->m;
+  int i,j,J,I;
   int s;
   double ninv;
   double lo,lb,alpha;
@@ -278,29 +251,60 @@ void chapeau_update_peaks ( chapeau * ch, int nsamples, int timestep ) {
     gsl_permutation * p;
     int nred;
 
-    // parameters that are allowed to evolve lie between indices for which
-    // ch->hits[] is non-zero so extract the proper subspace
-    for (i=0;i<ch->m&&(!ch->hits[i]);i++);
-    I=i;
-    for (i=I;i<ch->m&&ch->hits[i];i++);
-    J=i;
+    //DB//for (i=0;i<ch->m;i++) fprintf(stderr,"AAA %i %i\n",i,ch->hits[i]); exit(1);
 
-    nred=J-I; //minus the last
+    //// parameters that are allowed to evolve lie between indices for which
+    //// ch->hits[] is non-zero so extract the proper subspace
+    nred=0;
+    for (i=0;i<ch->m;i++) if (ch->hits[i]!=0) nred++;
+
+    if (nred<10) {
+      fprintf(stderr,"Warning: No chapeau update: to few non cero elements");
+      return;
+    }
+
     Abar=gsl_matrix_alloc(nred,nred);
     bbar=gsl_vector_alloc(nred);
     lambar=gsl_vector_alloc(nred);
     p=gsl_permutation_alloc(nred);
-    ii=0;
-    for (i=I;i<J;i++) {
-      gsl_vector_set(bbar,ii,gsl_vector_get(ch->b,i));
-      jj=0;
-      for (j=I;j<J;j++) {
-	gsl_matrix_set(Abar,ii,jj,gsl_matrix_get(ch->A,i,j));
-	jj++;
+    
+    I=0;
+    for (i=0;i<ch->m;i++) {
+      if (ch->hits[i]==0) continue;
+      gsl_vector_set(bbar,I,gsl_vector_get(ch->b,i));
+      J=0;
+      for (j=0;j<ch->m;j++) {
+        if (ch->hits[j]==0) continue;
+        gsl_matrix_set(Abar,I,J,gsl_matrix_get(ch->A,i,j));
+        J++;
       }
-      ii++;
-    }
+      I++;
+    } 
+    
+    //for (i=0;i<ch->m&&(!ch->hits[i]);i++);
+    //I=i;
+    //for (i=I;i<ch->m&&ch->hits[i];i++);
+    //J=i;
 
+    //nred=J-I; //minus the last
+    //Abar=gsl_matrix_alloc(nred,nred);
+    //bbar=gsl_vector_alloc(nred);
+    //lambar=gsl_vector_alloc(nred);
+    //p=gsl_permutation_alloc(nred);
+    //ii=0;
+    //for (i=I;i<J;i++) {
+    //  gsl_vector_set(bbar,ii,gsl_vector_get(ch->b,i));
+    //  jj=0;
+    //  for (j=I;j<J;j++) {
+    //    gsl_matrix_set(Abar,ii,jj,gsl_matrix_get(ch->A,i,j));
+    //    jj++;
+    //  }
+    //  ii++;
+    //}
+    
+    // A and b accumulators are equivalent to A*nsteps and -b*nsteps of the
+    // paper respectively. See fes_from_... procedures for more detail. Here we
+    // correct that:
     ninv=1.0/nsamples;
     gsl_matrix_scale(Abar,ninv);
     gsl_vector_scale(bbar,-ninv);
@@ -311,11 +315,15 @@ void chapeau_update_peaks ( chapeau * ch, int nsamples, int timestep ) {
     alpha=0.0;//1.0-exp(-1.0e4*ninv);
     
     // update the vector of coefficients
-    for (i=0;i<nred;i++) {
-      lo=gsl_vector_get(ch->lam,i+I);
-      lb=gsl_vector_get(lambar,i);
-      gsl_vector_set(ch->lam,i+I,alpha*lo+(1-alpha)*lb);
-    }
+    I=0;
+    for (i=0;i<ch->m;i++) {
+      if (ch->hits[i]==0) continue;
+      lo=gsl_vector_get(ch->lam,i);
+      lb=gsl_vector_get(lambar,I);
+      gsl_vector_set(ch->lam,i,alpha*lo+(1-alpha)*lb);
+      I++;
+    } 
+     
     gsl_matrix_free(Abar);
     gsl_vector_free(bbar);
     gsl_vector_free(lambar);

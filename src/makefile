@@ -2,9 +2,31 @@
 # that, thanks to SWIG, is ready to be loaded in tcl scripts
 
 CC=gcc
-# CCFLAGS=-O0 -g -Wall -Wpedantic
-CCFLAGS=-O3
-LIBS = -lm -lgsl -lgslcblas
+
+ifeq ($(CC),icc)
+ # CCFLAGS+=-fast
+CCFLAGS+=-xSSE4.2
+CCFLAGS+=-O3
+LIBS += -L/usr/lib64
+# LIBS += -L/opt/intel/composerxe/lib/intel64/ -lintlc
+endif
+
+ifeq ($(CC),gcc)
+CCFLAGS+=-O3 
+# CCFLAGS+=-static
+# CCFLAGS=-g -Wall -Wpedantic
+#
+# Profile
+# CCFLAGS+=-Wall -g -rdynamic
+endif
+
+# On stampede
+# LIBS += -I$(TACC_GSL_INC) -L$(TACC_GSL_LIB)
+
+
+LIBS += -lgsl -lgslcblas
+LIBS += -lm
+
 
 OBJ += measurements.o
 OBJ += chapeau.o
@@ -22,7 +44,7 @@ cfacv.so:  $(OBJ) cfacv_wrap.o
 	$(CC) $(CCFLAGS) -shared -o $@ $^ $(LIBS)
         
 %.o: %.c
-	$(CC) -c -fpic $(CCFLAGS) $<
+	$(CC) -c -fpic $(CCFLAGS) $< $(LIBS)
  
 cfacv_wrap.c: cfacv.c cfacv.i cfacv.h
 	swig -tcl8 cfacv.i

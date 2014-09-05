@@ -64,5 +64,6 @@ void chapeau_init_particle_sums ( chapeau * ch );
 void chapeau_increment_particle_sum ( chapeau * ch, int i, int j, double * Zij, double zij );
 void chapeau_increment_global_accumulators ( chapeau * ch, int i, double * F );
 void chapeau_update_peaks ( chapeau * ch, int nsamples, int timestep );
+void chapeau_sum ( chapeau * ch1, chapeau * ch2 );
 
 #endif

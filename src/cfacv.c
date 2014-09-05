@@ -1,6 +1,29 @@
 #include "cfacv.h"
 
+// Handling SIGSEGV or SIGINT signal to make a call stack using backtrace.
+// The call stack can be used to profile the program
+// See for instance:
+// http://stackoverflow.com/a/378024/1342186
+// http://stackoverflow.com/a/77336/1342186
+
+#include <execinfo.h>
+#include <signal.h>
+#include <unistd.h>
+
 //#define _PARANOIA_ 1
+
+void handler(int sig) {
+  void *array[10];
+  size_t size;
+
+  // get void*'s for all entries on the stack
+  size = backtrace(array, 10);
+
+  // print out all the frames to stderr
+  fprintf(stderr, "Error: signal %d:\n", sig);
+  backtrace_symbols_fd(array, size, STDERR_FILENO);
+  exit(1);
+}
 
 void cfacvBanner ( void ) {
   printf("CFACV/C) Version (Git Hash): %s\n",VERSION);
@@ -31,7 +54,7 @@ char * cv_getstyp ( int ityp ) {
   else return "NOT_FOUND";
 }
 
-char * RFSTRINGS[NULL_RF] = {"HARMONIC", "PERIODIC"};
+char * RFSTRINGS[NULL_RF] = {"HARMONIC","HARMCUTO", "PERIODIC"};
 int rf_getityp ( char * typ ) {
   int i;
   for (i=0;i<NULL_RF&&strcmp(typ,RFSTRINGS[i]);i++);
@@ -58,24 +81,71 @@ cvStruct * New_cvStruct ( int typ, int nC, int * ind ) {
   return newcv;
 }
 
-double rf_HarmonicCartPBC ( double k, double v, double z, int pbc, double half_domain ) {
-  double tmp=v-z;
+int HarmonicCartPBC ( restrStruct * r, int pbc, double half_domain ) {
+  double tmp=r->val-r->z;
+
   if (pbc) {
     if (tmp>half_domain) {tmp-=2*half_domain;}
     if (tmp<-half_domain) {tmp+=2*half_domain;}
   }
-  return -k*tmp;
+  r->f=-r->k*tmp;
+  r->u=0.5*r->k*tmp*tmp;
+
+  return 0;
 }
 
-double re_HarmonicCartPBC ( double k, double v, double z, int pbc, double half_domain ) {
-  double tmp=v-z;
-  if (pbc) {
-    if (tmp>half_domain) tmp-=2*half_domain;
-    if (tmp<-half_domain) tmp+=2*half_domain;
+int HarmonicCartPBC_cutoff ( restrStruct * r, int pbc, double half_domain ) {
+  //double r1=10.0,r2=12.0;
+ 
+  // Non tie
+  if (r->z>r->max) {
+    r->f=0.0;
+    r->u=0.0;
+    r->tamd_evolve=0;
+    return 0;
+  } 
+
+
+  //// Set up initial position above the CV
+  //if(!r->tamd_evolve) {
+  //  r->z=r->val;
+  //  r->tamd_evolve=1;
+  //  r->f=0.0;
+  //  r->u=0.0;
+  //  return 0;
+  //}
+
+  // Set up initial acording to a distribution around the CV
+  if(!r->tamd_evolve) {
+    r->z=r->val+sqrt(r->tamdOpt->kT/r->k)*my_whitenoise(Xi);
+    r->tamd_evolve=1;
   }
-  return 0.5*k*tmp*tmp;
-}
 
+  // Abrupt cutoff
+  HarmonicCartPBC(r,pbc,half_domain);
+
+  //// Force an energy with a smooth cutoff
+  //if(r->z<r1) {
+  //  aux=0.0;
+  //  aux1=1.0;
+  //} else {
+  //tmp==r->val-r->z;
+  //  if (pbc) {
+  //    if (tmp>half_domain) tmp-=2*half_domain;
+  //    if (tmp<-half_domain) tmp+=2*half_domain;
+  //  }
+  //  aux=M_PI*(tmp-(r1+r2)*0.5)/(r2-r1);
+  //  aux1=0.5-0.5*sin(aux);
+  //  aux=-cos(aux)*M_PI*tmp/(r2-r1)*0.5;
+  //  //dfcut=-0.5_dp*cos(aux)*pio2*tmp/(r2-r1);
+  //}
+  //aux2=0.5*r->k*tmp*tmp;
+  //r->f=-r->k*tmp*aux1-aux2*aux;
+  //r->u=aux2*aux1;
+
+  return 0;
+}
+ 
 double rf_Periodic ( double k, double v, double z, double half_domain ) {
   double dz=v-z;
 #ifdef _PARANOIA_
@@ -116,13 +186,16 @@ restrStruct * New_restrStruct ( double k, double z, int nCV, double * cvc, char 
   newr->tamdOpt=NULL;
   newr->tamd_noise=0.0;
   newr->tamd_restraint=0.0;
+  newr->tamd_evolve=1;
   newr->smdOpt=NULL;
   newr->min=zmin;
   newr->max=zmax;
   newr->half_domain=0.5*(zmax-zmin);
   if (newr->rfityp==HARMONIC) {
-    newr->forceFunc = rf_HarmonicCartPBC;
-    newr->energyFunc = re_HarmonicCartPBC;
+    newr->energyFunc = HarmonicCartPBC;
+  }
+  else if (newr->rfityp==HARMCUTO) {
+    newr->energyFunc = HarmonicCartPBC_cutoff;
   }
   else if (newr->rfityp==PERIODIC) {
   //  newr->forceFunc = rf_Periodic;
@@ -148,7 +221,7 @@ tamdOptStruct * New_tamdOptStruct ( double g, double kt, double dt, int riftyp, 
 /* Diffusive dynamics! */
 double tamdUpdate ( DataSpace * ds, double z, double f, tamdOptStruct * tamd, double * noise, double * res ) {
   double dd = tamd->ginv*tamd->dt*f;
-  double rd = tamd->noise*my_whitenoise(ds->Xi);
+  double rd = tamd->noise*my_whitenoise(Xi);
   *noise=rd;
   *res=dd;
   if (tamd->periodic) {
@@ -158,6 +231,27 @@ double tamdUpdate ( DataSpace * ds, double z, double f, tamdOptStruct * tamd, do
     return newrawz;
   }
   return z+dd+rd; 
+}
+
+int restrUpdate ( restrStruct * r, double f ) {
+
+  if (!r->tamd_evolve) return 0;
+
+  tamdOptStruct * tamd=r->tamdOpt;
+  double dd = tamd->ginv*tamd->dt*f;
+  double rd = tamd->noise*my_whitenoise(Xi);
+  r->tamd_noise=rd;
+  r->tamd_restraint=dd;
+
+  if (tamd->periodic) {
+    double newrawz=r->z+dd+rd;
+    if (newrawz>tamd->half_domain) newrawz-=2*tamd->half_domain;
+    if (newrawz<-tamd->half_domain) newrawz+=2*tamd->half_domain;
+    r->z=newrawz;
+  }
+  r->z=r->z+dd+rd; 
+
+  return 0;
 }
 
 double smdUpdate ( double z, double increment, int OK ) {
@@ -210,10 +304,13 @@ DataSpace * NewDataSpace ( int N, int M, int K, long int seed ) {
   ds->M=M;
   ds->K=K;
   ds->iN=ds->iM=ds->iK=0;
-  ds->Xi=(unsigned short *)malloc(3*sizeof(unsigned short));
-  ds->Xi[0]=(seed & 0xffff00000000) >> 32;
-  ds->Xi[1]=(seed & 0x0000ffff0000) >> 16;
-  ds->Xi[2]= 0x330e;
+
+  // Random seed. I deatached this from the data space a do it global
+  // for all the file (see for example HarmonicCartPBC_cutoff function)
+  Xi=(unsigned short *)malloc(3*sizeof(unsigned short));
+  Xi[0]=(seed & 0xffff00000000) >> 32;
+  Xi[1]=(seed & 0x0000ffff0000) >> 16;
+  Xi[2]= 0x330e;
 
   ds->R=(double**)malloc(N*sizeof(double*));
   for (i=0;i<N;i++) ds->R[i]=calloc(3,sizeof(double));
@@ -273,6 +370,7 @@ int DataSpace_SetupPBC ( DataSpace * ds, int pbc, double Ox, double Oy, double O
   ds->Max[1]=ds->L[1]-ds->O[1]; ds->Min[1]=ds->Max[1]-ds->L[1];
   ds->Max[2]=ds->L[2]-ds->O[2]; ds->Min[2]=ds->Max[2]-ds->L[2];
  
+  return 0;
 }
 int DataSpace_SetupPairCalc ( DataSpace * ds, double cutoff, double nlcutoff,
 			      int beginEvolve, int useTAMDforces, int reportParamFreq, double spline_min, int nKnots, 
@@ -571,6 +669,7 @@ double handle_pair ( DataSpace * ds, int i, int j ) {
       while (tmp>ds->hL[k]) tmp-=ds->L[k];
       while (tmp<-ds->hL[k]) tmp+=ds->L[k];
     }
+    // RR is needed for evolove z with free energy gradients
     ds->RR[i][j][k]=tmp;
     ds->RR[j][i][k]=-tmp;
     t2=tmp*tmp;
@@ -580,32 +679,27 @@ double handle_pair ( DataSpace * ds, int i, int j ) {
 
   ds->rr[i][j]=r2;
   ds->rr[j][i]=r2;
-  ds->gr[i][j]=ds->gr[j][i]=0.0;
 
-  // Early return if no chapeau object is asociated with this pair
-  k=j+(ds->N-2)*i-(i-1)*i/2-1;
-  if ( ds->ch_id[k] == -1 ) return r2;
+  // gr is needed for evolove z with free energy gradients
+  ds->gr[i][j]=ds->gr[j][i]=0.0;
             
   // Early return if the pair distance is above the cut radius
   if ( r2 > ds->squaredPairCutoff ) return r2;
-
-  // Early return to avoid interpolations below rmin
+              
+  // Early return if no chapeau object is asociated with this pair
+  k=j+(ds->N-2)*i-(i-1)*i/2-1;
+  if ( ds->ch_id[k] == -1 ) return r2;
   chapeau * ch=ds->ch[ ds->ch_id[k] ];
+            
+  // Early return to avoid interpolations below rmin
   if ( r2 <= ch->rmin*ch->rmin ) return r2;
 
   // interpolation at z of the value of u and g_r
-  R=sqrt(r2);
+  R=sqrt(r2);     
   m=(int)((R-ch->rmin)*ch->idr);
-
-  /*fprintf(stdout,"### z %g z[%i] %g : interpolating between [%i](%g,%g)(%g) and [%i](%g,%g)(%g)\n", 
-   R,m,gsl_vector_get(ch->lam,m),m,ch->rmin+m*ch->dr,
-   gsl_vector_get(ch->lam,m),gsl_vector_get(ch->lam,m)*right(ch,m,R,ch->rmin), 
-   m+1,ch->rmin+(m+1)*ch->dr,gsl_vector_get(ch->lam,m+1),gsl_vector_get(ch->lam,m+1)*left(ch,m+1,R,ch->rmin)); */
-
   ch->hits[m]++; 
 
-  //Alexis// Variable u not seems to be used
-  //u=gsl_vector_get(ch->lam,m+1)*left(ch,m+1,z,ch->rmin)+gsl_vector_get(ch->lam,m)*right(ch,m,z,ch->rmin);
+  // gr is needed for evolove z with free energy gradients
   gr_r=(gsl_vector_get(ch->lam,m+1)-gsl_vector_get(ch->lam,m))/(R*ch->dr);
   ds->gr[i][j]=gr_r;
   ds->gr[j][i]=gr_r;
@@ -624,22 +718,25 @@ double handle_pair ( DataSpace * ds, int i, int j ) {
 }
 
 int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
+
+  signal(SIGINT, handler);   // install SIGINT handler
+
   if (ds) {
-    int i,j,jj,k;
+    int ii,i,j,jj,k;
+    int bonds=0;
+    double * cvc,fi;
+    int d=0;
+    int N=ds->N,K=ds->iK;
+    int * nl, inlc;
+    int ic;
+
     cvStruct * cv;
     restrStruct * r;
-    double * cvc;
-    int dimension;
-
-    //   printf("CFACV/C) RestrainingForces begins.\n");
-
+    chapeau * ch;
+ 
     /* clear out the position arrays to hold forces to be communicated
        back to tclForces */
-    for (i=0;i<ds->N;i++) {
-      ds->R[i][0]=0.0;
-      ds->R[i][1]=0.0;
-      ds->R[i][2]=0.0;
-    }
+    for (i=0;i<ds->N;i++) for (d=0;d<3;d++) ds->R[i][d]=0.0;
 
     /* Loop over all restraints and compute restraint values from their CV's */
     for (i=0;i<ds->iK;i++) {
@@ -649,23 +746,13 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
       for (j=0;j<r->nCV;j++) {
 	cv=ds->cv[j];
 	r->val+=cvc[j]*cv->val;
-#ifdef _PARANOIA_
-	if (_PARANOIA_) {
-	  if (r->val!=r->val) {
-	    fprintf(stderr,"CFACV/C/PARANOIA) Tripped at r->val %.5f\n",r->val);
-	    fprintf(stderr,"CFACV/C/PARANOIA) cvc[%i] %.5f cv->val %.5f\n",j,cv->val);
-	    fprintf(stderr,"Program exits.\n");
-	    fflush(stderr);
-	    exit(-1);
-	  }
-	}
-#endif
       }
       
       if (first) {
 	if (r->tamdOpt) {
 	  r->z=r->val;
 	}
+        // FIXME
 	//if (r->smdOpt) {
 	//  r->z=r->val;
 	//  smdOptInit(r->smdOpt,r->val,(int)(r->forceFunc==rf_Periodic));	  
@@ -684,14 +771,30 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 	  cv=ds->cv[j];
 	  switch(cv->typ) {
 	  case CARTESIAN_X: 
-	    dimension=0;
+	    d=0;
 	    break;
 	  case CARTESIAN_Y:
-	    dimension=1;
+	    d=1;
 	    break;
 	  case CARTESIAN_Z:
-	    dimension=2;
+	    d=2;
 	    break;
+	  case BOND:
+	    d=0;
+            bonds=1;
+            //if (ds->pbc) {
+	    //  fprintf(stderr,"CFACV/C) ERROR: can't handle bonds with pbc (yet)\n",CVSTRINGS[cv->typ]);
+	    // ALGO COMO "ENSURE USE HARMCUTO
+	    //  exit(-1);
+            //}
+	    break;
+	  case DIHED:
+	    d=0;
+            if (ds->pbc) {
+	      fprintf(stderr,"CFACV/C) ERROR: can't handle bonds with pbc (yet)\n");
+	      exit(-1);
+            }
+	    break; 
 	  default:
 	    fprintf(stderr,"CFACV/C) ERROR: can't handle cv typ %s in analytics (yet)\n",CVSTRINGS[cv->typ]);
 	    exit(-1);
@@ -699,11 +802,16 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 	}
       }
 
-      r->f=r->forceFunc(r->k,r->val,r->z,ds->pbc,ds->hL[dimension]);
-      
-      r->u=r->energyFunc(r->k,r->val,r->z,ds->pbc,ds->hL[dimension]);
+      // Compute the energy and the force of the restrain
+      r->energyFunc(r,ds->pbc,ds->hL[d]);
 
-      //printf("CFACV/C) restraint %i: f %.5f u %.5f\n",i,r->f,r->u);
+      // report cv and z to the log
+      if (ds->reportParamFreq) {
+        if (!(timestep%ds->reportParamFreq)) {
+          fprintf(stdout,"-Z-CV- %i % 17.5f  % 17.5f % 17.5f \n",i, r->z, r->val, r->u);
+          fflush(stdout);
+        }
+      }
 
       /* accumulate force increments in ds->R for each real particle*/
       /* cv->gr[jj][kk] = \partial CV / \partial (kk-coord of center jj of CV) */
@@ -714,26 +822,7 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 	  /* ... for each center in this CV ... */
 	  for (jj=0;jj<cv->nC;jj++) {
 	    /* increment the forces of the jj'th cartesian center on the j'th cv of this restraint */
-	    ds->R[cv->ind[jj]][0]+=r->cvc[j]*cv->gr[jj][0]*r->f;
-	    ds->R[cv->ind[jj]][1]+=r->cvc[j]*cv->gr[jj][1]*r->f;
-	    ds->R[cv->ind[jj]][2]+=r->cvc[j]*cv->gr[jj][2]*r->f;
-#ifdef _PARANOIA_
-	    if (_PARANOIA_) {
-	      if ((ds->R[cv->ind[jj]][0]!=ds->R[cv->ind[jj]][0])
-		  ||(ds->R[cv->ind[jj]][1]!=ds->R[cv->ind[jj]][1])
-		  ||(ds->R[cv->ind[jj]][2]!=ds->R[cv->ind[jj]][2])) {
-		fprintf(stderr,"CFACV/C/PARANOIA) Tripped.\n");
-		fprintf(stderr,"CFACV/C/PARANOIA) r->cvc[%i] %.5f\n",j,r->cvc[j]);
-		fprintf(stderr,"CFACV/C/PARANOIA) cv->gr[%i][0] %.5f\n",jj,cv->gr[jj][0]);
-		fprintf(stderr,"CFACV/C/PARANOIA) cv->gr[%i][1] %.5f\n",jj,cv->gr[jj][1]);
-		fprintf(stderr,"CFACV/C/PARANOIA) cv->gr[%i][2] %.5f\n",jj,cv->gr[jj][2]);
-		fprintf(stderr,"CFACV/C/PARANOIA) r->f %.5f\n",r->f);
-		fprintf(stderr,"Program exits\n");
-		fflush(stderr);
-		exit(-1);
-	      }
-	    }
-#endif
+	    for (d=0;d<3;d++) ds->R[ cv->ind[jj] ][d]+=r->cvc[j]*cv->gr[jj][d]*r->f;
 	  }
 	}
       }
@@ -741,95 +830,18 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 
     // Evolution of the z variables
     if (ds->doAnalyticalCalc) {
-      int ii,N=ds->N,K=ds->iK;
-      int dimension;
-      double r2;//,t2,R,gr,gr_r;
-      //double total_force[3];
-      double oldz,*ff,fi;
-      int * nl, * nlc, inlc;
-      int ic;
-      chapeau * ch;
 
-      ds->nlTrig=0;
-
-      for (i=0;i<K;i++) {
-
-        // Obtain the cvs involved from the restrains.
-        // Get cv index and particle index
-	r=ds->restr[i];     
-	for (j=0;!r->cvc[j];j++);
-	cv=ds->cv[j];
-	ii=cv->ind[0];
-	dimension = i%3;  // 0 = CARTESIAN_X, 1 = CARTESIAN_Y, 2 = CARTESIAN_Z
-
-        // Check if the neigh is needed to update. FIXME: Better 3D criterion?
-	oldz=ds->Z[ii][dimension];
-	ds->accumZ[ii][dimension]+=r->z-oldz;
-	if (!first && fabs(ds->accumZ[ii][dimension])>ds->nlDispThresh) ds->nlTrig=1;
-
-        // Save each 3 cartessian cvs values and forces into Z and F respectivesly
-	ds->Z[ii][dimension]=r->z;
-	ds->F[ii][dimension]=-r->f; // k(theta-z)=fuerza del grupo
-      }
-     
-      // begin the N2 loop that fills accumulators and computes analytical gradient
-      for (ic=0;ic<ds->ch_num;ic++) {
-        chapeau_init_particle_sums(ds->ch[ic]);
-      }
-
-      if (first || ds->nlTrig) {
-	fprintf(stderr,"CFACV_OTFP/INFO) resetting neighborlists @ %i\n",timestep);
-	for (i=0;i<N;i++) {
-
-          // Neighborhood
-	  ds->accumZ[i][0]=ds->accumZ[i][1]=ds->accumZ[i][2]=0.0;
-	  nl=ds->nl[i];
-	  nlc=ds->nlc;
-	  nlc[i]=0;
-	  for (j=i+1;j<N;j++) {
-
-	    r2=handle_pair(ds,i,j);
-
-	    // add to i's neighborlist
-	    if ( r2 < ds->nl_squaredPairCutoff ) {
-	      nl[nlc[i]++]=j;
-	      if (nlc[i]==MAXNBOR) {
-		fprintf(stderr,"# ERROR: particle %i has too many neighbors %i\n",i, MAXNBOR);
-		exit(-1);
-	      }
-	    }
-
-	  }
-
-	  // FINALIZE this time-step's particle-i tallies in all the chapeaus
-          for (ic=0;ic<ds->ch_num;ic++) {
-	    chapeau_increment_global_accumulators(ds->ch[ic],i,&ds->F[i][0]);
-          }
-
-	}
-
+      // Get the A and b matrix. A particular shape of the fes is assumed
+      if (bonds) {
+        fes_from_bonds(ds) ;
       } else {
-
-	for (i=0;i<N;i++) {  
-
-	  nl=ds->nl[i];
-	  inlc=ds->nlc[i];
-
-	  for (jj=0;jj<inlc;jj++) {
-	    j=nl[jj];
-	    r2=handle_pair(ds,i,j);
-	  }
-
-          for (ic=0;ic<ds->ch_num;ic++) {
-	    chapeau_increment_global_accumulators(ds->ch[ic],i,&ds->F[i][0]);
-          }
-
-	}
+        fes_from_distances( ds, first, timestep ) ;
       }
-
 
       // Moving the z variables
       if (!ds->useTAMDforces) {
+
+        // Free energy gradient to evolve auxiliariy variables
 
         // map the interparticle gradients back into the restraints
         // compute gradients to be applied to z's from an analytical
@@ -844,35 +856,37 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
           // each restraint must have one and only one CV
           for (j=0;!r->cvc[j];j++);
 
-          dimension=i%3;
+          d=i%3;
 
           ii = ds->cv[j]->ind[0]; // index of particle "i"
-
-          ff=ds->F[ii];
-
-          //fprintf(stderr,"###### ts %i ptcl %i d %i z %g f %g\n",timestep,ii,dimension,r->z,-r->f);fflush(stderr);
 
           nl=ds->nl[ii];
           inlc=ds->nlc[ii];
           for (jj=0;jj<inlc;jj++) {
             k=nl[jj];
-            r2=ds->rr[ii][k];
 
-            if ( r2 < ds->squaredPairCutoff ) {
-              fi=ds->gr[ii][k]*ds->RR[ii][k][dimension];
+            if ( ds->rr[ii][k] < ds->squaredPairCutoff ) {
 
-   // this is ds->F[ii][dimension]-=fi;;
-              ff[dimension]-= fi;
-              ds->F[k][dimension]+=fi;
+              fi=ds->gr[ii][k]*ds->RR[ii][k][d];
+              ds->F[ii][d]-=fi;
+              ds->F[k][d]+=fi;
+
             }
 
           }
-          r->z=tamdUpdate(ds,r->z,ff[dimension],r->tamdOpt,&r->tamd_noise,&r->tamd_restraint);	
+
+          // restrain update
+          // r->z=tamdUpdate(ds,r->z,ff[d],r->tamdOpt,&r->tamd_noise,&r->tamd_restraint);	
+          restrUpdate(r,ds->F[ii][d]);	
+
         }
       } else {
+
+        // TAMD forces to evolve auxilary variables
         for (i=0;i<K;i++) {
           r=ds->restr[i];
-          r->z=tamdUpdate(ds,r->z,-r->f,r->tamdOpt,&r->tamd_noise,&r->tamd_restraint);	
+          //r->z=tamdUpdate(ds,r->z,-r->f,r->tamdOpt,&r->tamd_noise,&r->tamd_restraint);	
+          restrUpdate(r,-r->f);	
         }
       }
 
@@ -887,26 +901,17 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
           if (timestep>ds->beginEvolveParameters && !(timestep % ch->updateinterval)) {
             chapeau_update_peaks(ch,ds->nsamples,timestep);
             chapeau_output(ch,timestep);
-
-            // report lambda to the log
-            if (ds->reportParamFreq && !(timestep%ds->reportParamFreq)) {
-              fprintf(stdout,"CH[% 2i] LAMBDA: % 8i",ic,timestep);fflush(stderr);
-              for (i=0;i<ch->m;i++) {
-                fprintf(stdout,"% 17.5f (%li) ",gsl_vector_get(ch->lam,i),ch->hits[i]);
-              }
-              fprintf(stdout,"\n");
-            }
-
           }
         }
       }
 
-
     } else { // update z's using the measured forces
+
       for (i=0;i<ds->iK;i++) {
 	r=ds->restr[i];
 	if (r->tamdOpt) {
-	  r->z=tamdUpdate(ds,r->z,-r->f,r->tamdOpt,&r->tamd_noise,&r->tamd_restraint);
+	  //r->z=tamdUpdate(ds,r->z,-r->f,r->tamdOpt,&r->tamd_noise,&r->tamd_restraint);
+          restrUpdate(r,-r->f);	
 	} else if (r->smdOpt) {
 	  r->z=r->smdOpt->update(r->z,r->smdOpt->increment,
 				 (r->smdOpt->t0<=timestep)&&(r->smdOpt->t1>=timestep));
@@ -1042,3 +1047,236 @@ void DataSpace_BinaryReportRestraints ( DataSpace * ds, int step, int outputleve
   fflush(fp);
 }
 
+int fes_from_distances ( DataSpace * ds, int first, int timestep ) {
+
+  int N=ds->N,K=ds->iK;
+  int ic;
+  int k,d,i,j,m,n;
+  double r2;
+
+  int * nl, * nlc, inlc;
+  double ** s;
+  chapeau * ch;
+  restrStruct * r;
+
+  ds->nlTrig=0;
+
+  // Check for neigh update and fill Z and F
+  for (i=0;i<K;i++) {
+    r=ds->restr[i];
+
+    // Obtain the cvs involved in the restrain.
+    // Get cv index (k) and particle index (j)
+    for (k=0;!r->cvc[k];k++);
+    j=ds->cv[k]->ind[0];
+
+    // Get the dimension (0 = CARTESIAN_X, 1 = CARTESIAN_Y, 2 = CARTESIAN_Z)
+    d = i%3;  
+
+    // Check if the neigh is needed to update. FIXME: Better 3D criterion?
+    ds->accumZ[j][d]+=r->z-ds->Z[j][d];
+    if (!first && fabs(ds->accumZ[j][d])>ds->nlDispThresh) ds->nlTrig=1;
+
+    // Save each 3 cartessian cvs values and forces into Z and F respectivesly
+    ds->Z[j][d]=r->z;
+    ds->F[j][d]=-r->f; // F=k(\theta-z)
+
+    // Following the paper E definition A and b should be
+    //
+    // A=1./nsteps \sum_{steps} \sum_{i} sumphi_m(z) sumphi_n(z)/dz
+    // b=-1./nsteps \sum_{steps} \sum_{i} sumphi_m(z) F
+    //
+    // But here we compute -b*nsteps and A*nsteps and then A and b are scaled
+    // by the proper factor when equation A\lambda=b is solved (see the
+    // chapeau_update_peaks procedure)
+              
+  }
+  
+  // Clean the s accumulators
+  for (ic=0;ic<ds->ch_num;ic++) {
+    ch=ds->ch[ic];
+    for (j=0;j<ch->N;j++) for (d=0;d<3;d++) for (i=0;i<ch->m;i++) ch->s[j][d][i]=0.0; 
+  }
+
+  // begin the N2 loop that fills accumulators and computes analytical gradient
+  if (first || ds->nlTrig) {
+    
+    // Building the neighborhood list 
+    fprintf(stderr,"CFACV_OTFP/INFO) resetting neighborlists @ %i\n",timestep);
+
+    for (i=0;i<N;i++) {
+      ds->accumZ[i][0]=ds->accumZ[i][1]=ds->accumZ[i][2]=0.0;
+      nl=ds->nl[i];
+      nlc=ds->nlc;
+      nlc[i]=0;
+
+      for (j=i+1;j<N;j++) {
+        r2=handle_pair(ds,i,j);
+
+        // add to i's neighborlist
+        if ( r2 < ds->nl_squaredPairCutoff ) {
+          nl[nlc[i]++]=j;
+          if (nlc[i]==MAXNBOR) {
+            fprintf(stderr,"# ERROR: particle %i has too many neighbors %i\n",i, MAXNBOR);
+            exit(-1);
+          }
+        }
+      }
+
+
+    }
+
+  } else {
+
+    // Using neighborhood list
+    
+    for (i=0;i<N;i++) {  
+
+      nl=ds->nl[i];
+      inlc=ds->nlc[i];
+
+      for (k=0;k<inlc;k++) {
+        j=nl[k];
+        r2=handle_pair(ds,i,j);
+      }
+    }
+  }
+
+  // Increment global acumulator for this particle
+  for (i=0;i<N;i++) {  
+    for (ic=0;ic<ds->ch_num;ic++) {
+      ch =ds->ch[ic];
+      s = ch->s[i];
+      for (m=0;m<ch->m;m++) {
+        for (d=0;d<3;d++) ch->b->data[m]+=ds->F[i][d]*s[d][m];
+        for (n=0;n<ch->m;n++) {
+          for (d=0;d<3;d++) ch->A->data[m*ch->A->tda+n]+=s[d][m]*s[d][n];
+        }
+      }
+    }   
+  }
+
+  return 0;
+}
+
+int fes_from_bonds( DataSpace * ds ) { 
+
+  int i,j,k,m;
+  double R,F,r2;
+  chapeau * ch;
+  restrStruct * r;
+     
+  // Loop over all restrains
+  for (i=0;i<ds->iK;i++) {
+    r=ds->restr[i];
+
+    R=r->z;
+    r2=R*R;
+
+    F=-r->f; // F=k(\theta-z)
+
+    // Following the paper E definition A and b should be
+    //
+    // A=1./nsteps \sum_{steps} \sum_{i} dphi_m(z)/dz dphi_n(z)/dz
+    // b=-1./nsteps \sum_{steps} \sum_{i} dphi_m(z)/dz F
+    //
+    // But here we compute -b*nsteps and A*nsteps and then A and b are scaled
+    // by the proper factor when equation A\lambda=b is solved (see the
+    // chapeau_update_peaks procedure)
+    
+    //// RR is needed for evolove z with free energy gradients???
+    //ds->RR[i][j][k]=R;
+    //ds->RR[j][i][k]=-R;
+
+    //ds->rr[i][j]=r2;
+    //ds->rr[j][i]=r2;
+
+    //// gr is needed for evolove z with free energy gradients
+    //ds->gr[i][j]=ds->gr[j][i]=0.0;
+
+    // Early return if the pair distance is above the cut radius
+    if ( r2 > ds->squaredPairCutoff ) continue;
+
+    // Get the particles (j and k) of the bond involved in the restraint
+    for (m=0;!r->cvc[m];m++);
+    j=ds->cv[m]->ind[0];
+    k=ds->cv[m]->ind[1];
+    if(j>k) {
+     m=k;
+     k=j;
+     j=m;
+    }
+ 
+    // Early return if no chapeau object is asociated with this pair
+    m=k+(ds->N-2)*j-(j-1)*j/2-1;
+    if ( ds->ch_id[m] == -1 ) continue;
+    ch=ds->ch[ ds->ch_id[m] ];
+
+    // Early return to avoid interpolations below rmin
+    if ( r2 <= ch->rmin*ch->rmin ) continue;
+        
+    /* Interpolation R->m
+          m R
+          | |
+      o---o-x-o---o--*/
+    m=(int)((R-ch->rmin)*ch->idr);
+    ch->hits[m]++;
+
+    /* 1/dz  /| 
+            / |n=m+1
+           /  | 
+      o---o-x-o---o--*/ 
+    ch->b->data[m+1]+=ch->idr*F;
+    ch->A->data[(m+1)*ch->A->tda+(m+1)]+=ch->idr*ch->idr;
+
+    /*    |\   -1/dz
+       n=m| \
+          |  \
+      o---o-x-o---o--*/ 
+    ch->b->data[m]-=ch->idr*F;
+    ch->A->data[m*ch->A->tda+m]+=ch->idr*ch->idr;
+
+    /*    |\ /| 
+         m| X |n=m+1
+          |/ \| 
+      o---o-x-o---o--*/ 
+    ch->A->data[(m+1)*ch->A->tda+m]-=ch->idr*ch->idr;
+    ch->A->data[m*ch->A->tda+m+1]-=ch->idr*ch->idr;
+
+    //  // OPTION2 Coping from my 1D program
+
+    //  // Early return if the pair distance is above the cut radius
+    //  // if ( r2 > ds->squaredPairCutoff ) return r2;
+    //  if(m>ch->m-2)  continue;
+    //   
+    //  // Early return to avoid interpolations below rmin
+    //  // if ( r2 <= ch->rmin*ch->rmin ) return r2;
+    //  if(m<0) continue;
+
+    //  if(m!=ch->m-2) {
+    
+    //    //ch->non0[m+1]=.true.
+    //    ch->hits[m+1]++;
+    //    ch->b->data[m+1]+=ch->idr*F;
+    //    ch->A->data[(m+1)*ch->A->tda+(m+1)]+=ch->idr*ch->idr;
+    //  }
+
+    //  if(m==1) continue;
+    //  
+    
+    //  //ch->non0(m)=.true.
+    //  ch->hits[m+1]++;
+    //  ch->b->data[m]-=ch->idr*F;
+    //  ch->A->data[m*ch->A->tda+m]+=ch->idr*ch->idr;
+    //  
+
+    //  if(m==ch->m-1) continue;
+
+    //  ch->A->data[m*ch->A->tda+m+1]-=ch->idr*ch->idr;
+    //  ch->A->data[(m+1)*ch->A->tda+m]-=ch->idr*ch->idr;
+
+  }           
+
+  return 0;
+}
+ 

@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 int main ( int argc, char * argv[] ) {
   FILE * fp=NULL;
@@ -58,4 +59,5 @@ int main ( int argc, char * argv[] ) {
   }
   fclose(fp);
 
+  return 0;
 }
