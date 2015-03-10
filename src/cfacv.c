@@ -41,18 +41,6 @@ FILE * my_binfopen ( char * name, char * code, unsigned int outputLevel, DataSpa
   return fp;
 }
 
-char * CVSTRINGS[NULL_CV] = {"BOND", "ANGLE", "DIHED", "CARTESIAN_X", "CARTESIAN_Y", "CARTESIAN_Z", "S"};
-int cv_getityp ( char * typ ) {
-  int i;
-  for (i=0;i<NULL_CV&&strcmp(typ,CVSTRINGS[i]);i++);
-  if (i<NULL_CV) return i;
-  else return -1;
-}
-
-char * cv_getstyp ( int ityp ) {
-  if (ityp<NULL_CV) return CVSTRINGS[ityp];
-  else return "NOT_FOUND";
-}
 
 char * RFSTRINGS[NULL_RF] = {"HARMONIC","HARMCUTO", "PERIODIC"};
 int rf_getityp ( char * typ ) {
@@ -66,19 +54,6 @@ char * BADCVSTRINGMESSAGE = "NOT FOUND";
 char * rf_getstyp ( int ityp ) {
   if (ityp<NULL_RF) return RFSTRINGS[ityp];
   else return BADCVSTRINGMESSAGE;
-}
-
-cvStruct * New_cvStruct ( int typ, int nC, int * ind ) {
-  cvStruct * newcv=malloc(sizeof(cvStruct));
-  int i;
-  newcv->typ=typ;
-  newcv->nC=nC;
-  newcv->val=0.0;
-  newcv->ind=calloc(nC,sizeof(int));
-  if (ind) for (i=0;i<nC;i++) newcv->ind[i]=ind[i];
-  newcv->gr=(double**)malloc(nC*sizeof(double*));
-  for (i=0;i<nC;i++) newcv->gr[i]=(double*)malloc(3*sizeof(double));
-  return newcv;
 }
 
 int HarmonicCartPBC ( restrStruct * r, int pbc, double half_domain ) {
@@ -516,84 +491,16 @@ int DataSpace_SetRestraints ( DataSpace * ds, double * rval ) {
 }
 
 int DataSpace_ComputeCVs ( DataSpace * ds ) {
-  if (ds) {
-    int i,j,k,l;
-    double aux,r,aux2;
-    cvStruct * cvi;
+  int i;
+  cvStruct * c;
 
-    for (i=0;i<ds->iM;i++) {
-      cvi=ds->cv[i];
-      if (cvi->typ==BOND) {
-	cvi->val=my_getbond(ds->R[cvi->ind[0]],ds->R[cvi->ind[1]],cvi->gr[0],cvi->gr[1]);
-      } 
-      else if (cvi->typ==ANGLE) {
-	cvi->val=my_getangle(ds->R[cvi->ind[0]],ds->R[cvi->ind[1]],ds->R[cvi->ind[2]],
-			    cvi->gr[0],        cvi->gr[1],        cvi->gr[2]);
-      }
-      else if (cvi->typ==DIHED) {
-	cvi->val=my_getdihed(ds->R[cvi->ind[0]],ds->R[cvi->ind[1]],ds->R[cvi->ind[2]],ds->R[cvi->ind[3]],
-			    cvi->gr[0],        cvi->gr[1],        cvi->gr[2],        cvi->gr[3]);
-#ifdef _PARANOIA_
-	if (_PARANOIA_) {
-	  if (cvi->val!=cvi->val) {
-	    fprintf(stderr,"CFACV/C/PARANOIA) Tripped at dihed cvi->val %.5f\n",cvi->val);
-	    fprintf(stderr,"Program exits.\n");
-	    fflush(stderr);
-	    exit(-1);
-	  }
-	}
-#endif
-      }
-      else if (cvi->typ==CARTESIAN_X) {
-	cvi->val=ds->R[cvi->ind[0]][0];
-	cvi->gr[0][0]=1.0;
-	cvi->gr[0][1]=0.0;
-	cvi->gr[0][2]=0.0;
-      }
-      else if (cvi->typ==CARTESIAN_Y) {
-	cvi->val=ds->R[cvi->ind[0]][1];
-	cvi->gr[0][0]=0.0;
-	cvi->gr[0][1]=1.0;
-	cvi->gr[0][2]=0.0;
-      }
-      else if (cvi->typ==CARTESIAN_Z) {
-	cvi->val=ds->R[cvi->ind[0]][2];
-	cvi->gr[0][0]=0.0;
-	cvi->gr[0][1]=0.0;
-	cvi->gr[0][2]=1.0;
-      }
-      else if (cvi->typ==S) {
-         /* S is the CV of bond networks (see \cite{Barducci2006}) */
-
-        cvi->val=0.;
-	for (j=0;j<cvi->nC;j+=2) {
-          k=cvi->ind[j];
-          l=cvi->ind[j+1];
-          r=my_getbond( ds->R[k], ds->R[l], cvi->gr[j], cvi->gr[j+1]);
-          aux=pow((r/2.5),6);
-          cvi->val+=1./(1.+aux);
-          aux=(6.*aux/r)/((1.+aux)*(1.+aux));
-          for (k=0;k<3;k++) {
-            cvi->gr[j  ][k]=-aux*cvi->gr[j  ][k];
-            cvi->gr[j+1][k]=-aux*cvi->gr[j+1][k];
-          }
-        }
-
-      }
-    }
-
-    //   //XXX What for?  
-    ///* metric tensor: innermost loop is loop over all centers; problem is
-    //   two aribitrary cv's have different number of centers. */
-    //for (i=0;i<ds->iM;i++) {
-    //  for (j=0;j<ds->iM;j++) {
-    //
-    //  }
-    //}
-
-    return 0;
+ 
+  if (!ds) return -1;
+  for (i=0;i<ds->iM;i++){
+    c=ds->cv[i];
+    c->calc(c,ds);
   }
-  return -1;
+  return 0;
 }
 
 int DataSpace_InitKnots ( DataSpace * ds, char * filename, int j) {
@@ -663,41 +570,9 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
       cvc=r->cvc;
 
       // if this is a cartesian single-cv restraint, get the dimension
-      d=0;
       for (j=0;j<r->nCV;j++) {
 	if (cvc[j]) {
-	  cv=ds->cv[j];
-	  switch(cv->typ) {
-	  case CARTESIAN_X: 
-	    d=0;
-	    break;
-	  case CARTESIAN_Y:
-	    d=1;
-	    break;
-	  case CARTESIAN_Z:
-	    d=2;
-	    break;
-	  //case S:
-	  //  d=0;
-	  //  break; 
-          //  // Note: Let $XSCFILE "off" for this CV    
-	  //case BOND:
-          //  //if (ds->pbc) {
-	  //  //  fprintf(stderr,"CFACV/C) ERROR: can't handle bonds with pbc (yet)\n",CVSTRINGS[cv->typ]);
-	  //  // ALGO COMO "ENSURE USE HARMCUTO
-	  //  //  exit(-1);
-          //  //}
-	  //  break;
-	  //case DIHED:
-          //  if (ds->pbc) {
-	  //    fprintf(stderr,"CFACV/C) ERROR: can't handle bonds with pbc (yet)\n");
-	  //    exit(-1);
-          //  }
-	  //  break; 
-	  //default:
-	  //  fprintf(stderr,"CFACV/C) ERROR: can't handle cv typ %s in analytics (yet)\n",CVSTRINGS[cv->typ]);
-	  //  exit(-1);
-	  }
+	    d=cv_dimension(ds->cv[j]);
 	}
       }
 

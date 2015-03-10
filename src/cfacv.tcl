@@ -392,6 +392,7 @@ proc read_cvs { cv_file cv_list } {
       S -
       ANGLE -
       DIHED -
+      BYLAYER -
       CARTESIAN_X -
       CARTESIAN_Y -
       CARTESIAN_Z {

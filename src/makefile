@@ -29,6 +29,7 @@ OBJ += measurements.o
 OBJ += chapeau.o
 OBJ += centers.o
 OBJ += cfacv.o
+OBJ += cvs.o
 OBJ += cfacv_wrap.o
 
 GIT_VERSION := $(shell git describe --abbrev=4 --dirty --always 2>/dev/null || cat version 2>/dev/null || echo unknown )
@@ -37,7 +38,7 @@ CCFLAGS+=-DVERSION=\"$(GIT_VERSION)\"
 
 all: cfacv.so chapadd catbinsp
 
-cfacv.so:  $(OBJ) cfacv_wrap.o
+cfacv.so:  $(OBJ)
 	$(CC) $(CCFLAGS) -shared -o $@ $^ $(LIBS)
         
 %.o: %.c
@@ -60,8 +61,10 @@ measurements.o : measurements.h
 chapeau.o : chapeau.h
 addchapeaus.o : chapeau.h
 centers.o : centers.h
-cfacf.h : measurements.h chapeau.h centers.h
+cfacv.h : cvs.h measurements.h chapeau.h centers.h
 cfacv.o : cfacv.h version
+cvs.h : measurements.h
+cvs.o : cvs.h cfacv.h 
         
 
 .PHONY: clean force
