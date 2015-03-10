@@ -4,11 +4,8 @@
 CC=gcc
 
 ifeq ($(CC),icc)
- # CCFLAGS+=-fast
-CCFLAGS+=-xSSE4.2
-CCFLAGS+=-O3
+CCFLAGS+=-static-libgcc
 LIBS += -L/usr/lib64
-# LIBS += -L/opt/intel/composerxe/lib/intel64/ -lintlc
 endif
 
 ifeq ($(CC),gcc)

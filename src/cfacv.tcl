@@ -163,10 +163,10 @@ proc intArrayToList {a n} {
 #  return value is the number of centers
 #
 ###############################################################
-proc read_centersPDB { templatePdb serArr mass pk ch} {
+proc read_centersPDB { templatePdb serArr mass chl ch} {
     upvar $serArr serArray
     upvar $mass masses
-    upvar $pk pairmask
+    upvar $chl chlist
     upvar $ch ch_id
 
     # Open and read the pdb. Put all it in lines variable.
@@ -237,21 +237,21 @@ proc read_centersPDB { templatePdb serArr mass pk ch} {
     }
 
     set k 0
-    set test [expr 0==[string equal $pairmask ""]]
+    set test [expr 0==[string equal $chlist "{}"]]
     for {set i 0} {$i < $nMon} {incr i} {
       for {set j [expr $i+1]} {$j < $nMon} {incr j} {
 
         if $test {
           set pair1 "[lindex $reslist $i] [lindex $reslist $j]" ;# e.g. "SOD CLA"
           set pair2 "[lindex $reslist $j] [lindex $reslist $i]" ;# e.g. "CLA SOD"
-          set a [lsearch $pairmask $pair1]
-          set b [lsearch $pairmask $pair2]
+          set a [lsearch $chlist $pair1]
+          set b [lsearch $chlist $pair2]
           
           set k [expr {$a>$b? $a: $b}]
         }
 
         # with the next expresion the [expr $j+($nCntr-2)*$i-($i-1)*$i/2-1] element of ch_id is
-        # -1 for non intereset pair, or the corresponding n-index or the $pairmask.
+        # -1 for non intereset pair, or the corresponding n-index or the $chlist.
         lappend ch_id $k
       }
     }
@@ -346,74 +346,64 @@ proc read_centers_residLists { ridL fileName } {
     return [llength $lines]    
 }
 
-proc read_cvs { cv_file cv_list nMon } {
-    #Actually, nMon is not used, so... what for?...
-    #and then cv_list is the append of dat.... why all the stuff?
-    
-    upvar $cv_list cvL
+proc read_cvs { cv_file cv_list } {
+  #and then cv_list is the append of dat.... why all the stuff?
+  
+  upvar $cv_list cvL
 
-    set cvL {}
+  set cvL {}
 
-    # read the cv file
-    set inStream [open $cv_file "r"]
-    set data [read -nonewline $inStream]
-    close $inStream
-    set lines [split $data \n]
+  # read the cv file
+  set inStream [open $cv_file "r"]
+  set data [read -nonewline $inStream]
+  close $inStream
+  set lines [split $data \n]
 
-    set ncv 0
-    foreach line $lines {
-	if {[string index $line 0] != "#" && [string length $line] > 0} {
-            # Supouse that the line is "CARTESIAN_X   0"...
-	    set dat {}
-	    foreach l $line { lappend dat $l } ;#... dat is "CARTESIAN_X 0"
-	    set typ [lindex $dat 0]            ;#... typ is "CARTESIAN_X"
-	    set ind [lreplace $dat 0 0]        ;#... ind is "0"
-	    set optlist {}
-	    for {set i 0} {[string is integer [lindex $ind $i]] && $i < [llength $ind]} { incr i } {}
-            #.. i is "1" .. the next is not accomplish. Actually is never
-            #acomplish... only when there are strings that are not a number in
-            #the tail of the list.
-	    if {$i < [llength $ind]} {
-                # ... here there is strings in the end of the list... 
-                # ... and then, you put in optlist that string and lead in ind
-                # only the numbers
-		set optlist [lreplace $ind 0 [expr $i-1]]
-		set ind [lreplace $ind $i end]
-	    }
-	    set nInd [llength $ind]
-	    set nOpt [llength $optlist]
-	    
-#	    print "DB: $nInd: ind     $ind"
-#	    print "DB: $nOpt: optlist $optlist"
-	    
-	    lappend cvL [list $typ $ind $optlist] ;#... cvL is cvL+dat
-	    incr ncv
-	    
-            # This are the valid CVs
-	    switch $typ {
-		BOND -
-		ANGLE -
-		DIHED -
-		CARTESIAN_X -
-		CARTESIAN_Y -
-		CARTESIAN_Z {
-		}
-		default {
-		    print "ERROR: $typ is not a valid CV type in $cv_file."
-		    exit
-		}
-	    }
-	}
+  set ncv 0
+  foreach line $lines {
+
+    # Allow empty lines and commentries
+    if {[string index $line 0] == "#"} continue
+    if {[string length $line] < 0} continue
+
+    # Supouse that the line is "CARTESIAN_X   0"...
+    set dat {}
+    foreach l $line { lappend dat $l } ;#... dat is "CARTESIAN_X 0"
+    set typ [lindex $dat 0]            ;#... typ is "CARTESIAN_X"
+    set ind [lreplace $dat 0 0]        ;#... ind is "0"
+
+    # Search for optional strings after the index list
+    set optlist {}
+    for {set i 0} {[string is integer [lindex $ind $i]] && $i < [llength $ind]} { incr i } {}
+    if {$i < [llength $ind]} {
+        # Put in optlist that string and let in ind only the numbers
+        set optlist [lreplace $ind 0 [expr $i-1]]
+        set ind [lreplace $ind $i end]
     }
+    set nInd [llength $ind]
+    set nOpt [llength $optlist]
+    
+    lappend cvL [list $typ $ind $optlist] ;#... cvL is cvL+dat
+    incr ncv
+    
+    # Check for a valid CV
+    switch $typ {
+      BOND -
+      S -
+      ANGLE -
+      DIHED -
+      CARTESIAN_X -
+      CARTESIAN_Y -
+      CARTESIAN_Z {
+      }
+      default {
+          print "ERROR: $typ is not a valid CV type in $cv_file."
+          exit
+      }
+    }
+  }
 
-#    foreach cv $cvL {
-#	print "DB: cv $cv"
-#	print "DB: typ: [cv_gettyp $cv]"
-#	print "DB: ind: [cv_getind $cv]"
-#	print "DB: optlist: [cv_getoptlist $cv]"
-#    }
-
-    return $ncv
+  return $ncv
 }
 
 proc generate_cv { cvOpt p } {
@@ -653,6 +643,28 @@ proc restr_getoptlist { r } {
     return [lindex $r 1]
 }
 
+# proc read_linestolist { file } {
+# 
+#   set L {}
+# 
+#   # read the cv file
+#   set inStream [open $file "r"]
+#   set data [read -nonewline $inStream]
+#   close $inStream
+#   set lines [split $data \n]
+# 
+#   foreach line $lines {
+# 
+#     # Allow empty lines and commentries
+#     if {[string index $line 0] == "#"} continue
+#     if {[string length $line] < 0} continue
+# 
+#     lappend L [list $line]
+#   }
+# 
+#   return $L
+# }
+         
 proc restr_getopt { r key altkey def } {
     set optlist [restr_getoptlist $r]
     foreach opt $optlist {

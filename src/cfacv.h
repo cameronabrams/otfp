@@ -77,7 +77,7 @@
 #include "chapeau.h"       // basis functions
 
 // collective variable types
-enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, NULL_CV};
+enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, S, NULL_CV};
 // collective variable structure
 typedef struct CVSTRUCT {
   int typ;       // collective variable type
@@ -178,11 +178,13 @@ typedef struct DATASPACESTRUCT {
   int iN;
   int iM;
   int iK;
-  double ** R; // array of center cartesian coordinates R[i][0/1/2]
+
   atomCenterStruct ** ac; // defined in centers.h
   cvStruct ** cv;
   restrStruct ** restr;
-  double ** mt; // metric tensor
+  chapeau ** ch;
+
+  double ** R; // array of center cartesian coordinates R[i][0/1/2]
 
   // below are bits for doing TAMD/OTFP of pairwise intercenter
   // potentials represented as piecewise-continuous linear functions
@@ -195,24 +197,13 @@ typedef struct DATASPACESTRUCT {
   double Min[3], Max[3];
 
   double squaredPairCutoff;
-  double ** Z; // temp storage of cartesian aux variables
-  double ** F; // temp storage of cartesian aux variable forces
-  double *** RR; // array of intercenter distances components
-  double ** rr;// array of intercenter squared distances
-  double ** gr;// array of intercenter pe gradients divided by r2
   int doAnalyticalCalc; // indicates whether or not we are to perform
 			// the optmization of the analytical
 			// parameterization
-  double nl_squaredPairCutoff;
-  int ** nl;
-  int * nlc;
-  double ** accumZ;
-  double nlDispThresh;
-  int nlTrig;
-
+                        
+  // De alguna manera cada chapeau es una direccion
   int ch_num;
   int * ch_id;
-  chapeau ** ch;
 
   // for evolution of the parameterization
   double lamfric;
@@ -233,8 +224,6 @@ typedef struct DATASPACESTRUCT {
 
 
 
-
-
 //The random seed
 unsigned short * Xi;
 
@@ -243,7 +232,7 @@ FILE * my_fopen ( char * name, char * code ) ;
 int * DataSpace_chid ( DataSpace * ds );
 DataSpace * NewDataSpace ( int N, int M, int K, long int seed );
 int DataSpace_SetupPBC ( DataSpace * ds, int pbc, double Ox, double Oy, double Oz, double Lx, double Ly, double Lz );
-int DataSpace_SetupPairCalc ( DataSpace * ds, double cutoff, double nlcutoff, int beginEvolve, int useTAMDforces, int reportParamFreq, double spline_min, int nKnots, char * splineoutputfile, int splineoutputfreq, int splineoutputlevel, int lamupdateinterval, int cvnum );
+int DataSpace_SetupPairCalc ( DataSpace * ds, double cutoff, double nlcutoff, int beginEvolve, int useTAMDforces, int reportParamFreq, double spline_min, int nKnots, char * splineoutputfile, int splineoutputfreq, int splineoutputlevel, int lamupdateinterval, int chnum );
 int DataSpace_getN ( DataSpace * ds );
 double * DataSpace_centerPos ( DataSpace * ds, int i );
 int DataSpace_AddAtomCenter ( DataSpace * ds, int n, int * ind, double * m );
@@ -264,7 +253,10 @@ FILE * my_binfopen ( char * name, char * code, unsigned int outputLevel, DataSpa
 void DataSpace_BinaryReportRestraints ( DataSpace * ds, int step, int outputlevel, FILE * fp );
 int DataSpace_InitKnots ( DataSpace * ds, char * filename, int j);
 
-int fes_from_bonds( DataSpace * ds ); 
+
+
+int fes1D( DataSpace * ds ); 
 int fes_from_distances( DataSpace * ds, int first, int timestep ) ; 
+
 
 #endif

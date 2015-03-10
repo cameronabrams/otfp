@@ -5,22 +5,22 @@
 !_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
 !_TAG_PROGRAM_VERSION	5.8	//
 A	chapeau.h	/^  gsl_matrix * A;$/;"	m	struct:CHAPEAU
-ANGLE	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, NULL_CV};$/;"	e	enum:__anon3
+ANGLE	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, S, NULL_CV};$/;"	e	enum:__anon3
 ATOMCENTERSTRUCT	centers.h	/^typedef struct ATOMCENTERSTRUCT {$/;"	s
 ArrayToList	cfacv.tcl	/^proc ArrayToList {a n} {$/;"	p
 BADCVSTRINGMESSAGE	cfacv.c	/^char * BADCVSTRINGMESSAGE = "NOT FOUND";$/;"	v
-BOND	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, NULL_CV};$/;"	e	enum:__anon3
-CARTESIAN_X	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, NULL_CV};$/;"	e	enum:__anon3
-CARTESIAN_Y	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, NULL_CV};$/;"	e	enum:__anon3
-CARTESIAN_Z	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, NULL_CV};$/;"	e	enum:__anon3
+BOND	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, S, NULL_CV};$/;"	e	enum:__anon3
+CARTESIAN_X	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, S, NULL_CV};$/;"	e	enum:__anon3
+CARTESIAN_Y	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, S, NULL_CV};$/;"	e	enum:__anon3
+CARTESIAN_Z	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, S, NULL_CV};$/;"	e	enum:__anon3
 CENTERSTRUCT	centers.h	/^typedef struct CENTERSTRUCT { $/;"	s
 CHAPEAU	chapeau.h	/^typedef struct CHAPEAU {$/;"	s
 CHAPEAU_H	chapeau.h	2;"	d
-CVSTRINGS	cfacv.c	/^char * CVSTRINGS[NULL_CV] = {"BOND", "ANGLE", "DIHED", "CARTESIAN_X", "CARTESIAN_Y", "CARTESIAN_Z"};$/;"	v
+CVSTRINGS	cfacv.c	/^char * CVSTRINGS[NULL_CV] = {"BOND", "ANGLE", "DIHED", "CARTESIAN_X", "CARTESIAN_Y", "CARTESIAN_Z", "S"};$/;"	v
 CVSTRUCT	cfacv.h	/^typedef struct CVSTRUCT {$/;"	s
 Cfa_cvlibc_SafeInit	cfacv_wrap.c	/^SWIGEXPORT int Cfa_cvlibc_SafeInit(Tcl_Interp *interp) {$/;"	f
 DATASPACESTRUCT	cfacv.h	/^typedef struct DATASPACESTRUCT {$/;"	s
-DIHED	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, NULL_CV};$/;"	e	enum:__anon3
+DIHED	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, S, NULL_CV};$/;"	e	enum:__anon3
 DataSpace	cfacv.h	/^} DataSpace;$/;"	t	typeref:struct:DATASPACESTRUCT
 DataSpace_AddAtomCenter	cfacv.c	/^int DataSpace_AddAtomCenter ( DataSpace * ds, int n, int * ind, double * m ) {$/;"	f
 DataSpace_AddCV	cfacv.c	/^int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind ) {$/;"	f
@@ -42,7 +42,6 @@ DataSpace_checkdata	cfacv.c	/^int DataSpace_checkdata ( DataSpace * ds ) {$/;"	f
 DataSpace_chid	cfacv.c	/^int * DataSpace_chid ( DataSpace * ds ) {$/;"	f
 DataSpace_dump	cfacv.c	/^int DataSpace_dump ( DataSpace * ds ) {$/;"	f
 DataSpace_getN	cfacv.c	/^int DataSpace_getN ( DataSpace * ds ) {$/;"	f
-F	cfacv.h	/^  double ** F; \/\/ temp storage of cartesian aux variable forces$/;"	m	struct:DATASPACESTRUCT
 GCC_HASCLASSVISIBILITY	cfacv_wrap.c	82;"	d	file:
 HARMCUTO	cfacv.h	/^enum {HARMONIC, HARMCUTO, PERIODIC, NULL_RF};$/;"	e	enum:__anon4
 HARMONIC	cfacv.h	/^enum {HARMONIC, HARMCUTO, PERIODIC, NULL_RF};$/;"	e	enum:__anon4
@@ -50,7 +49,6 @@ HarmonicCartPBC	cfacv.c	/^int HarmonicCartPBC ( restrStruct * r, int pbc, double
 HarmonicCartPBC_cutoff	cfacv.c	/^int HarmonicCartPBC_cutoff ( restrStruct * r, int pbc, double half_domain ) {$/;"	f
 K	cfacv.h	/^  int K; \/\/ number of restraints$/;"	m	struct:DATASPACESTRUCT
 L	cfacv.h	/^  double L[3]; \/\/ simulation box size$/;"	m	struct:DATASPACESTRUCT
-LJPair	cfacv.c	/^void LJPair ( double * par, double r2, double * gr ) {$/;"	f
 LLONG_MAX	cfacv_wrap.c	1668;"	d	file:
 LLONG_MIN	cfacv_wrap.c	1669;"	d	file:
 ListToArray	cfacv.tcl	/^proc ListToArray {l} {$/;"	p
@@ -64,7 +62,7 @@ Min	cfacv.h	/^  double Min[3], Max[3];$/;"	m	struct:DATASPACESTRUCT
 MyParanoiaCheck	cfacv.tcl	/^proc MyParanoiaCheck {ds msg} {$/;"	p
 N	cfacv.h	/^  int N; \/\/ number of centers$/;"	m	struct:DATASPACESTRUCT
 N	chapeau.h	/^  int N; \/\/ number of particles$/;"	m	struct:CHAPEAU
-NULL_CV	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, NULL_CV};$/;"	e	enum:__anon3
+NULL_CV	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, S, NULL_CV};$/;"	e	enum:__anon3
 NULL_RF	cfacv.h	/^enum {HARMONIC, HARMCUTO, PERIODIC, NULL_RF};$/;"	e	enum:__anon4
 NewDataSpace	cfacv.c	/^DataSpace * NewDataSpace ( int N, int M, int K, long int seed ) {$/;"	f
 New_atomCenterStruct	centers.c	/^atomCenterStruct * New_atomCenterStruct ( int n ) {$/;"	f
@@ -79,7 +77,7 @@ PERIODIC	cfacv.h	/^enum {HARMONIC, HARMCUTO, PERIODIC, NULL_RF};$/;"	e	enum:__an
 R	cfacv.h	/^  double ** R; \/\/ array of center cartesian coordinates R[i][0\/1\/2]$/;"	m	struct:DATASPACESTRUCT
 RESTRSTRUCT	cfacv.h	/^typedef struct RESTRSTRUCT {$/;"	s
 RFSTRINGS	cfacv.c	/^char * RFSTRINGS[NULL_RF] = {"HARMONIC","HARMCUTO", "PERIODIC"};$/;"	v
-RR	cfacv.h	/^  double *** RR; \/\/ array of intercenter distances components$/;"	m	struct:DATASPACESTRUCT
+S	cfacv.h	/^enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, S, NULL_CV};$/;"	e	enum:__anon3
 SIN_THRESH	measurements.c	177;"	d	file:
 SMDOPTSTRUCT	cfacv.h	/^typedef struct SMDOPTSTRUCT {$/;"	s
 SWIGEXPORT	cfacv_wrap.c	89;"	d	file:
@@ -268,7 +266,6 @@ Tcl_Reinitialize	cfacv.tcl	/^proc Tcl_Reinitialize { ds restartINP } {$/;"	p
 Tcl_UpdateDataSpace	cfacv.tcl	/^proc Tcl_UpdateDataSpace { ds lC groups first timestep } {$/;"	p
 ULLONG_MAX	cfacv_wrap.c	1670;"	d	file:
 Xi	cfacv.h	/^unsigned short * Xi;$/;"	v
-Z	cfacv.h	/^  double ** Z; \/\/ temp storage of cartesian aux variables$/;"	m	struct:DATASPACESTRUCT
 _CENTERS_H_	centers.h	2;"	d
 _CFACV_H_	cfacv.h	68;"	d
 _CRT_SECURE_NO_DEPRECATE	cfacv_wrap.c	113;"	d	file:
@@ -318,7 +315,6 @@ _wrap_my_fopen	cfacv_wrap.c	/^_wrap_my_fopen(ClientData clientData SWIGUNUSED, T
 _wrap_new_array	cfacv_wrap.c	/^_wrap_new_array(ClientData clientData SWIGUNUSED, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]) {$/;"	f
 _wrap_new_arrayint	cfacv_wrap.c	/^_wrap_new_arrayint(ClientData clientData SWIGUNUSED, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]) {$/;"	f
 ac	cfacv.h	/^  atomCenterStruct ** ac; \/\/ defined in centers.h$/;"	m	struct:DATASPACESTRUCT
-accumZ	cfacv.h	/^  double ** accumZ;$/;"	m	struct:DATASPACESTRUCT
 addr	cfacv_wrap.c	/^  void *addr;$/;"	m	struct:__anon2	file:
 alpha	chapeau.h	/^  double alpha;$/;"	m	struct:CHAPEAU
 array_getitem	cfacv_wrap.c	/^  static double array_getitem(double *ary, size_t index) {$/;"	f	file:
@@ -385,8 +381,7 @@ dvalue	cfacv_wrap.c	/^    double dvalue;$/;"	m	struct:swig_const_info	file:
 energyFunc	cfacv.h	/^  int (*energyFunc)(struct RESTRSTRUCT * self, int pbc, double half_domain);$/;"	m	struct:RESTRSTRUCT
 evolveAnalyticalParameters	cfacv.h	/^  int evolveAnalyticalParameters;$/;"	m	struct:DATASPACESTRUCT
 f	cfacv.h	/^  double f;              \/\/ force on restraint$/;"	m	struct:RESTRSTRUCT
-fes_from_bonds	cfacv.c	/^int fes_from_bonds( DataSpace * ds ) { $/;"	f
-fes_from_distances	cfacv.c	/^int fes_from_distances ( DataSpace * ds, int first, int timestep ) {$/;"	f
+fes1D	cfacv.c	/^int fes1D( DataSpace * ds ) { $/;"	f
 gamma	cfacv.h	/^  double gamma;        \/\/ fictitious friction (1\/ps)$/;"	m	struct:TAMDOPTSTRUCT
 generate_cv	cfacv.tcl	/^proc generate_cv { cvOpt p } {$/;"	p
 get	cfacv_wrap.c	/^  char * (*get)(ClientData, Tcl_Interp *, char *, char *, int);$/;"	m	struct:__anon2	file:
@@ -395,11 +390,9 @@ get_double	cfacv_wrap.c	/^double get_double(double *a, int index) {$/;"	f
 getmethod	cfacv_wrap.c	/^  swig_wrapper   getmethod;$/;"	m	struct:swig_attribute	file:
 ginv	cfacv.h	/^  double ginv;         \/\/ inverse friction$/;"	m	struct:TAMDOPTSTRUCT
 gr	cfacv.h	/^  double ** gr;  \/\/ cartesian gradients of this CV wrt contributing$/;"	m	struct:CVSTRUCT
-gr	cfacv.h	/^  double ** gr;\/\/ array of intercenter pe gradients divided by r2$/;"	m	struct:DATASPACESTRUCT
 hL	cfacv.h	/^  double hL[3]; \/\/ simulation box half-size$/;"	m	struct:DATASPACESTRUCT
 half_domain	cfacv.h	/^  double half_domain;  \/\/ half-domain size of periodic CV$/;"	m	struct:TAMDOPTSTRUCT
 half_domain	cfacv.h	/^  double half_domain;$/;"	m	struct:RESTRSTRUCT
-handle_pair	cfacv.c	/^double handle_pair ( DataSpace * ds, int i, int j ) {$/;"	f
 handler	cfacv.c	/^void handler(int sig) {$/;"	f
 hashtable	cfacv_wrap.c	/^  Tcl_HashTable       hashtable;$/;"	m	struct:swig_class	file:
 hits	chapeau.h	/^  long * hits;  \/\/ number of hits in each bin value of r$/;"	m	struct:CHAPEAU
@@ -438,7 +431,6 @@ method	cfacv_wrap.c	/^  swig_wrapper   method;$/;"	m	struct:swig_method	file:
 methods	cfacv_wrap.c	/^  swig_method        *methods;$/;"	m	struct:swig_class	file:
 min	cfacv.h	/^  double min;             \/\/ min, max, half_domain for periodic boundaries$/;"	m	struct:RESTRSTRUCT
 module	cfacv_wrap.c	/^  swig_module_info   *module;$/;"	m	struct:swig_class	file:
-mt	cfacv.h	/^  double ** mt; \/\/ metric tensor$/;"	m	struct:DATASPACESTRUCT
 my_binfopen	cfacv.c	/^FILE * my_binfopen ( char * name, char * code, unsigned int outputLevel, DataSpace * ds ) {$/;"	f
 my_fopen	cfacv.c	/^FILE * my_fopen ( char * name, char * code ) {$/;"	f
 my_getangle	measurements.c	/^double my_getangle ( double p0[3], double p1[3], double p2[3], double g0[3], double g1[3], double g2[3] ) {$/;"	f
@@ -471,11 +463,6 @@ new_array	cfacv_wrap.c	/^  static double *new_array(size_t nelements) { $/;"	f	f
 new_arrayint	cfacv_wrap.c	/^  static int *new_arrayint(size_t nelements) { $/;"	f	file:
 next	cfacv_wrap.c	/^  struct swig_cast_info  *next;			\/* pointer to next cast in linked list *\/$/;"	m	struct:swig_cast_info	typeref:struct:swig_cast_info::swig_cast_info	file:
 next	cfacv_wrap.c	/^  struct swig_module_info *next;		\/* Pointer to next element in circularly linked list *\/$/;"	m	struct:swig_module_info	typeref:struct:swig_module_info::swig_module_info	file:
-nl	cfacv.h	/^  int ** nl;$/;"	m	struct:DATASPACESTRUCT
-nlDispThresh	cfacv.h	/^  double nlDispThresh;$/;"	m	struct:DATASPACESTRUCT
-nlTrig	cfacv.h	/^  int nlTrig;$/;"	m	struct:DATASPACESTRUCT
-nl_squaredPairCutoff	cfacv.h	/^  double nl_squaredPairCutoff;$/;"	m	struct:DATASPACESTRUCT
-nlc	cfacv.h	/^  int * nlc;$/;"	m	struct:DATASPACESTRUCT
 noise	cfacv.h	/^  double noise;        \/\/ noise$/;"	m	struct:TAMDOPTSTRUCT
 nsamples	cfacv.h	/^  int nsamples;$/;"	m	struct:DATASPACESTRUCT
 obj	cfacv_wrap.c	/^SWIG_Tcl_ConvertPacked(Tcl_Interp *SWIGUNUSEDPARM(interp) , Tcl_Obj *obj, void *ptr, int sz, swig_type_info *ty) {$/;"	v
@@ -494,10 +481,10 @@ ptr	cfacv_wrap.c	/^SWIG_Tcl_ConvertPacked(Tcl_Interp *SWIGUNUSEDPARM(interp) , T
 ptype	cfacv_wrap.c	/^    swig_type_info **ptype;$/;"	m	struct:swig_const_info	file:
 pvalue	cfacv_wrap.c	/^    void   *pvalue;$/;"	m	struct:swig_const_info	file:
 re_Periodic	cfacv.c	/^double re_Periodic ( double k, double v, double z, double half_domain ) {$/;"	f
-read_centersPDB	cfacv.tcl	/^proc read_centersPDB { templatePdb serArr mass pk ch} {$/;"	p
+read_centersPDB	cfacv.tcl	/^proc read_centersPDB { templatePdb serArr mass chl ch} {$/;"	p
 read_centersVMD	cfacv.tcl	/^proc read_centersVMD { pL mL fileName molID } {$/;"	p
 read_centers_residLists	cfacv.tcl	/^proc read_centers_residLists { ridL fileName } {$/;"	p
-read_cvs	cfacv.tcl	/^proc read_cvs { cv_file cv_list nMon } {$/;"	p
+read_cvs	cfacv.tcl	/^proc read_cvs { cv_file cv_list } {$/;"	p
 read_restraints	cfacv.tcl	/^proc read_restraints { restr_file ncv restrList } {$/;"	p
 reportParamFreq	cfacv.h	/^  int reportParamFreq;$/;"	m	struct:DATASPACESTRUCT
 report_centers	cfacv.tcl	/^proc report_centers { p fileName } {$/;"	p
@@ -517,7 +504,6 @@ right	centers.h	/^  pcenterStruct right;$/;"	m	struct:CENTERSTRUCT
 right	chapeau.c	/^double right ( chapeau * ch, int m, double z, double zmin ) {$/;"	f
 rmax	chapeau.h	/^  double rmin, rmax, dr, idr;  \/\/ range and increment or argument of$/;"	m	struct:CHAPEAU
 rmin	chapeau.h	/^  double rmin, rmax, dr, idr;  \/\/ range and increment or argument of$/;"	m	struct:CHAPEAU
-rr	cfacv.h	/^  double ** rr;\/\/ array of intercenter squared distances$/;"	m	struct:DATASPACESTRUCT
 s	chapeau.h	/^  double *** s;  \/\/ [particle][dimension][peak]$/;"	m	struct:CHAPEAU
 set	cfacv_wrap.c	/^  char * (*set)(ClientData, Tcl_Interp *, char *, char *, int);$/;"	m	struct:__anon2	file:
 setmethod	cfacv_wrap.c	/^  swig_wrapper   setmethod;$/;"	m	struct:swig_attribute	file:

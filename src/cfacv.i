@@ -4,7 +4,7 @@
 %array_functions(int, arrayint);
 %inline %{
 double get_double(double *a, int index) {
-	return a[index];
+       return a[index];
 }
 %}
 %{
@@ -17,7 +17,7 @@ extern void cfacvBanner ( void );
 extern FILE * my_fopen ( char * name, char * code );
 extern DataSpace * NewDataSpace ( int N, int M, int K, long int seed ) ;
 extern int DataSpace_SetupPBC ( DataSpace * ds, int pbc, double Ox, double Oy, double Oz, double Lx, double Ly, double Lz);
-extern int DataSpace_SetupPairCalc ( DataSpace * ds, double cutoff, double nlcutoff, int beginEvolve, int useTAMDforces, int reportParamFreq, double spline_min, int nKnots, char * splineoutputfile, int splineoutputfreq, int splineoutputlevel, int lamupdateinterval, int cvnum );
+extern int DataSpace_SetupPairCalc ( DataSpace * ds, double cutoff, double nlcutoff, int beginEvolve, int useTAMDforces, int reportParamFreq, double spline_min, int nKnots, char * splineoutputfile, int splineoutputfreq, int splineoutputlevel, int lamupdateinterval, int chnum );
 extern int * DataSpace_chid ( DataSpace * ds );
 extern int DataSpace_AddAtomCenter ( DataSpace * ds, int n, int * ind, double * m );
 extern int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind ) ;
@@ -39,3 +39,4 @@ extern FILE * my_binfopen ( char * name, char * code, unsigned int outputLevel, 
 extern void DataSpace_BinaryReportRestraints ( DataSpace * ds, int step, int outputlevel, FILE * fp );
 
 extern int DataSpace_InitKnots ( DataSpace * ds, char * filename, int j);
+

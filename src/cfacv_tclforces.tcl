@@ -16,11 +16,10 @@
 # set TAMDoutputlevel         0
 # set CFACV_doAnalyticalCalc  1
 # set XSCFILE                 $DIRS_INPUT/tip3pE.xsc
-# set CUTOFF                  7.0
-# set NLCUTOFF                8.0
+# set ZMAX                    7.0
 # set BEGINEVOLVEPARAMETERS   99
 # set REPORTPARAMFREQ         100
-# set SPLINEMIN               0.0
+# set ZMIN                    0.0
 # set NKNOTS                  141
 # set BINREPORTPARAMFREQ      100
 # set BINREPORTPARAMFILE      $DIRS_INPUT/alone.bsp
@@ -44,9 +43,10 @@ foreach key {labelPDB cvINP} {
     }
 }
 
-# pairmask holds the list of pair potential types 
+# chplist holds the list of pair potential types 
 # e.g. {{SOD CLA} {CLA CLA} {SOD SOD}}
-if {![info exists pairmask]} {set pairmask ""}
+if {![info exists chlist]} {set chlist "{}"}
+set chnum [llength $chlist]
 
 
 #### Get the groups using the addgroup of tclforces
@@ -56,7 +56,7 @@ set masses {}
 set ch_id {}
 
 # Read the template PDB file that identifies subdomain memberships
-set nCntr [read_centersPDB $labelPDB serArray masses pairmask ch_id]
+set nCntr [read_centersPDB $labelPDB serArray masses chlist ch_id]
 #nCntr is the number of centers
 #serArray is the atom serial list of each group
 #masses is the atom mass list of each group
@@ -80,7 +80,7 @@ for {set i 0} { $i < $nCntr } { incr i } {
 
 # Set up list of CV's
 set cvList {}
-set nCV [read_cvs $cvINP cvList $nCntr]
+set nCV [read_cvs $cvINP cvList]
 print "CFACV) nCV $nCV"
 
 #Now, cvList is some like {CARTESIAN_X 0} {CARTESIAN_Y 0} ....
@@ -121,8 +121,7 @@ if {[info exists CFACV_doAnalyticalCalc] && $CFACV_doAnalyticalCalc == 1} {
     if {![info exists USETAMDFORCES]} {set USETAMDFORCES 0}
 
     # currently only option is a pairwise analytical potential
-    set aux  [llength $pairmask]
-    Tcl_InitializePairCalc $ds $XSCFILE $CUTOFF $NLCUTOFF $BEGINEVOLVEPARAMETERS $USETAMDFORCES $REPORTPARAMFREQ $SPLINEMIN $NKNOTS $BINREPORTPARAMFILE $BINREPORTPARAMFREQ $BINOUTPUTLEVEL $LAMUPDATEINTERVAL $aux
+    Tcl_InitializePairCalc $ds $XSCFILE $CUTOFF $NLCUTOFF $BEGINEVOLVEPARAMETERS $USETAMDFORCES $REPORTPARAMFREQ $SPLINEMIN $NKNOTS $BINREPORTPARAMFILE $BINREPORTPARAMFREQ $BINOUTPUTLEVEL $LAMUPDATEINTERVAL $chnum
 
     # FIXME. Add a index to load a  initial knots file for each chapeau
     # if {[info exists initKnotsINP]} {Tcl_DataSpace_InitKnots $ds $initKnotsINP}
@@ -182,6 +181,7 @@ proc calcforces { } {
     # load coordinates of requested atoms into associative array
     # this is a NAMD builtin
     loadcoords p
+    # print $p(g1)
 
     # perform the update that transmits forces
     Tcl_UpdateDataSpace $ds p $groups $first [getstep]
