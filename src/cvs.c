@@ -2,11 +2,17 @@
 #include "cvs.h"
 
 // global variables
+
 enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, S,BILAYP, NULL_CV};
 char * CVSTRINGS[NULL_CV] = {"BOND", "ANGLE", "DIHED", "CARTESIAN_X", "CARTESIAN_Y", "CARTESIAN_Z", "S","BILAYP"};
+
+// bylayer
 double blpx,blpy,blpz;
-double blpd=3.; //diameter of the cilinder
- 
+double blpdo2,blpd2; //diameter of the cilinder
+//cvStruct * blpc=NULL;
+
+
+
 int cv_dimension ( cvStruct * c ) {
   // I shuld remove this
   int d;
@@ -46,7 +52,14 @@ cvStruct * New_cvStruct ( int typ, int nC, int * ind ) {
     case BOND:        c->calc = calccv_bond; break;
     case DIHED:       c->calc = calccv_dihed; break;
     case ANGLE:       c->calc = calccv_angle; break;
-    case BILAYP:      c->calc = calccv_bilayerpoint; break;
+    case BILAYP:
+      //if (blpc) {
+      //  fprintf(stderr, "Error: only 1 bilayerp allowed for now");
+      //  exit(1);
+      //}
+      c->calc = calccv_bilayerpoint;
+      //blpc=c;
+      break;
   }
 
   c->nC=nC;
@@ -62,6 +75,16 @@ cvStruct * New_cvStruct ( int typ, int nC, int * ind ) {
 }
 
 
+int set_bilayerpoint ( double x,double y, double xy ) {
+
+  blpx=x;
+  blpy=y;
+  blpdo2=xy*.5; //diameter square of the cilinder
+  blpd2=xy*xy;
+
+  return 0;
+}
+   
 
 int calccv_s ( cvStruct * c, DataSpace * ds ) {
   /* S is the CV of bond networks (see \cite{Barducci2006}) */
@@ -90,48 +113,85 @@ int calccv_s ( cvStruct * c, DataSpace * ds ) {
 
 int calccv_bilayerpoint ( cvStruct * c, DataSpace * ds ) {
   int i,j,k,l;
-  double aux,cl,cu,d;
-  double r[3];
+  double aux,cl,cu,d,normu,norml;
+
+  blpz=0.;
+
+  j=0;
+
+  // loop over each lipid
+  for (l=0;l<c->nC;l++) {
+    i=c->ind[l];
+    c->gr[i][0]=0.;
+    c->gr[i][1]=0.;
+    c->gr[i][2]=0.;
+
+    // Compute the distance to the point
+    d =(ds->R[i][0]-blpx)*(ds->R[i][0]-blpx)
+      +(ds->R[i][1]-blpy)*(ds->R[i][1]-blpy);
+    
+    if(d-blpd2<0.) {
+      blpz+=ds->R[i][2];
+      j++;
+    }
+
+  }
+  
+  blpz=blpz/j;
 
   cu=0.; //upper position
   cl=0.; //lower position
-  c->val=0.;
+  normu=0.;
+  norml=0.;
+ 
 
-  // loop over each lipid
-  for (i=0;i<c->nC;i+=3) {
 
-    // Compute the COM of the lipid
-    for (k=0;i<3.;k++) {
-      r[k]+=ds->R[i  ][k];
-      r[k]+=ds->R[i+1][k];
-      r[k]+=ds->R[i+2][k];
-      r[k]=r[k]/3.;
-    }
+  // Compute the CV and the normfactor in each layer
+  for (l=0;l<c->nC;l++) {
+    i=c->ind[l];
 
-    //if (pbc) {}
+    // Compute the distance to the point
+    d =(ds->R[i][0]-blpx)*(ds->R[i][0]-blpx)
+      +(ds->R[i][1]-blpy)*(ds->R[i][1]-blpy);
 
-    d =(r[0]-blpx)*(r[0]-blpx)
-      +(r[1]-blpy)*(r[1]-blpy);
+    aux=sqrt(d);
+    aux=cdf(-aux+blpdo2)-cdf(-aux-blpdo2);
 
-    
-    aux=(cdf(d)-cdf(d-blpd));
-    
-
-    if(r[2]>blpz) {
-      cu=cu+r[2]*aux;
-      c->gr[i  ][2]+=aux;
-      c->gr[i+1][2]+=aux;
-      c->gr[i+2][2]+=aux;
+    if(ds->R[i][2]>blpz) {
+      cu+=ds->R[i][2]*aux;
+      c->gr[i][2]=aux;
+      normu+=aux;
     } else {
-      cl=cl+r[2]*aux;
-      c->gr[i  ][2]-=aux;
-      c->gr[i+1][2]-=aux;
-      c->gr[i+2][2]-=aux;
+      cl+=ds->R[i][2]*aux;
+      c->gr[i][2]=-aux;
+      norml+=aux;
     }
 
   }
 
-  c->val=cu-cl;
+  c->val=cu/normu-cl/norml;
+
+  
+  // Normalize the force on each lipid
+  for (l=0;l<c->nC;l++) {
+    i=c->ind[l];
+
+    if(ds->R[i][2]>blpz) {
+      c->gr[i][2]=c->gr[i][2]/normu;
+    } else {
+      c->gr[i][2]=c->gr[i][2]/norml;
+    }
+
+    //fprintf(stderr,"aa0 %f\n",c->gr[i][0]);
+    //fprintf(stderr,"aa1 %f\n",c->gr[i][1]);
+    //fprintf(stderr,"aa2 %f\n",c->gr[i][2]);
+
+  }
+
+  //fprintf(stderr,"aaaaaaaaaaaaa %f\n",cu/normu);
+  //fprintf(stderr,"aaaaaaaaaaaaa %f\n",cl/norml);
+  //fprintf(stderr,"aaaaaaaaaaaaa %f\n",c->val);
+  //exit(1);
 
 }
 
@@ -185,4 +245,29 @@ int calccv_z ( cvStruct * c, DataSpace * ds ) {
   c->gr[0][2]=1.0; 
   return 0;
 }
-   
+
+
+double cdf(double x)
+//cdf, thanks to John D. Cook. http://www.johndcook.com/blog/cpp_phi/
+{
+    // constants
+    double a1 =  0.254829592;
+    double a2 = -0.284496736;
+    double a3 =  1.421413741;
+    double a4 = -1.453152027;
+    double a5 =  1.061405429;
+    double p  =  0.3275911;
+ 
+    // Save the sign of x
+    int sign = 1;
+    if (x < 0)
+        sign = -1;
+    x = fabs(x)/sqrt(2.0);
+ 
+    // A&S formula 7.1.26
+    double t = 1.0/(1.0 + p*x);
+    double y = 1.0 - (((((a5*t + a4)*t) + a3)*t + a2)*t + a1)*t*exp(-x*x);
+ 
+    return 0.5*(1.0 + sign*y);
+}
+  

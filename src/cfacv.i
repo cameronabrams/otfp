@@ -18,10 +18,9 @@ extern FILE * my_fopen ( char * name, char * code );
 extern DataSpace * NewDataSpace ( int N, int M, int K, long int seed ) ;
 extern int DataSpace_SetupPBC ( DataSpace * ds, int pbc, double Ox, double Oy, double Oz, double Lx, double Ly, double Lz);
 extern int DataSpace_SetupPairCalc ( DataSpace * ds, double cutoff, double nlcutoff, int beginEvolve, int useTAMDforces, int reportParamFreq, double spline_min, int nKnots, char * splineoutputfile, int splineoutputfreq, int splineoutputlevel, int lamupdateinterval, int chnum );
-extern int * DataSpace_chid ( DataSpace * ds );
 extern int DataSpace_AddAtomCenter ( DataSpace * ds, int n, int * ind, double * m );
 extern int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind ) ;
-extern int DataSpace_AddRestr ( DataSpace * ds, double k, double targ, int nCV, double * cvc, char * rftypstr, double zmin, double zmax  );
+extern int DataSpace_AddRestr  ( DataSpace * ds, double k, double targ, int nCV, double * cvc, char * rftypstr, double zmin, double zmax,char * boundf, double boundk );
 extern int DataSpace_AddTamdOpt ( DataSpace * ds, int ir, double g, double kt, double dt );
 # extern int DataSpace_AddSmdOpt  ( DataSpace * ds, int ir, double target, int t0, int t1 );
 extern int DataSpace_getN ( DataSpace * ds );
@@ -40,3 +39,4 @@ extern void DataSpace_BinaryReportRestraints ( DataSpace * ds, int step, int out
 
 extern int DataSpace_InitKnots ( DataSpace * ds, char * filename, int j);
 
+extern int set_bilayerpoint ( double x,double y, double xy );

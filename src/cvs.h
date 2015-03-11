@@ -45,5 +45,8 @@ int calccv_bond  ( cvStruct * c, DataSpace * ds );
 int calccv_dihed ( cvStruct * c, DataSpace * ds );
 int calccv_angle ( cvStruct * c, DataSpace * ds );
 int calccv_bilayerpoint ( cvStruct * c, DataSpace * ds );
+int set_bilayerpoint ( double x,double y, double xy ); 
            
+double cdf(double x);
+
 #endif

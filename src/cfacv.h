@@ -145,6 +145,10 @@ typedef struct RESTRSTRUCT {
   //restrEnergyFunc energyFunc;   
   int (*energyFunc)(struct RESTRSTRUCT * self, int pbc, double half_domain);
 
+  // pointer to boundary energy and force function
+  double boundk;
+  int (*boundFunc)(struct RESTRSTRUCT * self);
+ 
 } restrStruct;
 
 
@@ -156,7 +160,7 @@ tamdOptStruct * New_tamdOptStruct ( double g, double kt, double dt, int riftyp, 
 
 smdOptStruct * New_smdOptStruct ( double target, int t0, int t1, int periodic );
 
-restrStruct * New_restrStruct ( double k, double z, int nCV, double * cvc, char * rftypstr, double zmin, double zmax  );
+restrStruct * New_restrStruct ( double k, double z, int nCV, double * cvc, char * rftypstr, double zmin, double zmax, char * boundstr, double boundk );
 
 #ifndef MAXNBOR
 #define MAXNBOR 250
@@ -193,9 +197,18 @@ typedef struct DATASPACESTRUCT {
 			// the optmization of the analytical
 			// parameterization
                         
-  // De alguna manera cada chapeau es una direccion
+  // De alguna manera cada chapeau es una direccion 
+  // FIXME: This code was here to allow compute chapeau functions separatedly
+  //for different pair types of particles. For instance, this allow to
+  //recover SOD SOD, CLA CLA and SOD CLA pair potentials in 1 TAMD
+  //simulation. Each index has a number in ch_id which allow to sort the pair
+  //in the different chapeau objects on the c code.  From the studies with
+  //SOD CLA, this pair potentials will be OK only if the ficticius
+  //temperature is the same that the real one.  On the other hand, a better
+  //way to achive this is needed (without saving a lot of numbers in ch_id).
+  //For understand how this worked, see the previous versions of the code. 
   int ch_num;
-  int * ch_id;
+  //int * ch_id;
 
   // for evolution of the parameterization
   double lamfric;
@@ -221,7 +234,6 @@ unsigned short * Xi;
 
 // Other subroutines
 FILE * my_fopen ( char * name, char * code ) ;
-int * DataSpace_chid ( DataSpace * ds );
 DataSpace * NewDataSpace ( int N, int M, int K, long int seed );
 int DataSpace_SetupPBC ( DataSpace * ds, int pbc, double Ox, double Oy, double Oz, double Lx, double Ly, double Lz );
 int DataSpace_SetupPairCalc ( DataSpace * ds, double cutoff, double nlcutoff, int beginEvolve, int useTAMDforces, int reportParamFreq, double spline_min, int nKnots, char * splineoutputfile, int splineoutputfreq, int splineoutputlevel, int lamupdateinterval, int chnum );
@@ -229,7 +241,7 @@ int DataSpace_getN ( DataSpace * ds );
 double * DataSpace_centerPos ( DataSpace * ds, int i );
 int DataSpace_AddAtomCenter ( DataSpace * ds, int n, int * ind, double * m );
 int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind ) ;
-int DataSpace_AddRestr  ( DataSpace * ds, double k, double targ, int nCV, double * cvc, char * rftypstr, double zmin, double zmax );
+int DataSpace_AddRestr  ( DataSpace * ds, double k, double targ, int nCV, double * cvc, char * rftypstr, double zmin, double zmax,char * boundf, double boundk );
 int DataSpace_AddTamdOpt ( DataSpace * ds, int ir, double g, double kt, double dt );
 int DataSpace_AddSmdOpt  ( DataSpace * ds, int ir, double target, int t0, int t1 );
 int DataSpace_ComputeCVs ( DataSpace * ds );
@@ -251,3 +263,7 @@ int fes1D( DataSpace * ds );
 int fes_from_distances( DataSpace * ds, int first, int timestep ) ; 
 
 
+int SoftUpperWall ( restrStruct * r );
+int SoftLowerWall ( restrStruct * r );
+int SoftWalls ( restrStruct * r );
+int nada ( restrStruct * r );

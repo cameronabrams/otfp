@@ -69,6 +69,32 @@ int HarmonicCartPBC ( restrStruct * r, int pbc, double half_domain ) {
   return 0;
 }
 
+int nada ( restrStruct * r ) {
+}
+
+int SoftWalls ( restrStruct * r ) {
+  SoftUpperWall(r);
+  SoftLowerWall(r);
+}
+ 
+int SoftUpperWall ( restrStruct * r ) {
+  double aux;
+  aux=r->z-r->max;
+  if (aux>0.) return 0;
+  r->f+=-100.*aux;
+  r->u=-50.*aux*aux;
+  return 0;
+}
+
+int SoftLowerWall ( restrStruct * r ) {
+  double aux;
+  aux=r->z-r->min;
+  if (aux<0.) return 0;
+  r->f+=-100.*aux;
+  r->u=-50.*aux*aux;
+  return 0;
+}
+
 int HarmonicCartPBC_cutoff ( restrStruct * r, int pbc, double half_domain ) {
   //double r1=10.0,r2=12.0;
  
@@ -147,7 +173,13 @@ double re_Periodic ( double k, double v, double z, double half_domain ) {
   return 0.5*k*dz*dz;
 }
 
-restrStruct * New_restrStruct ( double k, double z, int nCV, double * cvc, char * rftypstr, double zmin, double zmax ) {
+restrStruct * New_restrStruct ( 
+    double k, double z, int nCV, 
+    double * cvc, char * rftypstr, 
+    double zmin, double zmax,
+    char * boundstr, double boundk
+    ) {
+
   restrStruct * newr=malloc(sizeof(restrStruct));
   int i;
   newr->rfityp=rf_getityp(rftypstr);
@@ -176,9 +208,23 @@ restrStruct * New_restrStruct ( double k, double z, int nCV, double * cvc, char 
   //  newr->forceFunc = rf_Periodic;
   //  newr->energyFunc = re_Periodic;
   }
-  
+
+  newr->boundk=boundk;
+
+  fprintf(stderr, "A%sA",boundstr);
+  if     (!strcmp(boundstr,"SOFTUPPER")) {newr->boundFunc = SoftUpperWall;}
+  else if(!strcmp(boundstr,"SOFTLOWER")) {newr->boundFunc = SoftLowerWall;} 
+  else if(!strcmp(boundstr,"SOFT"     )) {newr->boundFunc = SoftWalls    ;} 
+  else if(!strcmp(boundstr,"NADA"     )) {newr->boundFunc = nada         ;} 
+  else {
+    fprintf(stderr, "Error: boundary type not recognized");
+    exit(1);
+  }
+
   return newr;
 }
+
+
 
 tamdOptStruct * New_tamdOptStruct ( double g, double kt, double dt, int riftyp, double half_domain ) {
   tamdOptStruct * tamd=malloc(sizeof(tamdOptStruct));
@@ -338,8 +384,17 @@ int DataSpace_SetupPairCalc ( DataSpace * ds, double cutoff, double nlcutoff,
   ds->beginEvolveParameters=beginEvolve;
   ds->reportParamFreq=reportParamFreq;
 
-  i=N*(N-1)/2; // The upper triangular half of a rectangular matrix
-  ds->ch_id=(int*)malloc(i*sizeof(int));
+  //FIXME: This code was here to allow compute chapeau functions separatedly
+  //for different pair types of particles. For instance, this allow to
+  //recover SOD SOD, CLA CLA and SOD CLA pair potentials in 1 TAMD
+  //simulation. Each index has a number in ch_id which allow to sort the pair
+  //in the different chapeau objects on the c code.  From the studies with
+  //SOD CLA, this pair potentials will be OK only if the ficticius
+  //temperature is the same that the real one.  On the other hand, a better
+  //way to achive this is needed (without saving a lot of numbers in ch_id).
+  //For understand how this worked, see the previous versions of the code. 
+  //i=N*(N-1)/2; // The upper triangular half of a rectangular matrix
+  //ds->ch_id=(int*)malloc(i*sizeof(int));
 
   ds->nsamples=0;
   ds->ch_num=chnum;
@@ -366,10 +421,19 @@ int DataSpace_getN ( DataSpace * ds ) {
   else return -1;
 }
 
-int * DataSpace_chid ( DataSpace * ds ) {
-  if (ds) {return ds->ch_id;}
-  return NULL;
-}
+//int * DataSpace_chid ( DataSpace * ds ) {
+//FIXME: This code was here to allow compute chapeau functions separatedly
+//for different pair types of particles. For instance, this allow to
+//recover SOD SOD, CLA CLA and SOD CLA pair potentials in 1 TAMD
+//simulation. Each index has a number in ch_id which allow to sort the pair
+//in the different chapeau objects on the c code.  From the studies with
+//SOD CLA, this pair potentials will be OK only if the ficticius
+//temperature is the same that the real one.  On the other hand, a better
+//way to achive this is needed (without saving a lot of numbers in ch_id).
+//For understand how this worked, see the previous versions of the code.
+//  if (ds) {return ds->ch_id;}
+//  return NULL;
+//}
  
 double * DataSpace_centerPos ( DataSpace * ds, int i ) {
   if (ds) {
@@ -444,12 +508,12 @@ int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind ) {
 }
 
 int DataSpace_AddRestr ( DataSpace * ds, double k, double z, int nCV, double * cvc, char * rftypstr, 
-			 double zmin, double zmax ) {
+			 double zmin, double zmax,char * boundf, double boundk ) {
 
   if (!ds) return -1;
   
   if (ds->iK<ds->K) {
-    ds->restr[ds->iK++]=New_restrStruct(k,z,nCV,cvc,rftypstr,zmin,zmax);
+    ds->restr[ds->iK++]=New_restrStruct(k,z,nCV,cvc,rftypstr,zmin,zmax,boundf,boundk);
     return (ds->iK-1);
   }
   return -1;
@@ -578,6 +642,10 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 
       // Compute the energy and the force of the restrain
       r->energyFunc(r,ds->pbc,ds->hL[d]);
+      
+
+      // Compute the boundary forces
+      r->boundFunc(r);
 
       // report cv and z to the log
       if (ds->reportParamFreq) {
