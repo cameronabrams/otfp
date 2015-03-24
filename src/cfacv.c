@@ -42,7 +42,7 @@ FILE * my_binfopen ( char * name, char * code, unsigned int outputLevel, DataSpa
 }
 
 
-char * RFSTRINGS[NULL_RF] = {"HARMONIC","HARMCUTO", "PERIODIC"};
+char * RFSTRINGS[NULL_RF] = {"HARMONIC","HARMCUTO"};
 int rf_getityp ( char * typ ) {
   int i;
   for (i=0;i<NULL_RF&&strcmp(typ,RFSTRINGS[i]);i++);
@@ -56,19 +56,218 @@ char * rf_getstyp ( int ityp ) {
   else return BADCVSTRINGMESSAGE;
 }
 
-int HarmonicCartPBC ( restrStruct * r, int pbc, double half_domain ) {
-  double tmp=r->val-r->z;
 
-  if (pbc) {
-    if (tmp>half_domain) {tmp-=2*half_domain;}
-    if (tmp<-half_domain) {tmp+=2*half_domain;}
+
+
+// RESTRAIN STRUCTURES
+
+restrStruct * New_restrStruct ( 
+    double k, double z, int nCV, 
+    double * cvc, char * rftypstr, 
+    double zmin, double zmax,
+    char * boundstr, double boundk
+    ) {
+
+  restrStruct * newr=malloc(sizeof(restrStruct));
+  int i,b_pbc,b_peri;
+  b_pbc=0;
+  b_peri=0;
+
+  newr->rfityp=rf_getityp(rftypstr);
+  newr->k=k;
+  newr->z=z;
+  newr->u=newr->f=0.0;
+  newr->nCV=nCV;
+  newr->cvc=(double*)malloc(nCV*sizeof(double));
+  if (cvc) for (i=0;i<nCV;i++) newr->cvc[i]=cvc[i];
+  else for (i=0;i<nCV;i++) newr->cvc[i]=0;
+
+  newr->min=zmin;
+  newr->max=zmax;
+  newr->half_domain=0.5*(zmax-zmin);
+  
+  // evolve function
+  newr->tamd_noise=0.0;
+  newr->tamd_restraint=0.0;
+  newr->tamdOpt=NULL;
+  newr->smdOpt=NULL;
+  newr->evolve=1;
+  newr->evolveFunc = NULL;
+
+  // boundary function
+  newr->boundk=boundk;
+  if     (!strcmp(boundstr,"SOFTUPPER")) {newr->boundFunc = SoftUpperWall      ;}
+  else if(!strcmp(boundstr,"SOFTLOWER")) {newr->boundFunc = SoftLowerWall      ;} 
+  else if(!strcmp(boundstr,"SOFT"     )) {newr->boundFunc = SoftWalls          ;} 
+  else if(!strcmp(boundstr,"PBC"))       {newr->boundFunc = pbc; b_pbc=1       ;} 
+  else if(!strcmp(boundstr,"PERIODIC" )) {newr->boundFunc = Periodic; b_peri=1 ;} 
+  else if(!strcmp(boundstr,"NADA"     )) {newr->boundFunc = nada               ;} 
+  else {
+    fprintf(stderr, "Error: boundary type not recognized");
+    exit(1);
   }
+
+  // energy function
+  if     (b_pbc) {
+    if      (newr->rfityp==HARMONIC) {newr->energyFunc = HarmonicCart_pbc;}
+    else if (newr->rfityp==HARMCUTO) {newr->energyFunc = HarmonicCart_cutoff_pbc;}
+  } else if (b_peri) {
+    //TODO
+    //if      (newr->rfityp==HARMONIC) {newr->energyFunc = HarmonicCart_periodic;}
+    //else if (newr->rfityp==HARMCUTO) {newr->energyFunc = HarmonicCart_cutoff_periodic;}
+  } else {
+    if      (newr->rfityp==HARMONIC) {newr->energyFunc = HarmonicCart;}
+    else if (newr->rfityp==HARMCUTO) {newr->energyFunc = HarmonicCart_cutoff;}
+  }
+
+
+  return newr;
+}
+
+tamdOptStruct * New_tamdOptStruct ( double g, double kt, double dt, int riftyp) {
+  tamdOptStruct * tamd=malloc(sizeof(tamdOptStruct));
+  tamd->kT=kt;
+  tamd->gamma=g;
+  tamd->dt=dt;
+  if (g>0.0) tamd->ginv=1.0/g;
+  else tamd->ginv=0.0;
+  tamd->noise = sqrt(2.0*kt*dt*tamd->ginv);
+  return tamd;
+}
+
+smdOptStruct * New_smdOptStruct ( double target, int t0, int t1 ) {
+  smdOptStruct * smd=malloc(sizeof(smdOptStruct));
+  smd->t0=t0;
+  smd->t1=t1;
+  smd->invinterval = 1.0/(t1-t0);
+  smd->target=target;
+  return smd;
+}
+
+int smdOptInit ( smdOptStruct * smd, double initval) {
+  double dist=0.0;
+  if (!smd) return -1;
+  
+  smd->initval=initval;
+  dist = smd->target-smd->initval;
+  //FIXME: Inquire if the restrain is linked to periodic instead.
+  //if (periodic) {
+  //  if (dist<-M_PI) {
+  //    dist+=2*M_PI;
+  //  }
+  //  else if (dist > M_PI) {
+  //    dist-=2*M_PI;
+  //  } 
+  //}
+  if (!dist)  smd->increment=0.;
+  else smd->increment=dist*smd->invinterval;
+  printf("CFACV/C) smd increment is %.5f based on target %.5f and initval %.5f\n",
+         smd->increment,smd->target,smd->initval);
+  return 0;
+  
+}
+
+
+
+
+
+//ENERGY FUNCTIONS
+
+int HarmonicCart ( restrStruct * r ) {
+  double tmp=r->val-r->z;
   r->f=-r->k*tmp;
   r->u=0.5*r->k*tmp*tmp;
+  return 0;
+}
+
+int HarmonicCart_cutoff ( restrStruct * r ) {
+  //double r1=10.0,r2=12.0;
+ 
+  // Non tie
+  if (r->z>r->max) {
+    r->f=0.0;
+    r->u=0.0;
+    r->evolve=0;
+    return 0;
+  } 
+
+
+  //// Set up initial position above the CV
+  //if(!r->evolve) {
+  //  r->z=r->val;
+  //  r->evolve=1;
+  //  r->f=0.0;
+  //  r->u=0.0;
+  //  return 0;
+  //}
+
+  // Set up initial acording to a distribution around the CV
+  if(!r->evolve) {
+    r->z=r->val+sqrt(r->tamdOpt->kT/r->k)*my_whitenoise(Xi);
+    r->evolve=1;
+  }
+
+  // Abrupt cutoff
+  HarmonicCart(r);
+
+  //// Force an energy with a smooth cutoff
+  //if(r->z<r1) {
+  //  aux=0.0;
+  //  aux1=1.0;
+  //} else {
+  //tmp==r->val-r->z;
+  //  if (r->pbc) {
+  //    if (tmp>r->half_domain) tmp-=2*r->half_domain;
+  //    if (tmp<-r->half_domain) tmp+=2*r->half_domain;
+  //  }
+  //  aux=M_PI*(tmp-(r1+r2)*0.5)/(r2-r1);
+  //  aux1=0.5-0.5*sin(aux);
+  //  aux=-cos(aux)*M_PI*tmp/(r2-r1)*0.5;
+  //  //dfcut=-0.5_dp*cos(aux)*pio2*tmp/(r2-r1);
+  //}
+  //aux2=0.5*r->k*tmp*tmp;
+  //r->f=-r->k*tmp*aux1-aux2*aux;
+  //r->u=aux2*aux1;
 
   return 0;
 }
 
+int HarmonicCart_pbc ( restrStruct * r ) {
+  double tmp=r->val-r->z;
+  if (tmp>r->half_domain) {tmp-=2*r->half_domain;}
+  if (tmp<-r->half_domain) {tmp+=2*r->half_domain;}
+  r->f=-r->k*tmp;
+  r->u=0.5*r->k*tmp*tmp;
+  return 0;
+}
+
+int HarmonicCart_cutoff_pbc ( restrStruct * r ) {
+
+  // Release tie
+  if (r->z>r->max) {
+    r->f=0.0;
+    r->u=0.0;
+    r->evolve=0;
+    return 0;
+  } 
+
+  // Set up initial acording to a distribution around the CV
+  if(!r->evolve) {
+    r->z=r->val+sqrt(r->tamdOpt->kT/r->k)*my_whitenoise(Xi);
+    r->evolve=1;
+  }
+
+  // Abrupt cutoff
+  HarmonicCart_pbc(r);
+
+  return 0;
+}
+      
+
+
+
+//BOUNDARIES
+ 
 int nada ( restrStruct * r ) {
 }
 
@@ -94,229 +293,62 @@ int SoftLowerWall ( restrStruct * r ) {
   r->u=-50.*aux*aux;
   return 0;
 }
-
-int HarmonicCartPBC_cutoff ( restrStruct * r, int pbc, double half_domain ) {
-  //double r1=10.0,r2=12.0;
  
-  // Non tie
-  if (r->z>r->max) {
-    r->f=0.0;
-    r->u=0.0;
-    r->tamd_evolve=0;
-    return 0;
-  } 
-
-
-  //// Set up initial position above the CV
-  //if(!r->tamd_evolve) {
-  //  r->z=r->val;
-  //  r->tamd_evolve=1;
-  //  r->f=0.0;
-  //  r->u=0.0;
-  //  return 0;
-  //}
-
-  // Set up initial acording to a distribution around the CV
-  if(!r->tamd_evolve) {
-    r->z=r->val+sqrt(r->tamdOpt->kT/r->k)*my_whitenoise(Xi);
-    r->tamd_evolve=1;
-  }
-
-  // Abrupt cutoff
-  HarmonicCartPBC(r,pbc,half_domain);
-
-  //// Force an energy with a smooth cutoff
-  //if(r->z<r1) {
-  //  aux=0.0;
-  //  aux1=1.0;
-  //} else {
-  //tmp==r->val-r->z;
-  //  if (pbc) {
-  //    if (tmp>half_domain) tmp-=2*half_domain;
-  //    if (tmp<-half_domain) tmp+=2*half_domain;
-  //  }
-  //  aux=M_PI*(tmp-(r1+r2)*0.5)/(r2-r1);
-  //  aux1=0.5-0.5*sin(aux);
-  //  aux=-cos(aux)*M_PI*tmp/(r2-r1)*0.5;
-  //  //dfcut=-0.5_dp*cos(aux)*pio2*tmp/(r2-r1);
-  //}
-  //aux2=0.5*r->k*tmp*tmp;
-  //r->f=-r->k*tmp*aux1-aux2*aux;
-  //r->u=aux2*aux1;
-
+int Periodic ( restrStruct * r ) {
+  // TODO: Periodic is the same that PBC and can be unified.
+  if (r->z>M_PI) r->z-=2*M_PI;
+  else if (r->z<-M_PI) r->z+=2*M_PI;
   return 0;
 }
  
-double rf_Periodic ( double k, double v, double z, double half_domain ) {
-  double dz=v-z;
-#ifdef _PARANOIA_
-  if (_PARANOIA_) {
-    if ((dz!=dz)||(k!=k)||(half_domain!=half_domain)) {
-      fprintf(stderr,"CFACV/C/PARANOIA) Tripped in rf_Periodic\n");
-      fprintf(stderr,"CFACV/C/PARANOIA) k %.5f v %.5f z %.5f dz %.5f half_domain %.5f\n",
-	      k,v,z,dz,half_domain);
-      fprintf(stderr,"Program exits\n");
-      fflush(stderr);
-      exit(-1);
-    }
-  }
-#endif
-  if (dz<-half_domain) dz+=2*half_domain;
-  else if (dz>half_domain) dz-=2*half_domain;
-  return -k*dz;
-}
-
-double re_Periodic ( double k, double v, double z, double half_domain ) {
-  double dz=v-z;
-  if (dz<-half_domain) dz+=2*half_domain;
-  else if (dz>half_domain) dz-=2*half_domain;
-  return 0.5*k*dz*dz;
-}
-
-restrStruct * New_restrStruct ( 
-    double k, double z, int nCV, 
-    double * cvc, char * rftypstr, 
-    double zmin, double zmax,
-    char * boundstr, double boundk
-    ) {
-
-  restrStruct * newr=malloc(sizeof(restrStruct));
-  int i;
-  newr->rfityp=rf_getityp(rftypstr);
-  newr->k=k;
-  newr->z=z;
-  newr->u=newr->f=0.0;
-  newr->nCV=nCV;
-  newr->cvc=(double*)malloc(nCV*sizeof(double));
-  if (cvc) for (i=0;i<nCV;i++) newr->cvc[i]=cvc[i];
-  else for (i=0;i<nCV;i++) newr->cvc[i]=0;
-  newr->tamdOpt=NULL;
-  newr->tamd_noise=0.0;
-  newr->tamd_restraint=0.0;
-  newr->tamd_evolve=1;
-  newr->smdOpt=NULL;
-  newr->min=zmin;
-  newr->max=zmax;
-  newr->half_domain=0.5*(zmax-zmin);
-  if (newr->rfityp==HARMONIC) {
-    newr->energyFunc = HarmonicCartPBC;
-  }
-  else if (newr->rfityp==HARMCUTO) {
-    newr->energyFunc = HarmonicCartPBC_cutoff;
-  }
-  else if (newr->rfityp==PERIODIC) {
-  //  newr->forceFunc = rf_Periodic;
-  //  newr->energyFunc = re_Periodic;
-  }
-
-  newr->boundk=boundk;
-
-  fprintf(stderr, "A%sA",boundstr);
-  if     (!strcmp(boundstr,"SOFTUPPER")) {newr->boundFunc = SoftUpperWall;}
-  else if(!strcmp(boundstr,"SOFTLOWER")) {newr->boundFunc = SoftLowerWall;} 
-  else if(!strcmp(boundstr,"SOFT"     )) {newr->boundFunc = SoftWalls    ;} 
-  else if(!strcmp(boundstr,"NADA"     )) {newr->boundFunc = nada         ;} 
-  else {
-    fprintf(stderr, "Error: boundary type not recognized");
-    exit(1);
-  }
-
-  return newr;
+int pbc ( restrStruct * r ) {
+  if (r->z>r->max) r->z-=2*r->half_domain;
+  if (r->z<-r->min) r->z+=2*r->half_domain;
+  return 0;
 }
 
 
+// EVOLUTION OF RESTRIANS
 
-tamdOptStruct * New_tamdOptStruct ( double g, double kt, double dt, int riftyp, double half_domain ) {
-  tamdOptStruct * tamd=malloc(sizeof(tamdOptStruct));
-  tamd->kT=kt;
-  tamd->gamma=g;
-  tamd->dt=dt;
-  if (g>0.0) tamd->ginv=1.0/g;
-  else tamd->ginv=0.0;
-  tamd->noise = sqrt(2.0*kt*dt*tamd->ginv);
-  tamd->periodic=(riftyp==PERIODIC);
-  tamd->half_domain=half_domain;
-  return tamd;
-}
-
-/* Diffusive dynamics! */
-double tamdUpdate ( DataSpace * ds, double z, double f, tamdOptStruct * tamd, double * noise, double * res ) {
-  double dd = tamd->ginv*tamd->dt*f;
-  double rd = tamd->noise*my_whitenoise(Xi);
-  *noise=rd;
-  *res=dd;
-  if (tamd->periodic) {
-    double newrawz=z+dd+rd;
-    if (newrawz>tamd->half_domain) newrawz-=2*tamd->half_domain;
-    if (newrawz<-tamd->half_domain) newrawz+=2*tamd->half_domain;
-    return newrawz;
-  }
-  return z+dd+rd; 
-}
-
-int restrUpdate ( restrStruct * r, double f ) {
-
-  if (!r->tamd_evolve) return 0;
-
+/* Brownian dynamics (TAMD)*/
+int cbd ( restrStruct * r, double f ) {
   tamdOptStruct * tamd=r->tamdOpt;
   double dd = tamd->ginv*tamd->dt*f;
   double rd = tamd->noise*my_whitenoise(Xi);
+
+  if (!r->evolve) return 0;
   r->tamd_noise=rd;
   r->tamd_restraint=dd;
-
-  if (tamd->periodic) {
-    double newrawz=r->z+dd+rd;
-    if (newrawz>tamd->half_domain) newrawz-=2*tamd->half_domain;
-    if (newrawz<-tamd->half_domain) newrawz+=2*tamd->half_domain;
-    r->z=newrawz;
-  }
-  r->z=r->z+dd+rd; 
-
+  r->z=r->z+dd+rd;
   return 0;
 }
 
-double smdUpdate ( double z, double increment, int OK ) {
-  return z+OK*increment;
+/* Constant Velocity (SMD)*/
+int uniformvelocity ( restrStruct * r, double f ) {
+  if (!r->evolve) return 0;
+  r->z=r->z+f;
+  return 0;
 }
 
-double smdUpdate_Periodic ( double z, double increment, int OK ) {
-  double newz=z+increment;
-  if (newz>M_PI) newz-=2*OK*M_PI;
-  else if (newz<-M_PI) newz+=2*OK*M_PI;
-  return newz;
-}
+//double smdUpdate ( double z, double increment, int OK ) {
+//  return z+OK*increment;
+//}
+//
+//double smdUpdate_Periodic ( double z, double increment, int OK ) {
+//  double newz=z+increment;
+//  if (newz>M_PI) newz-=2*OK*M_PI;
+//  else if (newz<-M_PI) newz+=2*OK*M_PI;
+//  return newz;
+//}
 
-smdOptStruct * New_smdOptStruct ( double target, int t0, int t1, int periodic ) {
-  smdOptStruct * smd=malloc(sizeof(smdOptStruct));
-  smd->t0=t0;
-  smd->t1=t1;
-  smd->invinterval = 1.0/(t1-t0);
-  smd->target=target;
-  if (periodic) smd->update=smdUpdate_Periodic;
-  else smd->update=smdUpdate;
-  return smd;
-}
 
-int smdOptInit ( smdOptStruct * smd, double initval, int periodic ) {
-  double dist=0.0;
-  if (smd) {
-    smd->initval=initval;
-    dist = smd->target-smd->initval;
-    if (periodic) {
-      if (dist<-M_PI) {
-	dist+=2*M_PI;
-      }
-      else if (dist > M_PI) {
-	dist-=2*M_PI;
-      } 
-    }
-    smd->increment=dist*smd->invinterval;
-    printf("CFACV/C) smd increment is %.5f based on target %.5f and initval %.5f\n",
-	   smd->increment,smd->target,smd->initval);
-    return 0;
-  }
-  return -1;
-}
+
+
+
+
+
+// DATA SPACE
+
 
 DataSpace * NewDataSpace ( int N, int M, int K, long int seed ) {
   DataSpace * ds = malloc(sizeof(DataSpace));
@@ -327,7 +359,7 @@ DataSpace * NewDataSpace ( int N, int M, int K, long int seed ) {
   ds->iN=ds->iM=ds->iK=0;
 
   // Random seed. I deatached this from the data space a do it global
-  // for all the file (see for example HarmonicCartPBC_cutoff function)
+  // for all the file (see for example HarmonicCart_cutoff function)
   Xi=(unsigned short *)malloc(3*sizeof(unsigned short));
   Xi[0]=(seed & 0xffff00000000) >> 32;
   Xi[1]=(seed & 0x0000ffff0000) >> 16;
@@ -367,6 +399,7 @@ int DataSpace_SetupPBC ( DataSpace * ds, int pbc, double Ox, double Oy, double O
  
   return 0;
 }
+
 int DataSpace_SetupPairCalc ( DataSpace * ds, double cutoff, double nlcutoff,
 			      int beginEvolve, int useTAMDforces, int reportParamFreq, double spline_min, int nKnots, 
 			      char * splineoutputfile, int splineoutputfreq, int splineoutputlevel, 
@@ -526,22 +559,24 @@ int DataSpace_AddTamdOpt ( DataSpace * ds, int ir, double g, double kt, double d
 /*   printf("DB: adding tamd options (% 7.3f% 7.3f% 7.3f) to r %i out of %i...\n", */
 /*       g,kt,dt,ir,ds->iK); */
   if (ir < ds->iK ) {
-    ds->restr[ir]->tamdOpt=New_tamdOptStruct(g,kt,dt,ds->restr[ir]->rfityp,ds->restr[ir]->half_domain);
+    ds->restr[ir]->evolveFunc = cbd;
+    ds->restr[ir]->tamdOpt=New_tamdOptStruct(g,kt,dt,ds->restr[ir]->rfityp);
     return ir;
   }
   return -1;
 }
 
-//int DataSpace_AddSmdOpt  ( DataSpace * ds, int ir, double target, int t0, int t1 ) {
-//  if (ds) {
-//    if (ir < ds->iK ) {
-//      ds->restr[ir]->smdOpt=New_smdOptStruct(target,t0,t1,(int)(ds->restr[ir]->forceFunc==rf_Periodic));
-//      return ir;
-//    }
-//    return -1;
-//  }
-//  return -1;
-//}
+int DataSpace_AddSmdOpt  ( DataSpace * ds, int ir, double target, int t0, int t1 ) {
+  
+  if (!ds) return -1;
+  
+  if (ir < ds->iK ) {
+    ds->restr[ir]->evolveFunc = uniformvelocity;
+    ds->restr[ir]->smdOpt=New_smdOptStruct(target,t0,t1);
+    return ir;
+  }
+  return -1;
+}
 
 int DataSpace_SetRestraints ( DataSpace * ds, double * rval ) {
   int i;
@@ -613,17 +648,27 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
       for (j=0;j<r->nCV;j++) {
 	cv=ds->cv[j];
 	r->val+=cvc[j]*cv->val;
+#ifdef _PARANOIA_
+	if (_PARANOIA_) {
+	  if (r->val!=r->val) {
+	    fprintf(stderr,"CFACV/C/PARANOIA) Tripped at r->val %.5lf\n",r->val);
+	    fprintf(stderr,"CFACV/C/PARANOIA) cvc[%i] %.5lf cv->val %.5lf\n",j,cv->val);
+	    fprintf(stderr,"Program exits.\n");
+	    fflush(stderr);
+	    exit(-1);
+	  }
+	}
+#endif
       }
       
       if (first) {
 	if (r->tamdOpt) {
 	  r->z=r->val;
 	}
-        // FIXME
-	//if (r->smdOpt) {
-	//  r->z=r->val;
-	//  smdOptInit(r->smdOpt,r->val,(int)(r->forceFunc==rf_Periodic));	  
-	//}
+	if (r->smdOpt) {
+	  r->z=r->val;
+	  smdOptInit(r->smdOpt,r->val);
+	}
       }
     }
       //printf("CFACV/C) %i restraint %i val %.4f targ %.4f\n",timestep,i,r->val,r->z);
@@ -641,8 +686,7 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
       }
 
       // Compute the energy and the force of the restrain
-      r->energyFunc(r,ds->pbc,ds->hL[d]);
-      
+      r->energyFunc(r);
 
       // Compute the boundary forces
       r->boundFunc(r);
@@ -666,6 +710,23 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 	  for (jj=0;jj<cv->nC;jj++) {
 	    /* increment the forces of the jj'th cartesian center on the j'th cv of this restraint */
 	    for (d=0;d<3;d++) ds->R[ cv->ind[jj] ][d]+=r->cvc[j]*cv->gr[jj][d]*r->f;
+#ifdef _PARANOIA_
+	    if (_PARANOIA_) {
+	      if ((ds->R[cv->ind[jj]][0]!=ds->R[cv->ind[jj]][0])
+		  ||(ds->R[cv->ind[jj]][1]!=ds->R[cv->ind[jj]][1])
+		  ||(ds->R[cv->ind[jj]][2]!=ds->R[cv->ind[jj]][2])) {
+		fprintf(stderr,"CFACV/C/PARANOIA) Tripped.\n");
+		fprintf(stderr,"CFACV/C/PARANOIA) r->cvc[%i] %.5lf\n",j,r->cvc[j]);
+		fprintf(stderr,"CFACV/C/PARANOIA) cv->gr[%i][0] %.5lf\n",jj,cv->gr[jj][0]);
+		fprintf(stderr,"CFACV/C/PARANOIA) cv->gr[%i][1] %.5lf\n",jj,cv->gr[jj][1]);
+		fprintf(stderr,"CFACV/C/PARANOIA) cv->gr[%i][2] %.5lf\n",jj,cv->gr[jj][2]);
+		fprintf(stderr,"CFACV/C/PARANOIA) r->f %.5lf\n",r->f);
+		fprintf(stderr,"Program exits\n");
+		fflush(stderr);
+		exit(-1);
+	      }
+	    }
+#endif
 	  }
 	}
       }
@@ -709,14 +770,14 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
                 ds->F[k][d]+=fi;
               }
             }
-            restrUpdate(r,ds->F[ii][d]);	
+            r->evolveFunc(r,ds->F[ii][d]);
           }*/
       } else {
 
         // TAMD forces to evolve auxilary variables
         for (i=0;i<K;i++) {
           r=ds->restr[i];
-          restrUpdate(r,-r->f);	
+          r->evolveFunc(r,-r->f);
         }
       }
 
@@ -740,11 +801,10 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
       for (i=0;i<ds->iK;i++) {
 	r=ds->restr[i];
 	if (r->tamdOpt) {
-	  //r->z=tamdUpdate(ds,r->z,-r->f,r->tamdOpt,&r->tamd_noise,&r->tamd_restraint);
-          restrUpdate(r,-r->f);	
+          r->evolveFunc(r,-r->f);
 	} else if (r->smdOpt) {
-	  r->z=r->smdOpt->update(r->z,r->smdOpt->increment,
-				 (r->smdOpt->t0<=timestep)&&(r->smdOpt->t1>=timestep));
+          r->evolve=(int)(r->smdOpt->t0<=timestep)&&(r->smdOpt->t1>=timestep);
+          r->evolveFunc(r,r->smdOpt->increment);
 	}
       }
     }

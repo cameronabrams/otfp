@@ -22,7 +22,7 @@ extern int DataSpace_AddAtomCenter ( DataSpace * ds, int n, int * ind, double * 
 extern int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind ) ;
 extern int DataSpace_AddRestr  ( DataSpace * ds, double k, double targ, int nCV, double * cvc, char * rftypstr, double zmin, double zmax,char * boundf, double boundk );
 extern int DataSpace_AddTamdOpt ( DataSpace * ds, int ir, double g, double kt, double dt );
-# extern int DataSpace_AddSmdOpt  ( DataSpace * ds, int ir, double target, int t0, int t1 );
+extern int DataSpace_AddSmdOpt  ( DataSpace * ds, int ir, double target, int t0, int t1 );
 extern int DataSpace_getN ( DataSpace * ds );
 extern void DataSpace_ReportAll ( DataSpace * ds );
 void DataSpace_ReportCV ( DataSpace * ds, int * active, double * res );

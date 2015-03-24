@@ -88,9 +88,6 @@ typedef struct TAMDOPTSTRUCT {
   double dt;           // timestep (ps)
   double ginv;         // inverse friction
   double noise;        // noise
-  int periodic;        // flag indicating whether restraint is
-                       // periodic (like a dihedral)
-  double half_domain;  // half-domain size of periodic CV
 } tamdOptStruct;
 
 
@@ -109,15 +106,13 @@ typedef struct SMDOPTSTRUCT {
 
 
 // The Restraint structure
-enum {HARMONIC, HARMCUTO, PERIODIC, NULL_RF};
+enum {HARMONIC, HARMCUTO, NULL_RF};
 
 typedef struct RESTRSTRUCT {
   double k;               // spring constant
   double z;               // target value
   double val;             // restraint value
-  double min;             // min, max, half_domain for periodic boundaries
-  double max;
-  double half_domain;
+
   double f;              // force on restraint
   double u;              // potential energy stored by restraint
   int nCV;               // number of collective variables in SYSTEM
@@ -133,17 +128,26 @@ typedef struct RESTRSTRUCT {
   tamdOptStruct * tamdOpt; // pointer to the tamd options structure
   double tamd_noise;
   double tamd_restraint;
+
+  int evolve;        // Indicate when z must evolve. When tamd_evolve goes
+                     // from 0 to 1 z value is initialized
+
   smdOptStruct * smdOpt;   // pointer to the smd options structure
 
   int rfityp;                   // type of the restraining function
                                 // (Harmonic or Periodic)
 
-  int tamd_evolve;        // Indicate when z must evolve. When tamd_evolve goes
-                          // from 0 to 1 z value is initialized
+  
+  double min;          // min, max, half_domain for periodic boundaries
+  double max;
+  double half_domain;  // half-domain size of periodic CV
 
+  // pointer to the evolution type 
+  int (*evolveFunc)(struct RESTRSTRUCT * self, double f);
+   
   // pointer to the restraining energy and force function
   //restrEnergyFunc energyFunc;   
-  int (*energyFunc)(struct RESTRSTRUCT * self, int pbc, double half_domain);
+  int (*energyFunc)(struct RESTRSTRUCT * self);
 
   // pointer to boundary energy and force function
   double boundk;
@@ -156,9 +160,9 @@ void cfacvBanner ( void );
 
 cvStruct * New_cvStruct ( int typ, int nC, int * ind );
 
-tamdOptStruct * New_tamdOptStruct ( double g, double kt, double dt, int riftyp, double half_domain );
+tamdOptStruct * New_tamdOptStruct ( double g, double kt, double dt, int riftyp);
 
-smdOptStruct * New_smdOptStruct ( double target, int t0, int t1, int periodic );
+smdOptStruct * New_smdOptStruct ( double target, int t0, int t1);
 
 restrStruct * New_restrStruct ( double k, double z, int nCV, double * cvc, char * rftypstr, double zmin, double zmax, char * boundstr, double boundk );
 
@@ -185,7 +189,8 @@ typedef struct DATASPACESTRUCT {
   // below are bits for doing TAMD/OTFP of pairwise intercenter
   // potentials represented as piecewise-continuous linear functions
 
-  // PBC
+  // Global PBC for the particles. Each restrain has also a pbc flag.
+  // This is for FES made with distances (like in the original paper)
   int pbc;
   double O[3]; // simulation box origin
   double L[3]; // simulation box size
@@ -258,12 +263,25 @@ void DataSpace_BinaryReportRestraints ( DataSpace * ds, int step, int outputleve
 int DataSpace_InitKnots ( DataSpace * ds, char * filename, int j);
 
 
-
 int fes1D( DataSpace * ds ); 
 int fes_from_distances( DataSpace * ds, int first, int timestep ) ; 
 
+// Evolve Functions
+int cbd ( restrStruct * r, double f );
+int uniformvelocity ( restrStruct * r, double f );
 
+
+// Boundaries Functions
 int SoftUpperWall ( restrStruct * r );
 int SoftLowerWall ( restrStruct * r );
 int SoftWalls ( restrStruct * r );
+int pbc ( restrStruct * r );
+int Periodic ( restrStruct * r );
 int nada ( restrStruct * r );
+
+// Potential Function
+int HarmonicCart ( restrStruct * r );
+int HarmonicCart_cutoff ( restrStruct * r );
+int HarmonicCart_pbc ( restrStruct * r );
+int HarmonicCart_cutoff_pbc ( restrStruct * r );
+

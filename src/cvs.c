@@ -1,16 +1,18 @@
-
 #include "cvs.h"
 
 // global variables
 
-enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, S,BILAYP, NULL_CV};
-char * CVSTRINGS[NULL_CV] = {"BOND", "ANGLE", "DIHED", "CARTESIAN_X", "CARTESIAN_Y", "CARTESIAN_Z", "S","BILAYP"};
+enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, S,BILAYP,COGX, COGY, COGZ, NULL_CV};
+char * CVSTRINGS[NULL_CV] = {
+  "BOND", "ANGLE", "DIHED", 
+  "CARTESIAN_X", "CARTESIAN_Y", "CARTESIAN_Z", 
+  "COGX", "COGY", "COGZ", 
+  "S","BILAYP"};
 
 // bylayer
 double blpx,blpy,blpz;
 double blpdo2,blpd2; //diameter of the cilinder
 //cvStruct * blpc=NULL;
-
 
 
 int cv_dimension ( cvStruct * c ) {
@@ -21,11 +23,13 @@ int cv_dimension ( cvStruct * c ) {
     case CARTESIAN_X: d=0; break;
     case CARTESIAN_Y: d=1; break;
     case CARTESIAN_Z: d=2; break;
+    case COGX: d=0; break;
+    case COGY: d=1; break;
+    case COGZ: d=2; break;
   }
   return d;
 }
  
-
 int cv_getityp ( char * typ ) {
   int i;
   for (i=0;i<NULL_CV&&strcmp(typ,CVSTRINGS[i]);i++);
@@ -48,6 +52,9 @@ cvStruct * New_cvStruct ( int typ, int nC, int * ind ) {
     case CARTESIAN_X: c->calc = calccv_x; break;
     case CARTESIAN_Y: c->calc = calccv_y; break;
     case CARTESIAN_Z: c->calc = calccv_z; break;
+    case COGX: c->calc = calccv_cogx; break;
+    case COGY: c->calc = calccv_cogy; break;
+    case COGZ: c->calc = calccv_cogz; break;
     case S:           c->calc = calccv_s; break;
     case BOND:        c->calc = calccv_bond; break;
     case DIHED:       c->calc = calccv_dihed; break;
@@ -84,7 +91,6 @@ int set_bilayerpoint ( double x,double y, double xy ) {
 
   return 0;
 }
-   
 
 int calccv_s ( cvStruct * c, DataSpace * ds ) {
   /* S is the CV of bond networks (see \cite{Barducci2006}) */
@@ -109,7 +115,6 @@ int calccv_s ( cvStruct * c, DataSpace * ds ) {
 
   return 0;
 }
-  
 
 int calccv_bilayerpoint ( cvStruct * c, DataSpace * ds ) {
   int i,j,k,l;
@@ -246,6 +251,60 @@ int calccv_z ( cvStruct * c, DataSpace * ds ) {
   return 0;
 }
 
+int calccv_cogx ( cvStruct * c, DataSpace * ds ) {
+  double aux,aux2;
+  int l,i;
+
+  aux=0.;
+  aux2=1./c->nC;
+  for (l=0;l<c->nC;l++) {
+    i=c->ind[l];
+    c->gr[i][0]=aux2;
+    c->gr[i][1]=0.;
+    c->gr[i][2]=0.;
+    aux+=ds->R[i][0];
+  }
+
+  c->val = aux/c->nC;
+  return 0;
+}
+
+int calccv_cogy ( cvStruct * c, DataSpace * ds ) {
+  double aux,aux2;
+  int l,i;
+
+  aux=0.;
+  aux2=1./c->nC;
+  for (l=0;l<c->nC;l++) {
+    i=c->ind[l];
+    c->gr[i][0]=0.;
+    c->gr[i][1]=aux2;
+    c->gr[i][2]=0.;
+    aux+=ds->R[i][1];
+  }
+
+  c->val = aux/c->nC;
+  return 0;
+}
+ 
+int calccv_cogz ( cvStruct * c, DataSpace * ds ) {
+  double aux,aux2;
+  int l,i;
+
+  aux=0.;
+  aux2=1./c->nC;
+  for (l=0;l<c->nC;l++) {
+    i=c->ind[l];
+    c->gr[i][0]=0.;
+    c->gr[i][1]=0.;
+    c->gr[i][2]=aux2;
+    aux+=ds->R[i][2];
+  }
+
+  c->val = aux/c->nC;
+  return 0;
+}
+ 
 
 double cdf(double x)
 //cdf, thanks to John D. Cook. http://www.johndcook.com/blog/cpp_phi/
@@ -270,4 +329,42 @@ double cdf(double x)
  
     return 0.5*(1.0 + sign*y);
 }
-  
+
+
+//double blpcut(double r,double cu,double cl,double b,double dblpcut){
+//  double r1,r2,r3,r4,r5;
+//  
+//  r1=cu+d/2
+//
+//
+//  if(r<r0) {
+//    fc=1.0;
+//    dfc=0.0;
+//  } else if(r>r2) {
+//    fc=0.0;
+//    dfc=0.0;
+//  } else {
+//    aux=M_PI*(r-(r1+r2)*0.5)/(r2-r1);
+//    fc =0.5-0.5*sin(aux);
+//    dfc=-cos(aux)*M_PI*r/(r2-r1)*0.5;
+//  }
+//
+//  return fc;
+//}    
+//double fcut(double r,double r1,double r2,double dfcut){
+//  double fc,dfc,aux;
+//  
+//  if(r<r1) {
+//    fc=1.0;
+//    dfc=0.0;
+//  } else if(r>r2) {
+//    fc=0.0;
+//    dfc=0.0;
+//  } else {
+//    aux=M_PI*(r-(r1+r2)*0.5)/(r2-r1);
+//    fc =0.5-0.5*sin(aux);
+//    dfc=-cos(aux)*M_PI*r/(r2-r1)*0.5;
+//  }
+//
+//  return fc;
+//}

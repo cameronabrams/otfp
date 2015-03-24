@@ -442,17 +442,19 @@ proc read_cvs { cv_file cv_list pdb} {
     
     # Check for a valid CV
     switch $typ {
+      BILAYP {
+        set_bilayerpoint [lindex $optlist 0] [lindex $optlist 1]  [lindex $optlist 2]
+      }
       BOND -
       S -
       ANGLE -
       DIHED -
-      BILAYP {
-        set_bilayerpoint [lindex $optlist 0] [lindex $optlist 1]  [lindex $optlist 2]
-      }
+      COGX -
+      COGY -
+      COGZ -
       CARTESIAN_X -
       CARTESIAN_Y -
-      CARTESIAN_Z {
-      }
+      CARTESIAN_Z {}
       default {
           print "ERROR: $typ is not a valid CV type in $cv_file."
           exit
@@ -934,10 +936,6 @@ proc Tcl_NewDataSpace { nC cvL rL seed } {
             exit
           }
 	}
-	if { $RestraintFunction == "PERIODIC" } {
-	    set zmin [expr -1*acos(-1)]
-	    set zmax [expr acos(-1)]
-	}
         # Assuming, r to be {1 0 0 0 0} {k 1600} {AMDkT 0.19} {TAMDgamma 1} {TAMDdt 0.002}
         #hints:
 	# cvc=1 0 0 0 0
@@ -950,6 +948,23 @@ proc Tcl_NewDataSpace { nC cvL rL seed } {
 	# zmax=0.00
 	set boundf [restr_getopt $r "Bound" "bound" NADA]
 	set boundk [restr_getopt $r "Boundk" "bk" 100.00]
+	
+        switch $boundf {
+          PERIODIC {
+            set zmin [expr -1*acos(-1)]
+            set zmax [expr acos(-1)]
+          }
+          NADA -
+          PBC -
+          SOFTUPPER -
+          SOFTLOWER -
+          SOFT {}
+          default {
+              print "ERROR: $boundf is not a valid boundary type."
+              exit
+          }
+        }
+
 
         # Here all this information is saved in ds->restr[i] structure
 	set ir [DataSpace_AddRestr $ds $k $targ $nCV $pcvc $RestraintFunction $zmin $zmax $boundf $boundk]

@@ -37,6 +37,9 @@ int cv_dimension ( cvStruct * c );
 char * cv_getstyp ( int ityp );
 cvStruct * New_cvStruct ( int typ, int nC, int * ind );
  
+int calccv_cogx  ( cvStruct * c, DataSpace * ds );
+int calccv_cogy  ( cvStruct * c, DataSpace * ds );
+int calccv_cogz  ( cvStruct * c, DataSpace * ds );
 int calccv_x     ( cvStruct * c, DataSpace * ds );
 int calccv_y     ( cvStruct * c, DataSpace * ds );
 int calccv_z     ( cvStruct * c, DataSpace * ds );
@@ -46,6 +49,7 @@ int calccv_dihed ( cvStruct * c, DataSpace * ds );
 int calccv_angle ( cvStruct * c, DataSpace * ds );
 int calccv_bilayerpoint ( cvStruct * c, DataSpace * ds );
 int set_bilayerpoint ( double x,double y, double xy ); 
+double fcut(double r,double r1,double r2,double dfcut);
            
 double cdf(double x);
 
