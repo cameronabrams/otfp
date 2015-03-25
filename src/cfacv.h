@@ -228,7 +228,6 @@ typedef struct DATASPACESTRUCT {
 		     // analytical free energy (this would make the
 		     // calculation conform to the heterogeneous
 		     // multiscale method
-  int reportParamFreq;
   
 } DataSpace;
 
@@ -241,7 +240,7 @@ unsigned short * Xi;
 FILE * my_fopen ( char * name, char * code ) ;
 DataSpace * NewDataSpace ( int N, int M, int K, long int seed );
 int DataSpace_SetupPBC ( DataSpace * ds, int pbc, double Ox, double Oy, double Oz, double Lx, double Ly, double Lz );
-int DataSpace_SetupPairCalc ( DataSpace * ds, double cutoff, double nlcutoff, int beginEvolve, int useTAMDforces, int reportParamFreq, double spline_min, int nKnots, char * splineoutputfile, int splineoutputfreq, int splineoutputlevel, int lamupdateinterval, int chnum );
+int DataSpace_SetupPairCalc ( DataSpace * ds, double cutoff, double nlcutoff, int beginEvolve, int useTAMDforces, double spline_min, int nKnots, char * splineoutputfile, int splineoutputfreq, int splineoutputlevel, int lamupdateinterval, int chnum );
 int DataSpace_getN ( DataSpace * ds );
 double * DataSpace_centerPos ( DataSpace * ds, int i );
 int DataSpace_AddAtomCenter ( DataSpace * ds, int n, int * ind, double * m );
@@ -263,7 +262,7 @@ void DataSpace_BinaryReportRestraints ( DataSpace * ds, int step, int outputleve
 int DataSpace_InitKnots ( DataSpace * ds, char * filename, int j);
 
 
-int fes1D( DataSpace * ds ); 
+int fes1D( DataSpace * ds, restrStruct * r );
 int fes_from_distances( DataSpace * ds, int first, int timestep ) ; 
 
 // Evolve Functions

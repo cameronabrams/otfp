@@ -139,7 +139,8 @@ smdOptStruct * New_smdOptStruct ( double target, int t0, int t1 ) {
   smdOptStruct * smd=malloc(sizeof(smdOptStruct));
   smd->t0=t0;
   smd->t1=t1;
-  smd->invinterval = 1.0/(t1-t0);
+  if (!(t1-t0)) smd->invinterval=0.;
+  else smd->invinterval = 1.0/(t1-t0);
   smd->target=target;
   return smd;
 }
@@ -159,8 +160,7 @@ int smdOptInit ( smdOptStruct * smd, double initval) {
   //    dist-=2*M_PI;
   //  } 
   //}
-  if (!dist)  smd->increment=0.;
-  else smd->increment=dist*smd->invinterval;
+  smd->increment=dist*smd->invinterval;
   printf("CFACV/C) smd increment is %.5f based on target %.5f and initval %.5f\n",
          smd->increment,smd->target,smd->initval);
   return 0;
@@ -379,7 +379,6 @@ DataSpace * NewDataSpace ( int N, int M, int K, long int seed ) {
   ds->hL[0]=ds->hL[1]=ds->hL[2]=0.0;
   ds->evolveAnalyticalParameters=0;
   ds->beginEvolveParameters=0;
-  ds->reportParamFreq=0;
 
   return ds;
 }
@@ -401,7 +400,7 @@ int DataSpace_SetupPBC ( DataSpace * ds, int pbc, double Ox, double Oy, double O
 }
 
 int DataSpace_SetupPairCalc ( DataSpace * ds, double cutoff, double nlcutoff,
-			      int beginEvolve, int useTAMDforces, int reportParamFreq, double spline_min, int nKnots, 
+			      int beginEvolve, int useTAMDforces, double spline_min, int nKnots, 
 			      char * splineoutputfile, int splineoutputfreq, int splineoutputlevel, 
 			      int lamupdateinterval, int chnum ) {
   int i,j;
@@ -415,7 +414,6 @@ int DataSpace_SetupPairCalc ( DataSpace * ds, double cutoff, double nlcutoff,
 
   ds->evolveAnalyticalParameters=1;
   ds->beginEvolveParameters=beginEvolve;
-  ds->reportParamFreq=reportParamFreq;
 
   //FIXME: This code was here to allow compute chapeau functions separatedly
   //for different pair types of particles. For instance, this allow to
@@ -622,196 +620,191 @@ int DataSpace_InitKnots ( DataSpace * ds, char * filename, int j) {
 }
 
 int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
-
-  signal(SIGINT, handler);   // install SIGINT handler
-
-  if (ds) {
-    int ii,i,j,jj,k;
-    double * cvc,fi;
-    int d=0;
-    int N=ds->N,K=ds->iK;
-    int ic;
-
-    cvStruct * cv;
-    restrStruct * r;
-    chapeau * ch;
- 
-    /* clear out the position arrays to hold forces to be communicated
-       back to tclForces */
-    for (i=0;i<ds->N;i++) for (d=0;d<3;d++) ds->R[i][d]=0.0;
-
-    /* Loop over all restraints and compute restraint values from their CV's */
-    for (i=0;i<ds->iK;i++) {
-      r=ds->restr[i];
-      cvc=r->cvc;
-      r->val=0.0;
-      for (j=0;j<r->nCV;j++) {
-	cv=ds->cv[j];
-	r->val+=cvc[j]*cv->val;
-#ifdef _PARANOIA_
-	if (_PARANOIA_) {
-	  if (r->val!=r->val) {
-	    fprintf(stderr,"CFACV/C/PARANOIA) Tripped at r->val %.5lf\n",r->val);
-	    fprintf(stderr,"CFACV/C/PARANOIA) cvc[%i] %.5lf cv->val %.5lf\n",j,cv->val);
-	    fprintf(stderr,"Program exits.\n");
-	    fflush(stderr);
-	    exit(-1);
-	  }
-	}
-#endif
-      }
+  int ii,i,j,jj,k;
+  double * cvc,fi;
+  int d=0;
+  int N=ds->N,K=ds->iK;
+  int ic;
+  cvStruct * cv;
+  restrStruct * r;
+  chapeau * ch;
       
-      if (first) {
-	if (r->tamdOpt) {
-	  r->z=r->val;
-	}
-	if (r->smdOpt) {
-	  r->z=r->val;
-	  smdOptInit(r->smdOpt,r->val);
-	}
-      }
-    }
-      //printf("CFACV/C) %i restraint %i val %.4f targ %.4f\n",timestep,i,r->val,r->z);
+  // install SIGINT handler
+  signal(SIGINT, handler);   
+  if (!ds) return -1;
 
-    /* compute forces on all restraints */
-    for (i=0;i<ds->iK;i++) {
-      r=ds->restr[i];
-      cvc=r->cvc;
+  /* clear out the position arrays to hold forces to be communicated
+     back to tclForces */
+  for (i=0;i<ds->N;i++) for (d=0;d<3;d++) ds->R[i][d]=0.0;
 
-      // if this is a cartesian single-cv restraint, get the dimension
-      for (j=0;j<r->nCV;j++) {
-	if (cvc[j]) {
-	    d=cv_dimension(ds->cv[j]);
-	}
-      }
-
-      // Compute the energy and the force of the restrain
-      r->energyFunc(r);
-
-      // Compute the boundary forces
-      r->boundFunc(r);
-
-      // report cv and z to the log
-      if (ds->reportParamFreq) {
-        if (!(timestep%ds->reportParamFreq)) {
-          fprintf(stdout,"-Z-CV- %i % 17.5f  % 17.5f % 17.5f \n",i, r->z, r->val, r->u);
-          fflush(stdout);
+  /* Loop over all restraints and compute restraint values from their CV's */
+  for (i=0;i<ds->iK;i++) {
+    r=ds->restr[i];
+    cvc=r->cvc;
+    r->val=0.0;
+    for (j=0;j<r->nCV;j++) {
+      cv=ds->cv[j];
+      r->val+=cvc[j]*cv->val;
+#ifdef _PARANOIA_
+      if (_PARANOIA_) {
+        if (r->val!=r->val) {
+          fprintf(stderr,"CFACV/C/PARANOIA) Tripped at r->val %.5lf\n",r->val);
+          fprintf(stderr,"CFACV/C/PARANOIA) cvc[%i] %.5lf cv->val %.5lf\n",j,cv->val);
+          fprintf(stderr,"Program exits.\n");
+          fflush(stderr);
+          exit(-1);
         }
       }
-
-
-      /* accumulate force increments in ds->R for each real particle*/
-      /* cv->gr[jj][kk] = \partial CV / \partial (kk-coord of center jj of CV) */
-      for (j=0;j<r->nCV;j++) {
-	cv=ds->cv[j];
-	/* if the j'th cv referenced by this restraint contributes to this restraint: */
-	if (r->cvc[j]) {
-	  /* ... for each center in this CV ... */
-	  for (jj=0;jj<cv->nC;jj++) {
-	    /* increment the forces of the jj'th cartesian center on the j'th cv of this restraint */
-	    for (d=0;d<3;d++) ds->R[ cv->ind[jj] ][d]+=r->cvc[j]*cv->gr[jj][d]*r->f;
-#ifdef _PARANOIA_
-	    if (_PARANOIA_) {
-	      if ((ds->R[cv->ind[jj]][0]!=ds->R[cv->ind[jj]][0])
-		  ||(ds->R[cv->ind[jj]][1]!=ds->R[cv->ind[jj]][1])
-		  ||(ds->R[cv->ind[jj]][2]!=ds->R[cv->ind[jj]][2])) {
-		fprintf(stderr,"CFACV/C/PARANOIA) Tripped.\n");
-		fprintf(stderr,"CFACV/C/PARANOIA) r->cvc[%i] %.5lf\n",j,r->cvc[j]);
-		fprintf(stderr,"CFACV/C/PARANOIA) cv->gr[%i][0] %.5lf\n",jj,cv->gr[jj][0]);
-		fprintf(stderr,"CFACV/C/PARANOIA) cv->gr[%i][1] %.5lf\n",jj,cv->gr[jj][1]);
-		fprintf(stderr,"CFACV/C/PARANOIA) cv->gr[%i][2] %.5lf\n",jj,cv->gr[jj][2]);
-		fprintf(stderr,"CFACV/C/PARANOIA) r->f %.5lf\n",r->f);
-		fprintf(stderr,"Program exits\n");
-		fflush(stderr);
-		exit(-1);
-	      }
-	    }
 #endif
-	  }
-	}
+    }
+    
+    if (first) {
+      if (r->tamdOpt) {
+        r->z=r->val;
+      }
+      if (r->smdOpt) {
+        r->z=r->val;
+        smdOptInit(r->smdOpt,r->val);
+      }
+    }
+  }
+
+  //printf("CFACV/C) %i restraint %i val %.4f targ %.4f\n",timestep,i,r->val,r->z);
+
+  /* compute forces on all restraints */
+  for (i=0;i<ds->iK;i++) {
+    r=ds->restr[i];
+    cvc=r->cvc;
+
+    // if this is a cartesian single-cv restraint, get the dimension
+    for (j=0;j<r->nCV;j++) {
+      if (cvc[j]) {
+          d=cv_dimension(ds->cv[j]);
       }
     }
 
-    // Evolution of the z variables
-    if (ds->doAnalyticalCalc) {
+    // Compute the energy and the force of the restrain
+    r->energyFunc(r);
 
-      // Add statistic to b and A matrix (tridiagonal)
-      if (timestep>ds->beginEvolveParameters) {
-        fes1D(ds) ;
-      }
+    // Compute the boundary forces
+    r->boundFunc(r);
 
-      // Moving the z variables
-      if (!ds->useTAMDforces) {
-
-        // Free energy gradient to evolve auxiliariy variables
-
-        // map the interparticle gradients back into the restraints
-        // compute gradients to be applied to z's from an analytical
-        // function rather than from the atomic forces in this case,
-        // each restraint must have one and only one CV
-
-        fprintf(stderr,"The needed code was temporal removed. \n");
-        fprintf(stderr,"Please useTAMDforces or see the original version of the code \n");
-
-        /*for (i=0;i<N;i++) {ds->F[i][0]=ds->F[i][1]=ds->F[i][2]=0.0;}
-          for (i=0;i<K;i++) {
-            r=ds->restr[i];
-            // each restraint must have one and only one CV
-            for (j=0;!r->cvc[j];j++);
-            d=i%3;
-            ii = ds->cv[j]->ind[0]; // index of particle "i"
-            nl=ds->nl[ii];
-            inlc=ds->nlc[ii];
-            for (jj=0;jj<inlc;jj++) {
-              k=nl[jj];
-              if ( ds->rr[ii][k] < ds->squaredPairCutoff ) {
-                fi=ds->gr[ii][k]*ds->RR[ii][k][d];
-                ds->F[ii][d]-=fi;
-                ds->F[k][d]+=fi;
-              }
+    /* accumulate force increments in ds->R for each real particle*/
+    /* cv->gr[jj][kk] = \partial CV / \partial (kk-coord of center jj of CV) */
+    for (j=0;j<r->nCV;j++) {
+      cv=ds->cv[j];
+      /* if the j'th cv referenced by this restraint contributes to this restraint: */
+      if (r->cvc[j]) {
+        /* ... for each center in this CV ... */
+        for (jj=0;jj<cv->nC;jj++) {
+          /* increment the forces of the jj'th cartesian center on the j'th cv of this restraint */
+          for (d=0;d<3;d++) ds->R[ cv->ind[jj] ][d]+=r->cvc[j]*cv->gr[jj][d]*r->f;
+#ifdef _PARANOIA_
+          if (_PARANOIA_) {
+            if ((ds->R[cv->ind[jj]][0]!=ds->R[cv->ind[jj]][0])
+      	  ||(ds->R[cv->ind[jj]][1]!=ds->R[cv->ind[jj]][1])
+      	  ||(ds->R[cv->ind[jj]][2]!=ds->R[cv->ind[jj]][2])) {
+      	fprintf(stderr,"CFACV/C/PARANOIA) Tripped.\n");
+      	fprintf(stderr,"CFACV/C/PARANOIA) r->cvc[%i] %.5lf\n",j,r->cvc[j]);
+      	fprintf(stderr,"CFACV/C/PARANOIA) cv->gr[%i][0] %.5lf\n",jj,cv->gr[jj][0]);
+      	fprintf(stderr,"CFACV/C/PARANOIA) cv->gr[%i][1] %.5lf\n",jj,cv->gr[jj][1]);
+      	fprintf(stderr,"CFACV/C/PARANOIA) cv->gr[%i][2] %.5lf\n",jj,cv->gr[jj][2]);
+      	fprintf(stderr,"CFACV/C/PARANOIA) r->f %.5lf\n",r->f);
+      	fprintf(stderr,"Program exits\n");
+      	fflush(stderr);
+      	exit(-1);
             }
-            r->evolveFunc(r,ds->F[ii][d]);
-          }*/
-      } else {
+          }
+#endif
+        }
+      }
+    }
+  }
 
-        // TAMD forces to evolve auxilary variables
+  // Evolution of the z variables
+  // TODO: Im wondering if the loop over restrain can be saftely
+  // place outside the if
+  if (ds->doAnalyticalCalc) {
+
+    // Add statistic to b and A matrix (tridiagonal)
+    if (timestep>ds->beginEvolveParameters) {
+      for (i=0;i<ds->iK;i++) {
+        r=ds->restr[i];
+        if (r->tamdOpt) fes1D(ds,r);
+      }
+    }
+
+    // Moving the z variables
+    if (!ds->useTAMDforces) {
+
+      // Free energy gradient to evolve auxiliariy variables
+
+      // map the interparticle gradients back into the restraints
+      // compute gradients to be applied to z's from an analytical
+      // function rather than from the atomic forces in this case,
+      // each restraint must have one and only one CV
+
+      fprintf(stderr,"The needed code was temporal removed. \n");
+      fprintf(stderr,"Please useTAMDforces or see the original version of the code \n");
+      exit(1);
+
+      /*for (i=0;i<N;i++) {ds->F[i][0]=ds->F[i][1]=ds->F[i][2]=0.0;}
         for (i=0;i<K;i++) {
           r=ds->restr[i];
-          r->evolveFunc(r,-r->f);
-        }
-      }
-
-
-      // Solving the chapeau equations
-      if (ds->evolveAnalyticalParameters) {
-        ds->nsamples++;
-
-        for (ic=0;ic<ds->ch_num;ic++) {
-          ch=ds->ch[ic];
-
-          if (timestep>ds->beginEvolveParameters && !(timestep % ch->updateinterval)) {
-            chapeau_update_peaks(ch,ds->nsamples,timestep);
-            chapeau_output(ch,timestep);
+          // each restraint must have one and only one CV
+          for (j=0;!r->cvc[j];j++);
+          d=i%3;
+          ii = ds->cv[j]->ind[0]; // index of particle "i"
+          nl=ds->nl[ii];
+          inlc=ds->nlc[ii];
+          for (jj=0;jj<inlc;jj++) {
+            k=nl[jj];
+            if ( ds->rr[ii][k] < ds->squaredPairCutoff ) {
+              fi=ds->gr[ii][k]*ds->RR[ii][k][d];
+              ds->F[ii][d]-=fi;
+              ds->F[k][d]+=fi;
+            }
           }
-        }
-      }
+          r->evolveFunc(r,ds->F[ii][d]);
+        }*/
+    } else {
 
-    } else { // update z's using the measured forces
-
-      for (i=0;i<ds->iK;i++) {
-	r=ds->restr[i];
-	if (r->tamdOpt) {
-          r->evolveFunc(r,-r->f);
-	} else if (r->smdOpt) {
-          r->evolve=(int)(r->smdOpt->t0<=timestep)&&(r->smdOpt->t1>=timestep);
-          r->evolveFunc(r,r->smdOpt->increment);
-	}
+      // TAMD forces to evolve auxilary variables
+      for (i=0;i<K;i++) {
+        r=ds->restr[i];
+        if (r->tamdOpt) r->evolveFunc(r,-r->f);
       }
     }
 
-    return 0;
+
+    // Solving the chapeau equations
+    if (ds->evolveAnalyticalParameters) {
+      ds->nsamples++;
+
+      for (ic=0;ic<ds->ch_num;ic++) {
+        ch=ds->ch[ic];
+
+        if (timestep>ds->beginEvolveParameters && !(timestep % ch->updateinterval)) {
+          chapeau_update_peaks(ch,ds->nsamples,timestep);
+          chapeau_output(ch,timestep);
+        }
+      }
+    }
+
+  } else { // update z's using the measured forces
+    for (i=0;i<ds->iK;i++) {
+      r=ds->restr[i];
+      if (r->tamdOpt) r->evolveFunc(r,-r->f);
+    }
   }
-  return -1;
+
+  //Evolve smd restrains (no matter the value of ds->doAnalyticalCalc)
+  if (r->smdOpt) {
+    r->evolve=(int)(r->smdOpt->t0<=timestep)&&(r->smdOpt->t1>=timestep);
+    r->evolveFunc(r,r->smdOpt->increment);
+  }
+
+  return 0;
 }
 
 double DataSpace_RestraintEnergy ( DataSpace * ds ) {
@@ -937,72 +930,67 @@ void DataSpace_BinaryReportRestraints ( DataSpace * ds, int step, int outputleve
   fflush(fp);
 }
 
-int fes1D( DataSpace * ds ) { 
-
+int fes1D( DataSpace * ds, restrStruct * r ) { 
   int i,j,k,m;
   double R,F;
   chapeau * ch;
-  restrStruct * r;
      
-  // Loop over all restrains
-  for (i=0;i<ds->iK;i++) {
-    r=ds->restr[i];
-    R=r->z;
-    F=-r->f; // F=k(\theta-z)
+  R=r->z;
+  F=-r->f; // F=k(\theta-z)
 
-    // Following the paper E definition A and b should be
-    //
-    // A=1./nsteps \sum_{steps} \sum_{i} dphi_m(z)/dz dphi_n(z)/dz
-    // b=-1./nsteps \sum_{steps} \sum_{i} dphi_m(z)/dz F
-    //
-    // But here we compute -b*nsteps and A*nsteps and then A and b are scaled
-    // by the proper factor when equation A\lambda=b is solved (see the
-    // chapeau_update_peaks procedure)
-    
-    // TODO: Repair the support to evolve trough Free Energy Gradient has was
-    // done before
-    
-    /* TODO: This should be generalized by putting and index in the restrain to
-             refer the asociated chapeu*/
-    //ch=ds->ch[ ds->ch_id[m] ];
-    ch=ds->ch[0];
-    if ( R > ch->rmax ) continue;
+  // Following the paper E definition A and b should be
+  //
+  // A=1./nsteps \sum_{steps} \sum_{i} dphi_m(z)/dz dphi_n(z)/dz
+  // b=-1./nsteps \sum_{steps} \sum_{i} dphi_m(z)/dz F
+  //
+  // But here we compute -b*nsteps and A*nsteps and then A and b are scaled
+  // by the proper factor when equation A\lambda=b is solved (see the
+  // chapeau_update_peaks procedure)
+  
+  // TODO: Repair the support to evolve trough Free Energy Gradient has was
+  // done before
+  
+  /* TODO: This should be generalized by putting and index in the restrain to
+           refer the asociated chapeu*/
+  //ch=ds->ch[ ds->ch_id[m] ];
+  ch=ds->ch[0];
+  if ( R > ch->rmax ) return;
 
-    //FIXME: Early return if no chapeau object is asociated with this pair
-    //if ( ds->ch_id[m] == -1 ) continue;
+  //FIXME: Early return if no chapeau object is asociated with this pair
+  //if ( ds->ch_id[m] == -1 ) continue;
 
-    // Early return to avoid interpolations below rmin
-    if ( R <= ch->rmin ) continue;
-        
-    /* Interpolation R->m
-          m R
-          | |
-      o---o-x-o---o--*/
-    m=(int)((R-ch->rmin)*ch->idr);
-    ch->hits[m]++;
+  // Early return to avoid interpolations below rmin
+  if ( R <= ch->rmin ) return;
+      
+  /* Interpolation R->m
+        m R
+        | |
+    o---o-x-o---o--*/
+  m=(int)((R-ch->rmin)*ch->idr);
+  ch->hits[m]++;
 
-    /* 1/dz  /| 
-            / |n=m+1
-           /  | 
-      o---o-x-o---o--*/ 
-    ch->b->data[m+1]+=ch->idr*F;
-    ch->A->data[(m+1)*ch->A->tda+(m+1)]+=ch->idr*ch->idr;
+  /* 1/dz  /| 
+          / |n=m+1
+         /  | 
+    o---o-x-o---o--*/ 
+  ch->b->data[m+1]+=ch->idr*F;
+  ch->A->data[(m+1)*ch->A->tda+(m+1)]+=ch->idr*ch->idr;
 
-    /*    |\   -1/dz
-       n=m| \
-          |  \
-      o---o-x-o---o--*/ 
-    ch->b->data[m]-=ch->idr*F;
-    ch->A->data[m*ch->A->tda+m]+=ch->idr*ch->idr;
+  /*    |\   -1/dz
+     n=m| \
+        |  \
+    o---o-x-o---o--*/ 
+  ch->b->data[m]-=ch->idr*F;
+  ch->A->data[m*ch->A->tda+m]+=ch->idr*ch->idr;
 
-    /*    |\ /| 
-         m| X |n=m+1
-          |/ \| 
-      o---o-x-o---o--*/ 
-    ch->A->data[(m+1)*ch->A->tda+m]-=ch->idr*ch->idr;
-    ch->A->data[m*ch->A->tda+m+1]-=ch->idr*ch->idr;
+  /*    |\ /| 
+       m| X |n=m+1
+        |/ \| 
+    o---o-x-o---o--*/ 
+  ch->A->data[(m+1)*ch->A->tda+m]-=ch->idr*ch->idr;
+  ch->A->data[m*ch->A->tda+m+1]-=ch->idr*ch->idr;
 
-  }           
+            
 
   return 0;
 }

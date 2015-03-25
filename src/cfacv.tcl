@@ -990,8 +990,8 @@ proc Tcl_NewDataSpace { nC cvL rL seed } {
 }
 
 
-proc Tcl_InitializePairCalc { ds XSCFILE cutoff nlcutoff begin_evolve usetamdforces reportparamfreq spline_min nKnots splineoutputfile splineoutputfreq splineoutputlevel updateinterval cvnum} {
-    DataSpace_SetupPairCalc $ds $cutoff $nlcutoff $begin_evolve $usetamdforces $reportparamfreq $spline_min $nKnots $splineoutputfile $splineoutputfreq $splineoutputlevel $updateinterval $cvnum
+proc Tcl_InitializePairCalc { ds XSCFILE cutoff nlcutoff begin_evolve usetamdforces spline_min nKnots splineoutputfile splineoutputfreq splineoutputlevel updateinterval cvnum} {
+    DataSpace_SetupPairCalc $ds $cutoff $nlcutoff $begin_evolve $usetamdforces $spline_min $nKnots $splineoutputfile $splineoutputfreq $splineoutputlevel $updateinterval $cvnum
     if [string equal $XSCFILE "off"] {
       print "CFACV) DEBUG: Tcl_InitializePairCalc nobox"
       DataSpace_SetupPBC $ds 0  0 0 0  0 0 0

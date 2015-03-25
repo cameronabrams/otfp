@@ -97,13 +97,13 @@ print "CFACV) setting seed to $seed"
 # Here all the previous information is stacked
 set ds [Tcl_NewDataSpace $nCntr $cvList $rList $seed]
 
-# if intercenter pair calcs are needed
+# OTFP
 if {[info exists CFACV_doAnalyticalCalc] && $CFACV_doAnalyticalCalc == 1} {
 
     if {![info exists USETAMDFORCES]} {set USETAMDFORCES 0}
 
     # currently only option is a pairwise analytical potential
-    Tcl_InitializePairCalc $ds $XSCFILE $CUTOFF $NLCUTOFF $BEGINEVOLVEPARAMETERS $USETAMDFORCES $REPORTPARAMFREQ $SPLINEMIN $NKNOTS $BINREPORTPARAMFILE $BINREPORTPARAMFREQ $BINOUTPUTLEVEL $LAMUPDATEINTERVAL $chnum
+    Tcl_InitializePairCalc $ds $XSCFILE $CUTOFF $NLCUTOFF $BEGINEVOLVEPARAMETERS $USETAMDFORCES $SPLINEMIN $NKNOTS $BINREPORTPARAMFILE $BINREPORTPARAMFREQ $BINOUTPUTLEVEL $LAMUPDATEINTERVAL $chnum
 
     # FIXME. Add a index to load a  initial knots file for each chapeau
     # if {[info exists initKnotsINP]} {Tcl_DataSpace_InitKnots $ds $initKnotsINP}
@@ -180,12 +180,12 @@ proc calcforces { } {
 
     # report if requested
     if {[expr {[getstep]%$TAMDof == 0}]} {
-        DataSpace_ReportRestraints $ds [getstep] $TAMDoutputlevel $TAMDoutputFileFP
+      DataSpace_ReportRestraints $ds [getstep] $TAMDoutputlevel $TAMDoutputFileFP
     }
 
     # report if requested
     if {[info exists TAMDbinOutputFile] && [expr {[getstep]%$TAMDbinof == 0}]} {
-        DataSpace_BinaryReportRestraints $ds [getstep] $TAMDoutputlevel $TAMDbinOutputFileFP
+      DataSpace_BinaryReportRestraints $ds [getstep] $TAMDoutputlevel $TAMDbinOutputFileFP
     }
 }
 

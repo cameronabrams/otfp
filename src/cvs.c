@@ -2,30 +2,57 @@
 
 // global variables
 
-enum {BOND, ANGLE, DIHED, CARTESIAN_X, CARTESIAN_Y, CARTESIAN_Z, S,BILAYP,COGX, COGY, COGZ, NULL_CV};
+enum {BILAYP, 
+      BOND,
+      S,
+      ANGLE,
+      DIHED,
+      COGX,
+      COGY,
+      COGZ,
+      CARTESIAN_X,
+      CARTESIAN_Y,
+      CARTESIAN_Z, 
+      NULL_CV};
+
 char * CVSTRINGS[NULL_CV] = {
-  "BOND", "ANGLE", "DIHED", 
-  "CARTESIAN_X", "CARTESIAN_Y", "CARTESIAN_Z", 
-  "COGX", "COGY", "COGZ", 
-  "S","BILAYP"};
+      "BILAYP",
+      "BOND",
+      "S",
+      "ANGLE",
+      "DIHED",
+      "COGX",
+      "COGY",
+      "COGZ",
+      "CARTESIAN_X",
+      "CARTESIAN_Y",
+      "CARTESIAN_Z"};
 
 // bylayer
-double blpx,blpy,blpz;
+double blpx,blpy;
 double blpdo2,blpd2; //diameter of the cilinder
 //cvStruct * blpc=NULL;
 
 
 int cv_dimension ( cvStruct * c ) {
-  // I shuld remove this
+  //TODO: I shuld remove this
   int d;
-  d=0;
+
   switch(c->typ) {
+    case BILAYP: d=0; break;
+    case BOND:   d=0; break;
+    case S:      d=0; break;
+    case ANGLE:  d=0; break;
+    case DIHED:  d=0; break;
+    case COGX:   d=0; break;
+    case COGY:   d=1; break; 
+    case COGZ:   d=2; break;
     case CARTESIAN_X: d=0; break;
     case CARTESIAN_Y: d=1; break;
     case CARTESIAN_Z: d=2; break;
-    case COGX: d=0; break;
-    case COGY: d=1; break;
-    case COGZ: d=2; break;
+    default: 
+      fprintf(stderr,"ERROR, CV not recognized");
+      fflush(stderr);exit(-1);break; 
   }
   return d;
 }
@@ -47,26 +74,25 @@ cvStruct * New_cvStruct ( int typ, int nC, int * ind ) {
   cvStruct * c=malloc(sizeof(cvStruct));
 
   c->typ=typ;
-  c->calc = calccv_s;
   switch(c->typ) {
-    case CARTESIAN_X: c->calc = calccv_x; break;
-    case CARTESIAN_Y: c->calc = calccv_y; break;
-    case CARTESIAN_Z: c->calc = calccv_z; break;
+    case BILAYP:
+      c->calc = calccv_bilayerpoint;
+      break;
+    case BOND:        c->calc = calccv_bond; break;
+    case S:           c->calc = calccv_s; break;
+    case ANGLE:       c->calc = calccv_angle; break;
+    case DIHED:       c->calc = calccv_dihed; break;
     case COGX: c->calc = calccv_cogx; break;
     case COGY: c->calc = calccv_cogy; break;
     case COGZ: c->calc = calccv_cogz; break;
-    case S:           c->calc = calccv_s; break;
-    case BOND:        c->calc = calccv_bond; break;
-    case DIHED:       c->calc = calccv_dihed; break;
-    case ANGLE:       c->calc = calccv_angle; break;
-    case BILAYP:
-      //if (blpc) {
-      //  fprintf(stderr, "Error: only 1 bilayerp allowed for now");
-      //  exit(1);
-      //}
-      c->calc = calccv_bilayerpoint;
-      //blpc=c;
-      break;
+    case CARTESIAN_X: c->calc = calccv_x; 
+      fprintf(stderr,"ERROR, CV not recognized");fflush(stderr);break;
+    case CARTESIAN_Y: c->calc = calccv_y; break;
+    case CARTESIAN_Z: c->calc = calccv_z; break;
+      fprintf(stderr,"ERROR, CV not recognized");fflush(stderr);break;
+    default: 
+      fprintf(stderr,"ERROR, CV not recognized");
+      fflush(stderr);exit(-1);break;
   }
 
   c->nC=nC;
@@ -118,85 +144,70 @@ int calccv_s ( cvStruct * c, DataSpace * ds ) {
 
 int calccv_bilayerpoint ( cvStruct * c, DataSpace * ds ) {
   int i,j,k,l;
-  double aux,cl,cu,d,normu,norml;
+  double s=1.,blpv,blpz;
+  double aux,aux1,aux2,d,norm;
 
-  blpz=0.;
 
+  // Compute the average z
   j=0;
-
-  // loop over each lipid
+  blpz=0.;
+  norm=0.;
   for (l=0;l<c->nC;l++) {
     i=c->ind[l];
-    c->gr[i][0]=0.;
-    c->gr[i][1]=0.;
-    c->gr[i][2]=0.;
 
-    // Compute the distance to the point
-    d =(ds->R[i][0]-blpx)*(ds->R[i][0]-blpx)
-      +(ds->R[i][1]-blpy)*(ds->R[i][1]-blpy);
-    
-    if(d-blpd2<0.) {
-      blpz+=ds->R[i][2];
-      j++;
-    }
+    // Compute the weight
+    aux1= (ds->R[i][0]-blpx);
+    aux2= (ds->R[i][1]-blpy);
+    d=sqrt(aux1*aux1+aux2*aux2);
+    aux1= blpdo2-d;
+    aux2=-blpdo2-d;
+    aux=cdf(aux1)-cdf(aux2);
 
-  }
-  
-  blpz=blpz/j;
-
-  cu=0.; //upper position
-  cl=0.; //lower position
-  normu=0.;
-  norml=0.;
+    // Accumulate and save the weight
+    norm+=aux;
+    blpz+=aux*ds->R[i][2];
+    c->gr[i][2]=aux;
+    fprintf(stderr,"BLP) %.5f\n",aux);
  
-
-
-  // Compute the CV and the normfactor in each layer
-  for (l=0;l<c->nC;l++) {
-    i=c->ind[l];
-
-    // Compute the distance to the point
-    d =(ds->R[i][0]-blpx)*(ds->R[i][0]-blpx)
-      +(ds->R[i][1]-blpy)*(ds->R[i][1]-blpy);
-
-    aux=sqrt(d);
-    aux=cdf(-aux+blpdo2)-cdf(-aux-blpdo2);
-
-    if(ds->R[i][2]>blpz) {
-      cu+=ds->R[i][2]*aux;
-      c->gr[i][2]=aux;
-      normu+=aux;
-    } else {
-      cl+=ds->R[i][2]*aux;
-      c->gr[i][2]=-aux;
-      norml+=aux;
-    }
-
+    // Save the derivatvies of the weight
+    aux1=exp(-aux1*aux1/(s*s*sqrt(2.)))/(s*sqrt(2*M_PI)*d);
+    aux2=exp(-aux2*aux2/(s*s*sqrt(2.)))/(s*sqrt(2*M_PI)*d);
+    aux=aux1-aux2;
+    c->gr[i][0]=aux*(ds->R[i][0]-blpx);
+    c->gr[i][1]=aux*(ds->R[i][1]-blpy);
   }
+  blpz=blpz/norm;
 
-  c->val=cu/normu-cl/norml;
-
+  fprintf(stdout,"CFACV) norm %.5f\n",norm);
+  fprintf(stdout,"CFACV) blpz %.5f\n",blpz);
   
-  // Normalize the force on each lipid
+  // Compute the variance of z
+  blpv=0.;
   for (l=0;l<c->nC;l++) {
     i=c->ind[l];
 
-    if(ds->R[i][2]>blpz) {
-      c->gr[i][2]=c->gr[i][2]/normu;
-    } else {
-      c->gr[i][2]=c->gr[i][2]/norml;
-    }
+    // Accumulate
+    aux=(ds->R[i][2]-blpz);
+    blpv+=aux*aux*c->gr[i][2];
 
-    //fprintf(stderr,"aa0 %f\n",c->gr[i][0]);
-    //fprintf(stderr,"aa1 %f\n",c->gr[i][1]);
-    //fprintf(stderr,"aa2 %f\n",c->gr[i][2]);
+  }
+  blpv=blpv/norm;
+
+  c->val=blpv;
+
+  // Force on each lipid
+  for (l=0;l<c->nC;l++) {
+    i=c->ind[l];
+
+    aux=(ds->R[i][2]-blpz);
+
+    c->gr[i][0]=c->gr[i][0]*(aux*aux-blpv)/norm;
+    c->gr[i][1]=c->gr[i][1]*(aux*aux-blpv)/norm;
+    c->gr[i][2]=2*c->gr[i][2]*aux/norm;
 
   }
 
-  //fprintf(stderr,"aaaaaaaaaaaaa %f\n",cu/normu);
-  //fprintf(stderr,"aaaaaaaaaaaaa %f\n",cl/norml);
-  //fprintf(stderr,"aaaaaaaaaaaaa %f\n",c->val);
-  //exit(1);
+  return 0;
 
 }
 
@@ -299,7 +310,7 @@ int calccv_cogz ( cvStruct * c, DataSpace * ds ) {
     c->gr[i][1]=0.;
     c->gr[i][2]=aux2;
     aux+=ds->R[i][2];
-  }
+  }  
 
   c->val = aux/c->nC;
   return 0;
