@@ -39,4 +39,5 @@ extern void DataSpace_BinaryReportRestraints ( DataSpace * ds, int step, int out
 
 extern int DataSpace_InitKnots ( DataSpace * ds, char * filename, int j);
 
-extern int set_bilayerpoint ( double x,double y, double xy );
+extern int set_zsd_circle ( double x,double y, double xy, double s );
+extern int set_zsd_ring ( double x,double y, double r1, double r2, double s );

@@ -2,7 +2,8 @@
 
 // global variables
 
-enum {BILAYP, 
+enum {ZSDCIRCLE, 
+      ZSDRING, 
       BOND,
       S,
       ANGLE,
@@ -16,7 +17,8 @@ enum {BILAYP,
       NULL_CV};
 
 char * CVSTRINGS[NULL_CV] = {
-      "BILAYP",
+      "ZSDCIRCLE",
+      "ZSDRING",
       "BOND",
       "S",
       "ANGLE",
@@ -28,18 +30,26 @@ char * CVSTRINGS[NULL_CV] = {
       "CARTESIAN_Y",
       "CARTESIAN_Z"};
 
-// bylayer
-double blpx,blpy;
-double blpdo2,blpd2; //diameter of the cilinder
-//cvStruct * blpc=NULL;
+// zsd circle
+double zsdc_x,zsdc_y;
+double zsdc_d; //radius of the cilinder
+double zsdc_s; //radius of the lipids
+//cvStruct * zsdc_c=NULL;
 
+// zsd ring
+double zsdr_x,zsdr_y;
+double zsdr_r1; //internal radius of the cilinder
+double zsdr_r2; //external radius of the cilinder
+double zsdr_s; //radius of the lipids
+ 
 
 int cv_dimension ( cvStruct * c ) {
   //TODO: I shuld remove this
   int d;
 
   switch(c->typ) {
-    case BILAYP: d=0; break;
+    case ZSDCIRCLE: d=0; break;
+    case ZSDRING: d=0; break;
     case BOND:   d=0; break;
     case S:      d=0; break;
     case ANGLE:  d=0; break;
@@ -75,8 +85,11 @@ cvStruct * New_cvStruct ( int typ, int nC, int * ind ) {
 
   c->typ=typ;
   switch(c->typ) {
-    case BILAYP:
-      c->calc = calccv_bilayerpoint;
+    case ZSDCIRCLE:
+      c->calc = calccv_zsd_circle;
+      break;
+    case ZSDRING:
+      c->calc = calccv_zsd_ring;
       break;
     case BOND:        c->calc = calccv_bond; break;
     case S:           c->calc = calccv_s; break;
@@ -108,16 +121,6 @@ cvStruct * New_cvStruct ( int typ, int nC, int * ind ) {
 }
 
 
-int set_bilayerpoint ( double x,double y, double xy ) {
-
-  blpx=x;
-  blpy=y;
-  blpdo2=xy*.5; //diameter square of the cilinder
-  blpd2=xy*xy;
-
-  return 0;
-}
-
 int calccv_s ( cvStruct * c, DataSpace * ds ) {
   /* S is the CV of bond networks (see \cite{Barducci2006}) */
   int j,k,l;
@@ -142,67 +145,162 @@ int calccv_s ( cvStruct * c, DataSpace * ds ) {
   return 0;
 }
 
-int calccv_bilayerpoint ( cvStruct * c, DataSpace * ds ) {
+int set_zsd_circle ( double x,double y, double xy, double s  ) {
+
+  zsdc_x=x;
+  zsdc_y=y;
+  zsdc_d=xy; //radius of the cilinder
+  zsdc_s=s; //radius of the lipids
+
+  return 0;
+}
+
+int calccv_zsd_circle ( cvStruct * c, DataSpace * ds ) {
   int i,j,k,l;
-  double s=1.,blpv,blpz;
+  double zsdc_v,zsdc_z;
   double aux,aux1,aux2,d,norm;
 
 
   // Compute the average z
   j=0;
-  blpz=0.;
+  zsdc_z=0.;
   norm=0.;
   for (l=0;l<c->nC;l++) {
     i=c->ind[l];
 
     // Compute the weight
-    aux1= (ds->R[i][0]-blpx);
-    aux2= (ds->R[i][1]-blpy);
+    aux1= (ds->R[i][0]-zsdc_x);
+    aux2= (ds->R[i][1]-zsdc_y);
     d=sqrt(aux1*aux1+aux2*aux2);
-    aux1= blpdo2-d;
-    aux2=-blpdo2-d;
-    aux=cdf(aux1)-cdf(aux2);
+    aux1= zsdc_d-d;
+    aux2=-zsdc_d-d;
+    aux=cdf(aux1/zsdc_s)-cdf(aux2/zsdc_s);
 
-    // Accumulate and save the weight
+    // Accumulate and save the unnormalized weight
     norm+=aux;
-    blpz+=aux*ds->R[i][2];
+    zsdc_z+=aux*ds->R[i][2];
     c->gr[i][2]=aux;
-    fprintf(stderr,"BLP) %.5f\n",aux);
  
-    // Save the derivatvies of the weight
-    aux1=exp(-aux1*aux1/(s*s*sqrt(2.)))/(s*sqrt(2*M_PI)*d);
-    aux2=exp(-aux2*aux2/(s*s*sqrt(2.)))/(s*sqrt(2*M_PI)*d);
-    aux=aux1-aux2;
-    c->gr[i][0]=aux*(ds->R[i][0]-blpx);
-    c->gr[i][1]=aux*(ds->R[i][1]-blpy);
+    // Save the derivatvies of the unnormalized weight
+    // (cdf(aux1/s))'=gauss(aux1,s,0)*(x-x0)/d
+    aux1=exp(-aux1*aux1/(2.*zsdc_s*zsdc_s));
+    aux2=exp(-aux2*aux2/(2.*zsdc_s*zsdc_s));
+    aux=-(aux1-aux2)/(zsdc_s*sqrt(2*M_PI)*d);
+    c->gr[i][0]=aux*(ds->R[i][0]-zsdc_x);
+    c->gr[i][1]=aux*(ds->R[i][1]-zsdc_y);
   }
-  blpz=blpz/norm;
+  zsdc_z=zsdc_z/norm;
 
-  fprintf(stdout,"CFACV) norm %.5f\n",norm);
-  fprintf(stdout,"CFACV) blpz %.5f\n",blpz);
-  
   // Compute the variance of z
-  blpv=0.;
+  zsdc_v=0.;
   for (l=0;l<c->nC;l++) {
     i=c->ind[l];
 
     // Accumulate
-    aux=(ds->R[i][2]-blpz);
-    blpv+=aux*aux*c->gr[i][2];
-
+    aux=(ds->R[i][2]-zsdc_z);
+    zsdc_v+=aux*aux*c->gr[i][2];
   }
-  blpv=blpv/norm;
 
-  c->val=blpv;
+  zsdc_v=zsdc_v/norm;
+  //fprintf(stdout,"BLP) %.5f %.5f\n",aux*aux,c->gr[i][2]);
+
+  c->val=zsdc_v;
 
   // Force on each lipid
   for (l=0;l<c->nC;l++) {
     i=c->ind[l];
 
-    aux=(ds->R[i][2]-blpz);
+    aux=(ds->R[i][2]-zsdc_z);
 
-    c->gr[i][0]=c->gr[i][0]*(aux*aux-blpv)/norm;
-    c->gr[i][1]=c->gr[i][1]*(aux*aux-blpv)/norm;
+    //c->gr[i][0]=c->gr[i][0]*(aux*aux-zsdc_v)/norm;
+    //c->gr[i][1]=c->gr[i][1]*(aux*aux-zsdc_v)/norm;
+    c->gr[i][0]=c->gr[i][0]*(aux*aux-3*zsdc_v)/norm;
+    c->gr[i][1]=c->gr[i][1]*(aux*aux-3*zsdc_v)/norm;
+    c->gr[i][2]=2*c->gr[i][2]*aux/norm;
+
+  }
+
+  return 0;
+
+}
+
+int set_zsd_ring ( double x,double y, double r1, double r2, double s  ) {
+
+  zsdr_x=x;
+  zsdr_y=y;
+  zsdr_r1=r1;
+  zsdr_r2=r2;
+  zsdr_s=s; 
+
+  return 0;
+}
+
+int calccv_zsd_ring ( cvStruct * c, DataSpace * ds ) {
+  int i,j,k,l;
+  double zsdr_v,zsdr_z;
+  double aux,aux1,aux2,aux3,aux4,d,norm;
+
+
+  // Compute the average z
+  j=0;
+  zsdr_z=0.;
+  norm=0.;
+  for (l=0;l<c->nC;l++) {
+    i=c->ind[l];
+
+    // Compute the weight
+    aux1= (ds->R[i][0]-zsdr_x);
+    aux2= (ds->R[i][1]-zsdr_y);
+    d=sqrt(aux1*aux1+aux2*aux2);
+    aux1= zsdr_r2-d;
+    aux2= zsdr_r1-d;
+    aux=cdf(aux1/zsdr_s)-cdf(aux2/zsdr_s);
+    aux3= -zsdr_r1-d;
+    aux4= -zsdr_r2-d;
+    aux+=cdf(aux3/zsdr_s)-cdf(aux4/zsdr_s);
+
+    // Accumulate and save the unnormalized weight
+    norm+=aux;
+    zsdr_z+=aux*ds->R[i][2];
+    c->gr[i][2]=aux;
+ 
+    // Save the derivatvies of the unnormalized weight
+    // (cdf(aux1/s))'=gauss(aux1,s,0)*(x-x0)/d
+    aux1=exp(-aux1*aux1/(2.*zsdr_s*zsdr_s));
+    aux2=exp(-aux2*aux2/(2.*zsdr_s*zsdr_s));
+    aux3=exp(-aux3*aux3/(2.*zsdr_s*zsdr_s));
+    aux4=exp(-aux4*aux4/(2.*zsdr_s*zsdr_s));
+    aux=-(aux1-aux2-aux1+aux2)/(zsdr_s*sqrt(2*M_PI)*d);
+    c->gr[i][0]=aux*(ds->R[i][0]-zsdr_x);
+    c->gr[i][1]=aux*(ds->R[i][1]-zsdr_y);
+  }
+  zsdr_z=zsdr_z/norm;
+
+  // Compute the variance of z
+  zsdr_v=0.;
+  for (l=0;l<c->nC;l++) {
+    i=c->ind[l];
+
+    // Accumulate
+    aux=(ds->R[i][2]-zsdr_z);
+    zsdr_v+=aux*aux*c->gr[i][2];
+  }
+
+  zsdr_v=zsdr_v/norm;
+  //fprintf(stdout,"BLP) %.5f %.5f\n",aux*aux,c->gr[i][2]);
+
+  c->val=zsdr_v;
+
+  // Force on each lipid
+  for (l=0;l<c->nC;l++) {
+    i=c->ind[l];
+
+    aux=(ds->R[i][2]-zsdr_z);
+
+    //c->gr[i][0]=c->gr[i][0]*(aux*aux-zsdr_v)/norm;
+    //c->gr[i][1]=c->gr[i][1]*(aux*aux-zsdr_v)/norm;
+    c->gr[i][0]=c->gr[i][0]*(aux*aux-3*zsdr_v)/norm;
+    c->gr[i][1]=c->gr[i][1]*(aux*aux-3*zsdr_v)/norm;
     c->gr[i][2]=2*c->gr[i][2]*aux/norm;
 
   }
@@ -318,6 +416,7 @@ int calccv_cogz ( cvStruct * c, DataSpace * ds ) {
  
 
 double cdf(double x)
+//cumulative density function (CDF) of a standard normal (Gaussian) random variable
 //cdf, thanks to John D. Cook. http://www.johndcook.com/blog/cpp_phi/
 {
     // constants
@@ -342,7 +441,7 @@ double cdf(double x)
 }
 
 
-//double blpcut(double r,double cu,double cl,double b,double dblpcut){
+//double zsdc_cut(double r,double cu,double cl,double b,double dzsdc_cut){
 //  double r1,r2,r3,r4,r5;
 //  
 //  r1=cu+d/2

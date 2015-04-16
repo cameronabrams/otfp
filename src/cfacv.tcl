@@ -442,8 +442,11 @@ proc read_cvs { cv_file cv_list pdb} {
     
     # Check for a valid CV
     switch $typ {
-      BILAYP {
-        set_bilayerpoint [lindex $optlist 0] [lindex $optlist 1]  [lindex $optlist 2]
+      ZSDCIRCLE {
+        set_zsd_circle [lindex $optlist 0] [lindex $optlist 1]  [lindex $optlist 2] [lindex $optlist 3]
+      }
+      ZSDRING {
+        set_zsd_ring [lindex $optlist 0] [lindex $optlist 1]  [lindex $optlist 2] [lindex $optlist 3] [lindex $optlist 4] 
       }
       BOND -
       S -
@@ -909,7 +912,7 @@ proc Tcl_NewDataSpace { nC cvL rL seed } {
       # switch $typ {
       #  BILAYP {
       #    set aux [lindex $cv 2]
-      #    set_bilayerpoint [lindex $aux 0] [lindex $aux 1]  [lindex $aux 2]
+      #    set_zsd_circle [lindex $aux 0] [lindex $aux 1]  [lindex $aux 2]
       #  }
       # }
 

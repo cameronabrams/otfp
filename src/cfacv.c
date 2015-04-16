@@ -799,9 +799,12 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
   }
 
   //Evolve smd restrains (no matter the value of ds->doAnalyticalCalc)
-  if (r->smdOpt) {
-    r->evolve=(int)(r->smdOpt->t0<=timestep)&&(r->smdOpt->t1>=timestep);
-    r->evolveFunc(r,r->smdOpt->increment);
+  for (i=0;i<ds->iK;i++) {
+    r=ds->restr[i];
+    if (r->smdOpt) {
+      r->evolve=(int)(r->smdOpt->t0<=timestep)&&(r->smdOpt->t1>=timestep);
+      r->evolveFunc(r,r->smdOpt->increment);
+    }
   }
 
   return 0;
