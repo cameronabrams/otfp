@@ -445,6 +445,9 @@ proc read_cvs { cv_file cv_list pdb} {
       ZSDCIRCLE {
         set_zsd_circle [lindex $optlist 0] [lindex $optlist 1]  [lindex $optlist 2] [lindex $optlist 3]
       }
+      ZSDXRANGE {
+        set_zsd_circle [lindex $optlist 0] 0.0  [lindex $optlist 1] [lindex $optlist 2]
+      }
       ZSDRING {
         set_zsd_ring [lindex $optlist 0] [lindex $optlist 1]  [lindex $optlist 2] [lindex $optlist 3] [lindex $optlist 4] 
       }

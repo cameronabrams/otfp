@@ -3,6 +3,7 @@
 // global variables
 
 enum {ZSDCIRCLE, 
+      ZSDXRANGE, 
       ZSDRING, 
       BOND,
       S,
@@ -18,6 +19,7 @@ enum {ZSDCIRCLE,
 
 char * CVSTRINGS[NULL_CV] = {
       "ZSDCIRCLE",
+      "ZSDXRANGE",
       "ZSDRING",
       "BOND",
       "S",
@@ -49,6 +51,7 @@ int cv_dimension ( cvStruct * c ) {
 
   switch(c->typ) {
     case ZSDCIRCLE: d=0; break;
+    case ZSDXRANGE: d=0; break;
     case ZSDRING: d=0; break;
     case BOND:   d=0; break;
     case S:      d=0; break;
@@ -87,6 +90,9 @@ cvStruct * New_cvStruct ( int typ, int nC, int * ind ) {
   switch(c->typ) {
     case ZSDCIRCLE:
       c->calc = calccv_zsd_circle;
+      break;
+    case ZSDXRANGE:
+      c->calc = calccv_zsd_xrange;
       break;
     case ZSDRING:
       c->calc = calccv_zsd_ring;
@@ -185,7 +191,13 @@ int calccv_zsd_circle ( cvStruct * c, DataSpace * ds ) {
     // (cdf(aux1/s))'=gauss(aux1,s,0)*(x-x0)/d
     aux1=exp(-aux1*aux1/(2.*zsdc_s*zsdc_s));
     aux2=exp(-aux2*aux2/(2.*zsdc_s*zsdc_s));
-    aux=-(aux1-aux2)/(zsdc_s*sqrt(2*M_PI)*d);
+
+    // I need a versor for the distance but d could be zero...
+    if (d<.1e-15) { 
+      aux=0.;  
+    } else {
+     aux=-(aux1-aux2)/(zsdc_s*sqrt(2*M_PI)*d);
+    }
     c->gr[i][0]=aux*(ds->R[i][0]-zsdc_x);
     c->gr[i][1]=aux*(ds->R[i][1]-zsdc_y);
   }
@@ -224,6 +236,84 @@ int calccv_zsd_circle ( cvStruct * c, DataSpace * ds ) {
 
 }
 
+int calccv_zsd_xrange ( cvStruct * c, DataSpace * ds ) {
+  // set_zsd_cricle set enough number of parameters for this cv
+  // therefore we will use:
+  //   zsdc_d as the widht of the x range
+  //   zsdc_x as the position of the x range
+  //   zsdc_y discarded
+  int i,j,k,l;
+  double zsdc_v,zsdc_z;
+  double aux,aux1,aux2,d,norm;
+
+
+  // Compute the average z
+  j=0;
+  zsdc_z=0.;
+  norm=0.;
+  for (l=0;l<c->nC;l++) {
+    i=c->ind[l];
+
+    // Compute the weight
+    d= abs(ds->R[i][0]-zsdc_x);
+    aux1= zsdc_d-d;
+    aux2=-zsdc_d-d;
+    aux=cdf(aux1/zsdc_s)-cdf(aux2/zsdc_s);
+
+    // Accumulate and save the unnormalized weight
+    norm+=aux;
+    zsdc_z+=aux*ds->R[i][2];
+    c->gr[i][2]=aux;
+ 
+    // Save the derivatvies of the unnormalized weight
+    // (cdf(aux1/s))'=gauss(aux1,s,0)*(x-x0)/d
+    aux1=exp(-aux1*aux1/(2.*zsdc_s*zsdc_s));
+    aux2=exp(-aux2*aux2/(2.*zsdc_s*zsdc_s));
+
+    // I need a versor for the distance but d could be zero...
+    if (d<.1e-15) { 
+      aux=0.;  
+    } else {
+      aux=-(aux1-aux2)/(zsdc_s*sqrt(2*M_PI)*d);
+    }
+    c->gr[i][0]=aux*(ds->R[i][0]-zsdc_x);
+    c->gr[i][1]=0.0;
+  }
+  zsdc_z=zsdc_z/norm;
+
+  // Compute the variance of z
+  zsdc_v=0.;
+  for (l=0;l<c->nC;l++) {
+    i=c->ind[l];
+
+    // Accumulate
+    aux=(ds->R[i][2]-zsdc_z);
+    zsdc_v+=aux*aux*c->gr[i][2];
+  }
+
+  zsdc_v=zsdc_v/norm;
+  //fprintf(stdout,"BLP) %.5f %.5f\n",aux*aux,c->gr[i][2]);
+
+  c->val=zsdc_v;
+
+  // Force on each lipid
+  for (l=0;l<c->nC;l++) {
+    i=c->ind[l];
+
+    aux=(ds->R[i][2]-zsdc_z);
+
+    //c->gr[i][0]=c->gr[i][0]*(aux*aux-zsdc_v)/norm;
+    //c->gr[i][1]=c->gr[i][1]*(aux*aux-zsdc_v)/norm;
+    c->gr[i][0]=c->gr[i][0]*(aux*aux-3*zsdc_v)/norm;
+    c->gr[i][1]=0.0;
+    c->gr[i][2]=2*c->gr[i][2]*aux/norm;
+
+  }
+
+  return 0;
+
+}
+ 
 int set_zsd_ring ( double x,double y, double r1, double r2, double s  ) {
 
   zsdr_x=x;
@@ -270,7 +360,15 @@ int calccv_zsd_ring ( cvStruct * c, DataSpace * ds ) {
     aux2=exp(-aux2*aux2/(2.*zsdr_s*zsdr_s));
     aux3=exp(-aux3*aux3/(2.*zsdr_s*zsdr_s));
     aux4=exp(-aux4*aux4/(2.*zsdr_s*zsdr_s));
+
+    // d can't be zero here
+    //// I need a versor for the distance but d could be zero...
+    //if (d<.1e-15) { 
+    //  aux=0.;  
+    //} else {
+    //  aux=-(aux1-aux2)/(zsdc_s*sqrt(2*M_PI)*d);
     aux=-(aux1-aux2-aux1+aux2)/(zsdr_s*sqrt(2*M_PI)*d);
+    //} 
     c->gr[i][0]=aux*(ds->R[i][0]-zsdr_x);
     c->gr[i][1]=aux*(ds->R[i][1]-zsdr_y);
   }

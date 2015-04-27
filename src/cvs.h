@@ -48,8 +48,9 @@ int calccv_bond  ( cvStruct * c, DataSpace * ds );
 int calccv_dihed ( cvStruct * c, DataSpace * ds );
 int calccv_angle ( cvStruct * c, DataSpace * ds );
 int calccv_zsd_circle ( cvStruct * c, DataSpace * ds );
-int set_zsd_circle ( double x,double y, double xy, double s  ); 
+int calccv_zsd_xrange ( cvStruct * c, DataSpace * ds );
 int calccv_zsd_ring ( cvStruct * c, DataSpace * ds );
+int set_zsd_circle ( double x,double y, double xy, double s  ); 
 int set_zsd_ring ( double x,double y, double r1, double r2, double s  ); 
 double fcut(double r,double r1,double r2,double dfcut);
            
