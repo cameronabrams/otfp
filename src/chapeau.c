@@ -166,6 +166,7 @@ void chapeau_output ( chapeau * ch, int timestep ) {
 	fwrite(&(ch->hits[i]),sizeof(long),1,ch->ofp);
       }
     }
+    fflush(ch->ofp);
 
     chapeau_savestate(ch,timestep);
 

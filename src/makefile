@@ -1,14 +1,13 @@
+.SECONDARY:
+
 # This makefile will compile all c stuff in a shared object
 # that, thanks to SWIG, is ready to be loaded in tcl scripts
 
 CC=gcc
 
 ifeq ($(CC),icc)
- # CCFLAGS+=-fast
-CCFLAGS+=-xSSE4.2
-CCFLAGS+=-O3
+CCFLAGS+=-static-libgcc
 LIBS += -L/usr/lib64
-# LIBS += -L/opt/intel/composerxe/lib/intel64/ -lintlc
 endif
 
 ifeq ($(CC),gcc)
@@ -32,23 +31,23 @@ OBJ += measurements.o
 OBJ += chapeau.o
 OBJ += centers.o
 OBJ += cfacv.o
-OBJ += cfacv_wrap.o
+OBJ += cvs.o
 
 GIT_VERSION := $(shell git describe --abbrev=4 --dirty --always 2>/dev/null || cat version 2>/dev/null || echo unknown )
 CCFLAGS+=-DVERSION=\"$(GIT_VERSION)\"
 
 
 all: cfacv.so chapadd catbinsp
-
-cfacv.so:  $(OBJ) cfacv_wrap.o
+ 
+%.so:  $(OBJ) %_wrap.o
 	$(CC) $(CCFLAGS) -shared -o $@ $^ $(LIBS)
         
 %.o: %.c
 	$(CC) -c -fpic $(CCFLAGS) $< $(LIBS)
  
-cfacv_wrap.c: cfacv.c cfacv.i cfacv.h
-	swig -tcl8 cfacv.i
-
+%_wrap.c: %.i %.c %.h
+	swig -tcl8 $<
+ 
 version: force
 	@echo '$(GIT_VERSION)' | cmp -s - $@ || echo '$(GIT_VERSION)' > $@
 
@@ -63,11 +62,13 @@ measurements.o : measurements.h
 chapeau.o : chapeau.h
 addchapeaus.o : chapeau.h
 centers.o : centers.h
-cfacf.h : measurements.h chapeau.h centers.h
+cfacv.h : cvs.h measurements.h chapeau.h centers.h
 cfacv.o : cfacv.h version
+cvs.h : measurements.h
+cvs.o : cvs.h cfacv.h 
         
 
 .PHONY: clean force
 
 clean:
-	rm -f *.o *.so cfacv_wrap.c
+	rm -f *.o *.so *_wrap.c

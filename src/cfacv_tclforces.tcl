@@ -2,40 +2,12 @@
 # Cameron F Abrams
 # 2009-14
 
-#### Check for necessary parameters set in main config. file
-
-# # Runing alone
-# set CFACV_BASEDIR $env(PWD)
-# set DIRS_INPUT ..
-# set labelPDB $DIRS_INPUT/label.pdb 
-# set cvINP $DIRS_INPUT/cv.inp
-# proc print { arg } {
-#   puts $arg
-# }
-# set TAMDof                  10
-# set TAMDoutputlevel         0
-# set CFACV_doAnalyticalCalc  1
-# set XSCFILE                 $DIRS_INPUT/tip3pE.xsc
-# set CUTOFF                  7.0
-# set NLCUTOFF                8.0
-# set BEGINEVOLVEPARAMETERS   99
-# set REPORTPARAMFREQ         100
-# set SPLINEMIN               0.0
-# set NKNOTS                  141
-# set BINREPORTPARAMFREQ      100
-# set BINREPORTPARAMFILE      $DIRS_INPUT/alone.bsp
-# set BINOUTPUTLEVEL          3
-# set initKnotsINP            $DIRS_INPUT/wcaknots
- 
- 
-# # Runing from NAMD
-# set CFACV_BASEDIR $PWD/OTFP
- 
 # will die if CFACV_BASEDIR is invalid
 source ${CFACV_BASEDIR}/cfacv.tcl
 
 cfacv_banner NAMD
 
+# Search for missing key
 set tripped 0
 foreach key {labelPDB cvINP} {
     if {![info exists $key]} {
@@ -44,24 +16,34 @@ foreach key {labelPDB cvINP} {
     }
 }
 
-# pairmask holds the list of pair potential types 
-# e.g. {{SOD CLA} {CLA CLA} {SOD SOD}}
-if {![info exists pairmask]} {set pairmask ""}
+# FIXME: This code was here to allow compute chapeau functions separatedly
+# for different pair types of particles. For instance, this allow to
+# recover SOD SOD, CLA CLA and SOD CLA pair potentials in 1 TAMD
+# simulation. Each index has a number in ch_id which allow to sort the pair
+# in the different chapeau objects on the c code.  From the studies with
+# SOD CLA, this pair potentials will be OK only if the ficticius
+# temperature is the same that the real one.  On the other hand, a better
+# way to achive this is needed (without saving a lot of numbers in ch_id).
+# For understand how this worked, see the previous versions of the code.
+# # chplist holds the list of pair potential types 
+# # e.g. {{SOD CLA} {CLA CLA} {SOD SOD}}
+# if {![info exists chlist]} {set chlist "{}"}
+# set chnum [llength $chlist]
+set chnum 1
 
 
 #### Get the groups using the addgroup of tclforces
 
 set serArray {}; # must have for addgroup
+set pdbline {};
 set masses {}
-set ch_id {}
 
 # Read the template PDB file that identifies subdomain memberships
-set nCntr [read_centersPDB $labelPDB serArray masses pairmask ch_id]
+set nCntr [read_centersPDB $labelPDB serArray masses pdbline]
 #nCntr is the number of centers
 #serArray is the atom serial list of each group
 #masses is the atom mass list of each group
 #ch_id holds the chapeau object for the ij pair type
-
 print "CFACV) nCenters $nCntr  masses $masses"
 
 # Set up the centers as "groups" for tclforces. This give 
@@ -80,7 +62,7 @@ for {set i 0} { $i < $nCntr } { incr i } {
 
 # Set up list of CV's
 set cvList {}
-set nCV [read_cvs $cvINP cvList $nCntr]
+set nCV [read_cvs $cvINP cvList pdbline]
 print "CFACV) nCV $nCV"
 
 #Now, cvList is some like {CARTESIAN_X 0} {CARTESIAN_Y 0} ....
@@ -115,29 +97,37 @@ print "CFACV) setting seed to $seed"
 # Here all the previous information is stacked
 set ds [Tcl_NewDataSpace $nCntr $cvList $rList $seed]
 
-# if intercenter pair calcs are needed
+# OTFP
 if {[info exists CFACV_doAnalyticalCalc] && $CFACV_doAnalyticalCalc == 1} {
 
     if {![info exists USETAMDFORCES]} {set USETAMDFORCES 0}
 
     # currently only option is a pairwise analytical potential
-    set aux  [llength $pairmask]
-    Tcl_InitializePairCalc $ds $XSCFILE $CUTOFF $NLCUTOFF $BEGINEVOLVEPARAMETERS $USETAMDFORCES $REPORTPARAMFREQ $SPLINEMIN $NKNOTS $BINREPORTPARAMFILE $BINREPORTPARAMFREQ $BINOUTPUTLEVEL $LAMUPDATEINTERVAL $aux
+    Tcl_InitializePairCalc $ds $XSCFILE $CUTOFF $NLCUTOFF $BEGINEVOLVEPARAMETERS $USETAMDFORCES $SPLINEMIN $NKNOTS $BINREPORTPARAMFILE $BINREPORTPARAMFREQ $BINOUTPUTLEVEL $LAMUPDATEINTERVAL $chnum
 
     # FIXME. Add a index to load a  initial knots file for each chapeau
     # if {[info exists initKnotsINP]} {Tcl_DataSpace_InitKnots $ds $initKnotsINP}
 
-    # Pair potentinal interaction
-    intListToArray_Data [DataSpace_chid $ds ] $ch_id
-    print "CFACV) The pair chapeau (map in vector) is:"
-    for {set i 0} { $i < $nCntr } { incr i } {
-      set aux ""
-      for {set j 0} { $j <= $i } { incr j } {set aux "$aux  "}
-      for {set j [expr $i+1]} { $j < $nCntr } { incr j } {
-        set aux "$aux [lindex $ch_id [expr $j+($nCntr-2)*$i-($i-1)*$i/2-1]]"
-      }
-      puts $aux
-    }
+    # # Pair potentinal interaction
+    # FIXME: This code was here to allow compute chapeau functions separatedly
+    # for different pair types of particles. For instance, this allow to
+    # recover SOD SOD, CLA CLA and SOD CLA pair potentials in 1 TAMD
+    # simulation. Each index has a number in ch_id which allow to sort the pair
+    # in the different chapeau objects on the c code.  From the studies with
+    # SOD CLA, this pair potentials will be OK only if the ficticius
+    # temperature is the same that the real one.  On the other hand, a better
+    # way to achive this is needed (without saving a lot of numbers in ch_id).
+    # For understand how this worked, see the previous versions of the code.
+    # intListToArray_Data [DataSpace_chid $ds ] $ch_id
+    # print "CFACV) The pair chapeau (map in vector) is:"
+    # for {set i 0} { $i < $nCntr } { incr i } {
+    #   set aux ""
+    #   for {set j 0} { $j <= $i } { incr j } {set aux "$aux  "}
+    #   for {set j [expr $i+1]} { $j < $nCntr } { incr j } {
+    #     set aux "$aux [lindex $ch_id [expr $j+($nCntr-2)*$i-($i-1)*$i/2-1]]"
+    #   }
+    #   puts $aux
+    # }
               
 }
 
@@ -182,6 +172,7 @@ proc calcforces { } {
     # load coordinates of requested atoms into associative array
     # this is a NAMD builtin
     loadcoords p
+    # print $p(g1)
 
     # perform the update that transmits forces
     Tcl_UpdateDataSpace $ds p $groups $first [getstep]
@@ -189,11 +180,12 @@ proc calcforces { } {
 
     # report if requested
     if {[expr {[getstep]%$TAMDof == 0}]} {
-        DataSpace_ReportRestraints $ds [getstep] $TAMDoutputlevel $TAMDoutputFileFP
+      DataSpace_ReportRestraints $ds [getstep] $TAMDoutputlevel $TAMDoutputFileFP
     }
 
     # report if requested
     if {[info exists TAMDbinOutputFile] && [expr {[getstep]%$TAMDbinof == 0}]} {
-        DataSpace_BinaryReportRestraints $ds [getstep] $TAMDoutputlevel $TAMDbinOutputFileFP
+      DataSpace_BinaryReportRestraints $ds [getstep] $TAMDoutputlevel $TAMDbinOutputFileFP
     }
 }
+

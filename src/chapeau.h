@@ -1,5 +1,5 @@
-#ifndef CHAPEAU_H
-#define CHAPEAU_H
+#pragma once
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -66,4 +66,3 @@ void chapeau_increment_global_accumulators ( chapeau * ch, int i, double * F );
 void chapeau_update_peaks ( chapeau * ch, int nsamples, int timestep );
 void chapeau_sum ( chapeau * ch1, chapeau * ch2 );
 
-#endif
