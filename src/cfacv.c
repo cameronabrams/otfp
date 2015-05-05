@@ -167,8 +167,20 @@ int smdOptInit ( smdOptStruct * smd, double initval) {
   
 }
 
+void ds_saverestrains ( DataSpace * ds, int timestep ) {
+  int i;
+  restrStruct * r;
 
-
+  if (!(timestep%ds->restrsavefreq)) {
+    rewind(ds->restrofs);
+    for (i=0;i<ds->iK;i++) {
+      r=ds->restr[i];
+      fwrite(&(r->z),sizeof(double),1,ds->restrofs);
+      fwrite(&(r->val),sizeof(double),1,ds->restrofs);
+    }
+    fflush(ds->restrofs);
+  }
+}
 
 
 //ENERGY FUNCTIONS
@@ -405,7 +417,7 @@ int DataSpace_SetupPairCalc ( DataSpace * ds, double cutoff, double nlcutoff,
 			      int lamupdateinterval, int chnum ) {
   int i,j;
   int N=ds->N; // number of centers
-  char buf[12];
+  char buf[80];
 
   fprintf(stderr,"CFACV/C) DEBUG DataSpace_Setup %i\n",N);fflush(stderr);
   ds->doAnalyticalCalc=1;
@@ -440,6 +452,12 @@ int DataSpace_SetupPairCalc ( DataSpace * ds, double cutoff, double nlcutoff,
     chapeau_setupoutput(ds->ch[i],buf,splineoutputfreq,splineoutputlevel);
     ds->ch[i]->updateinterval=lamupdateinterval;
   }
+
+  ds->restrsavefreq=splineoutputfreq;
+
+  //TODO: this two lines should be before the restart
+  sprintf(buf, "restart_%s",splineoutputfile);
+  ds->restrofs=fopen(buf,"w");
 
   ds->lamfric=0.0;
   ds->lamdt=0.0;
@@ -806,6 +824,9 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
       r->evolveFunc(r,r->smdOpt->increment);
     }
   }
+
+  //Save restr trajectory for future restart
+  if (!(timestep % ds->restrsavefreq)) ds_saverestrains(ds,timestep);
 
   return 0;
 }

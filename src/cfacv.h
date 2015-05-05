@@ -184,6 +184,10 @@ typedef struct DATASPACESTRUCT {
   restrStruct ** restr;
   chapeau ** ch;
 
+  FILE * restrofs; // for save current restrain status
+  int restrsavefreq;
+  
+
   double ** R; // array of center cartesian coordinates R[i][0/1/2]
 
   // below are bits for doing TAMD/OTFP of pairwise intercenter
