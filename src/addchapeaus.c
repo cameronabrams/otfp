@@ -12,6 +12,14 @@ int main ( int argc, char * argv[] ) {
   for (i=1;i<argc;i++) {
     fprintf(stdout,"reading %s\n",argv[i]); 
     ch[i-1]=chapeau_allocloadstate(argv[i]);
+  
+    fprintf(stdout,"ch %i info:\n",i-1); 
+    fprintf(stdout,"--- ch rmin %.5f\n",ch[i-1]->rmin); 
+    fprintf(stdout,"--- ch rmax %.5f\n",ch[i-1]->rmax); 
+    fprintf(stdout,"--- ch dr %.5f\n",ch[i-1]->dr); 
+    fprintf(stdout,"--- ch idr %.5f\n",ch[i-1]->idr); 
+    fprintf(stdout,"--- alpha  %.5f\n",ch[i-1]->alpha); 
+ 
   }
   
   // Output first

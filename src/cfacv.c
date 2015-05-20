@@ -288,21 +288,23 @@ int SoftWalls ( restrStruct * r ) {
   SoftLowerWall(r);
 }
  
-int SoftUpperWall ( restrStruct * r ) {
-  double aux;
-  aux=r->z-r->max;
-  if (aux>0.) return 0;
-  r->f+=-100.*aux;
-  r->u=-50.*aux*aux;
-  return 0;
-}
-
 int SoftLowerWall ( restrStruct * r ) {
   double aux;
   aux=r->z-r->min;
+  if (aux>0.) return 0;
+  // r->f is minus the force on z!
+  r->f+=100.*aux;
+  r->u+=50.*aux*aux;
+  return 0;
+}
+
+int SoftUpperWall ( restrStruct * r ) {
+  double aux;
+  aux=r->z-r->max;
   if (aux<0.) return 0;
-  r->f+=-100.*aux;
-  r->u=-50.*aux*aux;
+  // r->f is minus the force on z!
+  r->f+=100.*aux;
+  r->u+=50.*aux*aux;
   return 0;
 }
  
@@ -704,9 +706,6 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
     // Compute the energy and the force of the restrain
     r->energyFunc(r);
 
-    // Compute the boundary forces
-    r->boundFunc(r);
-
     /* accumulate force increments in ds->R for each real particle*/
     /* cv->gr[jj][kk] = \partial CV / \partial (kk-coord of center jj of CV) */
     for (j=0;j<r->nCV;j++) {
@@ -790,6 +789,10 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
       // TAMD forces to evolve auxilary variables
       for (i=0;i<K;i++) {
         r=ds->restr[i];
+
+        // Compute the boundary forces not included in the atom forces!!
+        r->boundFunc(r);
+
         if (r->tamdOpt) r->evolveFunc(r,-r->f);
       }
     }
@@ -812,6 +815,10 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
   } else { // update z's using the measured forces
     for (i=0;i<ds->iK;i++) {
       r=ds->restr[i];
+
+      // Compute the boundary forces not included in the atom forces!!
+      r->boundFunc(r);
+
       if (r->tamdOpt) r->evolveFunc(r,-r->f);
     }
   }
@@ -819,7 +826,12 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
   //Evolve smd restrains (no matter the value of ds->doAnalyticalCalc)
   for (i=0;i<ds->iK;i++) {
     r=ds->restr[i];
+  
     if (r->smdOpt) {
+      
+      // Compute the boundary forces not included in the atom forces!!
+      r->boundFunc(r);
+
       r->evolve=(int)(r->smdOpt->t0<=timestep)&&(r->smdOpt->t1>=timestep);
       r->evolveFunc(r,r->smdOpt->increment);
     }

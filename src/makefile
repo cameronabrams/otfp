@@ -11,7 +11,7 @@ LIBS += -L/usr/lib64
 endif
 
 ifeq ($(CC),gcc)
-CCFLAGS+=-O3 
+# CCFLAGS+=-O3 
 # CCFLAGS+=-static
 # CCFLAGS=-g -Wall -Wpedantic
 #
