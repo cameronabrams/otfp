@@ -1,38 +1,74 @@
-measurements.o: 	measurements.c measurements.h
-	gcc -O3 -c -fpic -o $@ measurements.c
+.SECONDARY:
 
-measurements_wrap.o:	measurements_wrap.c
-	gcc -O3 -c -fpic -o $@ measurements_wrap.c
+# This makefile will compile all c stuff in a shared object
+# that, thanks to SWIG, is ready to be loaded in tcl scripts
 
-measurements_wrap.c:	measurements.c measurements.h measurements.i
-	swig -tcl8 measurements.i
+CC=gcc
 
-chapeau.o:	chapeau.c chapeau.h
-	gcc -O3 -c -fpic -o $@ chapeau.c
+ifeq ($(CC),icc)
+CCFLAGS+=-static-libgcc
+LIBS += -L/usr/lib64
+endif
 
-cfacv.so:  cfacv.o cfacv_wrap.o measurements.o centers.o chapeau.o
-	gcc -O3 -shared -o $@ cfacv.o cfacv_wrap.o measurements.o centers.o chapeau.o -lm -lgsl -lgslcblas
+ifeq ($(CC),gcc)
+# CCFLAGS+=-O3 
+# CCFLAGS+=-static
+# CCFLAGS=-g -Wall -Wpedantic
+#
+# Profile
+# CCFLAGS+=-Wall -g -rdynamic
+endif
 
-cfacv.o:      cfacv.c cfacv.h
-	gcc -O3 -c -fpic -o $@ cfacv.c
+# On stampede
+# LIBS += -I$(TACC_GSL_INC) -L$(TACC_GSL_LIB)
 
-cfacv_wrap.o: cfacv_wrap.c
-	gcc -O3 -c -fpic -o $@ $?
 
-cfacv_wrap.c: cfacv.c cfacv.i cfacv.h
-	swig -tcl8 cfacv.i
+LIBS += -lgsl -lgslcblas
+LIBS += -lm
 
-centers.o:      centers.c centers.h
-	gcc -O3 -c -fpic -o $@ centers.c
 
-wrapcoords.o:	wrapcoords.c wrapcoords.h
-	gcc -O3 -c -fpic -o $@ wrapcoords.c
+OBJ += measurements.o
+OBJ += chapeau.o
+OBJ += centers.o
+OBJ += cfacv.o
+OBJ += cvs.o
 
-wrapcoords_wrap.o:	wrapcoords_wrap.c
-	gcc -O3 -c -fpic -o $@ $?
+GIT_VERSION := $(shell git describe --abbrev=4 --dirty --always 2>/dev/null || cat version 2>/dev/null || echo unknown )
+CCFLAGS+=-DVERSION=\"$(GIT_VERSION)\"
 
-wrapcoords_wrap.c:	wrapcoords.c wrapcoords.h wrapcoords.i
-	swig -tcl8 wrapcoords.i
+
+all: cfacv.so chapadd catbinsp
+ 
+%.so:  $(OBJ) %_wrap.o
+	$(CC) $(CCFLAGS) -shared -o $@ $^ $(LIBS)
+        
+%.o: %.c
+	$(CC) -c -fpic $(CCFLAGS) $< $(LIBS)
+ 
+%_wrap.c: %.i %.c %.h
+	swig -tcl8 $<
+ 
+version: force
+	@echo '$(GIT_VERSION)' | cmp -s - $@ || echo '$(GIT_VERSION)' > $@
+
+
+catbinsp: catbinsp.o
+	$(CC) $(CCFLAGS) -o $@ $^ $(LIBS)
+ 
+chapadd: addchapeaus.o chapeau.o
+	$(CC) $(CCFLAGS) -o $@ $^ $(LIBS)
+
+measurements.o : measurements.h
+chapeau.o : chapeau.h
+addchapeaus.o : chapeau.h
+centers.o : centers.h
+cfacv.h : cvs.h measurements.h chapeau.h centers.h
+cfacv.o : cfacv.h version
+cvs.h : measurements.h
+cvs.o : cvs.h cfacv.h 
+        
+
+.PHONY: clean force
 
 clean:
-	rm *.o *.so *~
+	rm -f *.o *.so *_wrap.c

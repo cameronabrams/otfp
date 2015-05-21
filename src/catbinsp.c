@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 int main ( int argc, char * argv[] ) {
   FILE * fp=NULL;
@@ -11,7 +12,7 @@ int main ( int argc, char * argv[] ) {
   int n,i,ln,timestep;
   int reading;
   double * data[4];
-  int * intdata;
+  long * intdata;
   char flag[4];
 
   for (i=1;i<argc;i++) {
@@ -34,7 +35,7 @@ int main ( int argc, char * argv[] ) {
   }
 
   for (i=0;i<2;i++) data[i]=(double*)calloc(n,sizeof(double));
-  intdata=(int*)calloc(n,sizeof(int));
+  intdata=(long*)calloc(n,sizeof(long));
 
   reading=1;
   ln=0;
@@ -42,7 +43,7 @@ int main ( int argc, char * argv[] ) {
     reading=0; 
     fread(&timestep,sizeof(int),1,fp);
     if (fileOutputLevel & 1) reading=fread(data[0],sizeof(double),n,fp);
-    if (fileOutputLevel & 2) reading=fread(intdata,sizeof(int),n,fp);
+    if (fileOutputLevel & 2) reading=fread(intdata,sizeof(long),n,fp);
 
     if (desiredOutputLevel & 1) {
       fprintf(stdout,"KNOTS    %i ",timestep);
@@ -51,11 +52,12 @@ int main ( int argc, char * argv[] ) {
     } 
     if (desiredOutputLevel & 2) {
       fprintf(stdout,"HITS     %i ",timestep);
-      for (i=0;i<n;i++) fprintf(stdout,"% 15i",intdata[i]);
+      for (i=0;i<n;i++) fprintf(stdout,"% 15li",intdata[i]);
       fprintf(stdout,"\n");
     } 
     ln++;
   }
   fclose(fp);
 
+  return 0;
 }

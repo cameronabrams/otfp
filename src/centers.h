@@ -1,5 +1,4 @@
-#ifndef _CENTERS_H_
-#define _CENTERS_H_
+#pragma once
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -40,4 +39,3 @@ int bin_sort ( int * bin, double * x, double * y, double * z, int nAtoms, int nC
 
 
 
-#endif

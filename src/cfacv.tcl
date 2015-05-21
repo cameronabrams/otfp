@@ -1,10 +1,16 @@
 # tcl library for CFACV
 # Cameron F Abrams
 # 2009-14
+
+
+# NAMD requeriments:
 #
+# puts must be replaced by print. Other commands
+# could be found in NAMD user guide.
+
 # Any Tcl script that uses this library must set the value
 # of CFACV_BASEDIR correctly.
-#
+
 set CFACV_VERSION 0.30
 # load the C-module
 load ${CFACV_BASEDIR}/cfacv.so cfa_cvlibc
@@ -23,6 +29,23 @@ proc cfacv_banner { argv } {
     flush stdout
 }
 
+proc getArg { argv key altkey def } {
+    set i 0
+    while {$i < [llength $argv] && [lindex $argv $i] != "-$key" && [lindex $argv $i] != "-$altkey"} {
+#	print "DB: getArg considers [lindex $argv $i]"
+	incr i
+    }
+    if {$i < [llength $argv] && ([lindex $argv $i] == "-$key" || [lindex $argv $i] == "-$altkey")} {
+	incr i
+	set rv {}
+	for {} {$i < [llength $argv] && [string index [lindex $argv $i] 0] != "-"} {incr i} {
+	    lappend rv [lindex $argv $i]
+#	    print "DB: getArg building rv as $rv"
+	}
+	return $rv
+    }
+    return $def
+}           
 ###########################################################
 # Primitive data handling procedures
 ###########################################################
@@ -105,23 +128,6 @@ proc intArrayToList {a n} {
     return $l
 }
 
-proc getArg { argv key altkey def } {
-    set i 0
-    while {$i < [llength $argv] && [lindex $argv $i] != "-$key" && [lindex $argv $i] != "-$altkey"} {
-#	print "DB: getArg considers [lindex $argv $i]"
-	incr i
-    }
-    if {$i < [llength $argv] && ([lindex $argv $i] == "-$key" || [lindex $argv $i] == "-$altkey")} {
-	incr i
-	set rv {}
-	for {} {$i < [llength $argv] && [string index [lindex $argv $i] 0] != "-"} {incr i} {
-	    lappend rv [lindex $argv $i]
-#	    print "DB: getArg building rv as $rv"
-	}
-	return $rv
-    }
-    return $def
-}
 
 ###############################################################
 # read_centersPDB
@@ -141,63 +147,74 @@ proc getArg { argv key altkey def } {
 #          is a list of atom serial numbers (1-based indicies)
 #          belonging to center i
 #
+#          e.g.
+#          {1 2 4    } ;#group 1
+#          {3 5 7    } ;#group 2
+#          {6 9 12 11} ;#group 3
+#
 #  masses: a tcl list in which the i'th element
 #          is the total mass of center i
+#
+#          e.g.
+#          {1.004 15.99 1.004       } #group 1
+#          {1.004 15.99 1.004       } #group 2
+#          {1.004 15.99 1.004 1.004 } #group 3
 #
 #  return value is the number of centers
 #
 ###############################################################
-proc read_centersPDB { templatePdb serArr mass } {
+proc read_centersPDB { templatePdb serArr mass pdb} {
     upvar $serArr serArray
     upvar $mass masses
+    upvar $pdb pdbline 
 
+    # pdbline is a list with all the properties from the pdb file
+    # this allow to access to the resname or segname later, which will
+    # allow to use resname or segname keywords in the cv declaration
+
+    # Open and read the pdb. Put all it in lines variable.
     set inStream [open $templatePdb r]
     set data [read $inStream]
     close $inStream
     set lines [split $data \n]
 
-    set n 0
+    # Get list indices with the center numbers and Nmon as the number of
+    # centers
     set indices {}
     foreach line $lines {
 	set cardstr [string range $line 0 3]
-	set occustr [string trim [string range $line 54 59]]
-	set betastr [string trim [string range $line 60 65]]
-	#print "o|$occustr|b|$betastr|"
-	if {([string equal $cardstr "ATOM"]) && [expr 0==[string equal $betastr "0.00"]]} {
-	    set t [expr int($betastr)-1]
-#	    print "DB: found betastr |$betastr| => group $t"
-	    set index [lsearch $indices $t]
-	    if { [expr $index == -1] } {
-		lappend indices $t
-	    }
-	}
-	incr n
-    }
-    set indices [lsort -integer $indices]
-    set nMon [llength $indices]
-
-    print "DB: read_centersPDB: indices $indices nMon $nMon"
-
-    for {set i 0} {$i < $nMon} {incr i} {
-	lappend serArray {}
-	lappend masses 0.0
-    }
-    set n 0
-    foreach line $lines {
-	set cardstr [string range $line 0 3]
-	set serlstr [string trim [string range $line 5 11]]
-        # occustr is used to hold atomic mass in amu.
-	set occustr [string trim [string range $line 54 59]]
 	set betastr [string trim [string range $line 60 65]]
 	# if the beta field is nonzero, it is assumed to be an integer
 	# that indicates which center this atom belongs to
 	if {([string equal $cardstr "ATOM"]) && [expr 0==[string equal $betastr "0.00"]]} {
-	    # identify which center to which this atom belongs
-	    set t [expr int($betastr)-1]
-	    # extract that center's current list of atom indices from the list of lists
-	    set nlist [lindex $serArray $t]
-	    # add this index to the list; index is serial-1
+          lappend indices [expr int($betastr)-1]
+        }
+    }
+    set indices [lsort -integer -unique $indices]
+    set nMon [llength $indices]
 
+    # contruct the void list of masses, atom serial and reslist
+    for {set i 0} {$i < $nMon} {incr i} {
+	lappend serArray {}
+	lappend pdbline {}
+	lappend masses 0.0
+        lappend reslist 0
+    }
+
+    # append list of masses and serials ID to each group index
+    set n 0
+    foreach line $lines {
+	set cardstr [string range $line 0 3]
+	set serlstr [string trim [string range $line 5 11]]
+	set resname [string trim [string range $line 17 20]]
+	set occustr [string trim [string range $line 54 59]] ;# used to hold atomic mass in amu.
+	set betastr [string trim [string range $line 60 65]]
+	if {([string equal $cardstr "ATOM"]) && [expr 0==[string equal $betastr "0.00"]]} {
+	    
+	    set t [expr int($betastr)-1] ; #Center index
+	    set nlist [lindex $serArray $t] ; # get atom index list for center $t
+
+	    # add this index to the list; index is serial-1
 	    # since begining with 100000, serial numbers are stored and
 	    # read in hex, need to check whether this is a hex number
 	    # -- I'll do this by seeing if it is not an integer
@@ -207,21 +224,68 @@ proc read_centersPDB { templatePdb serArr mass } {
 	    } else {
 		set serl [expr 0x$serlstr]
 	    }
-	
 	    lappend nlist $serl
 	    # return the newly appended list of indices to the list of lists
 	    set serArray [lreplace $serArray $t $t $nlist]
+
+            # update all the properties. Now, if is a group, pdbline
+            # correspond to the last line of the group. TODO I don't know it
+            # have sense for a group this mechanism, but it is good to
+            # select many atoms in the cv.  I guess that it should be better
+            # to put one entrance per atom in the pdbline, then the info of
+            # the groups will be saved, and avoid serarray and any other
+            # stuff that complicate the legibility
+	    set pdbline [lreplace $pdbline $t $t "$cardstr $serlstr $resname $occustr $betastr"]
+
 	    # update the mass of this pseudoatom
 	    set am [expr double($occustr)]
-	#    print "DB: read_centersPDB: atom serial $serlstr mass $am to mon $t"
 	    set masses [lreplace $masses $t $t [expr [lindex $masses $t] + $am]]
+
+            # Renames
+            set reslist [lreplace $reslist $t $t $resname]
+
 	}
 	incr n
     }
+
+    # FIXME: This code was here to allow compute chapeau functions separatedly
+    # for different pair types of particles. For instance, this allow to
+    # recover SOD SOD, CLA CLA and SOD CLA pair potentials in 1 TAMD
+    # simulation. Each index has a number in ch_id which allow to sort the pair
+    # in the different chapeau objects on the c code.  From the studies with
+    # SOD CLA, this pair potentials will be OK only if the ficticius
+    # temperature is the same that the real one.  On the other hand, a better
+    # way to achive this is needed (without saving a lot of numbers in ch_id).
+    # For understand how this worked, see the previous versions of the code.
+    # set k 0
+    # set test [expr 0==[string equal $chlist "{}"]]
+    # for {set i 0} {$i < $nMon} {incr i} {
+    #   for {set j [expr $i+1]} {$j < $nMon} {incr j} {
+
+    #     if $test {
+    #       set pair1 "[lindex $reslist $i] [lindex $reslist $j]" ;# e.g. "SOD CLA"
+    #       set pair2 "[lindex $reslist $j] [lindex $reslist $i]" ;# e.g. "CLA SOD"
+    #       set a [lsearch $chlist $pair1]
+    #       set b [lsearch $chlist $pair2]
+    #       
+    #       set k [expr {$a>$b? $a: $b}]
+    #     }
+
+    #     # with the next expresion the [expr $j+($nCntr-2)*$i-($i-1)*$i/2-1] element of ch_id is
+    #     # -1 for non intereset pair, or the corresponding n-index or the $chlist.
+    #     lappend ch_id $k
+    #   }
+    # }
+
+    # if {([string equal [lsort -unique $ch_id] "-1"])} {
+    #   puts "ERROR: No residues found to accelerate"
+    #   exit
+    # }
+
     print "DB: returning nMon $nMon"
-#    print "DB: serArray : $serArray"
     return $nMon
 }
+
 
 proc center_selections { molID serArray } {
     set p {}
@@ -302,61 +366,109 @@ proc read_centers_residLists { ridL fileName } {
     return [llength $lines]    
 }
 
-proc read_cvs { cv_file cv_list nMon } {
-    upvar $cv_list cvL
+proc read_cvs { cv_file cv_list pdb} {
+  #and then cv_list is the append of dat.... why all the stuff?
+  upvar $pdb pdbline 
+  upvar $cv_list cvL
 
-    set cvL {}
+  set cvL {}
 
-    set inStream [open $cv_file "r"]
-    set data [read -nonewline $inStream]
-    close $inStream
-    set lines [split $data \n]
-    set ncv 0
-    foreach line $lines {
-	if {[string index $line 0] != "#" && [string length $line] > 0} {
-	    set dat {}
-	    foreach l $line { lappend dat $l }
-	    set typ [lindex $dat 0]
-	    set ind [lreplace $dat 0 0]
-	    set optlist {}
-	    for {set i 0} {[string is integer [lindex $ind $i]] && $i < [llength $ind]} { incr i } {}
-	    if {$i < [llength $ind]} {
-		set optlist [lreplace $ind 0 [expr $i-1]]
-		set ind [lreplace $ind $i end]
-	    }
-	    set nInd [llength $ind]
-	    set nOpt [llength $optlist]
-	    
-#	    print "DB: $nInd: ind     $ind"
-#	    print "DB: $nOpt: optlist $optlist"
-	    
-	    lappend cvL [list $typ $ind $optlist]
-	    incr ncv
-	    
-	    switch $typ {
-		BOND -
-		ANGLE -
-		DIHED -
-		CARTESIAN_X -
-		CARTESIAN_Y -
-		CARTESIAN_Z {
-		}
-		default {
-		    print "ERROR: $typ is not a valid CV type in $cv_file."
-		    exit
-		}
-	    }
-	}
+  # read the cv file
+  set inStream [open $cv_file "r"]
+  set data [read -nonewline $inStream]
+  close $inStream
+  set lines [split $data \n]
+
+  set ncv 0
+  foreach line $lines {
+
+    # Allow empty lines and commentries
+    if {[string index $line 0] == "#"} continue
+    if {[string length $line] < 0} continue
+
+    # Supouse that the line is "CARTESIAN_X   0"...
+    set dat {}
+    foreach l $line { lappend dat $l } ;#... dat is "CARTESIAN_X 0"
+    set typ [lindex $dat 0]            ;#... typ is "CARTESIAN_X"
+    set ind [lreplace $dat 0 0]        ;#... ind is "0"
+
+    # Search for optional strings after the index list
+    set optlist {}
+    for {set i 0} {[string is integer [lindex $ind $i]] && $i < [llength $ind]} { incr i } {}
+    if {$i < [llength $ind]} {
+        # Put in optlist that string and let in ind only the numbers
+        set optlist [lreplace $ind 0 [expr $i-1]]
+        set ind [lreplace $ind $i end]
+    }
+    set nInd [llength $ind]
+    set nOpt [llength $optlist]
+    
+    # Si no hay indices, busco palabras clave de seleccion
+    if {$nInd==0} {
+      set j 0
+      foreach o $optlist {
+        incr j
+
+        # fill index by resname
+        if {$o=="resname"} {
+          print [lindex $optlist  $j]
+          set resn [lindex $optlist  $j]
+          foreach l $pdbline {
+            set index [lindex $l 4]
+            if {$resn==[lindex $l 2]} {lappend ind [expr $index-1]}
+          }
+
+          # Remove resname from option list
+          set j [expr $j-1]
+          set optlist [lreplace $optlist $j $j ]
+          set optlist [lreplace $optlist $j $j ]
+
+          break
+        }
+
+      }
+    }
+    set nInd [llength $ind]
+
+    # Si todavia no hay indices, doy error
+    if {$nInd==0} {
+      print "Error, no indices para la linea $line"
+      exit
     }
 
-#    foreach cv $cvL {
-#	print "DB: cv $cv"
-#	print "DB: typ: [cv_gettyp $cv]"
-#	print "DB: ind: [cv_getind $cv]"
-#	print "DB: optlist: [cv_getoptlist $cv]"
-#    }
 
-    return $ncv
+    lappend cvL [list $typ $ind $optlist] ;#... cvL is cvL+dat
+    incr ncv
+    
+    # Check for a valid CV
+    switch $typ {
+      ZSDCIRCLE {
+        set_zsd_circle [lindex $optlist 0] [lindex $optlist 1]  [lindex $optlist 2] [lindex $optlist 3]
+      }
+      ZSDXRANGE {
+        set_zsd_circle [lindex $optlist 0] 0.0  [lindex $optlist 1] [lindex $optlist 2]
+      }
+      ZSDRING {
+        set_zsd_ring [lindex $optlist 0] [lindex $optlist 1]  [lindex $optlist 2] [lindex $optlist 3] [lindex $optlist 4] 
+      }
+      BOND -
+      S -
+      ANGLE -
+      DIHED -
+      COGX -
+      COGY -
+      COGZ -
+      CARTESIAN_X -
+      CARTESIAN_Y -
+      CARTESIAN_Z {}
+      default {
+          print "ERROR: $typ is not a valid CV type in $cv_file."
+          exit
+      }
+    }
+  }
+
+  return $ncv
 }
 
 proc generate_cv { cvOpt p } {
@@ -596,6 +708,28 @@ proc restr_getoptlist { r } {
     return [lindex $r 1]
 }
 
+# proc read_linestolist { file } {
+# 
+#   set L {}
+# 
+#   # read the cv file
+#   set inStream [open $file "r"]
+#   set data [read -nonewline $inStream]
+#   close $inStream
+#   set lines [split $data \n]
+# 
+#   foreach line $lines {
+# 
+#     # Allow empty lines and commentries
+#     if {[string index $line 0] == "#"} continue
+#     if {[string length $line] < 0} continue
+# 
+#     lappend L [list $line]
+#   }
+# 
+#   return $L
+# }
+         
 proc restr_getopt { r key altkey def } {
     set optlist [restr_getoptlist $r]
     foreach opt $optlist {
@@ -622,7 +756,7 @@ proc read_restraints { restr_file ncv restrList } {
 	if {[string index $line 0] != "#" && [string length $line] > 0} {
 	    set cvc [lreplace $line $ncv end]
 	    set optlist [lreplace $line 0 [expr $ncv - 1]]
-	   # print "DB: cvc $cvc"
+	    #print "DB: cvc $cvc"
 	    #print "DB: optlist $optlist"
 	    lappend rL [list $cvc $optlist]
 	    incr nR
@@ -638,59 +772,21 @@ proc create_single_cv_restraints { ncv restrList restrPARAMS } {
     set nR 0
 #    set cvc [lrepeat $ncv 0]
     set cvc {}
-    for {set i 0} { $i < $ncv} {incr i} {
-	lappend cvc 0
-    }
+
+    #Supouse ncv is "5"...
+    #Supouse restrPARAMS is {k 1600} {AMDkT 0.19} {TAMDgamma 1} {TAMDdt 0.002}
+
+
+    for {set i 0} { $i < $ncv} {incr i} {lappend cvc 0}
+    #...cvc is "0 0 0 0 0"
+
     for {set i 0} { $i < $ncv} {incr i}  {
 	set tcvc [lreplace $cvc $i $i 1]
 	lappend rL [list $tcvc $restrPARAMS]
     }
+    #...rl is {1 0 0 0 0} {k 1600} {AMDkT 0.19} {TAMDgamma 1} {TAMDdt 0.002} 
+    
     return $ncv
-}
-
-proc Tcl_NewDataSpace { nC cvL rL seed } {
-    global doPairCalc
-    set nCV [llength $cvL]
-    set nR  [llength $rL]
-
-    set ds [NewDataSpace $nC $nCV $nR $seed]
-
-    foreach cv $cvL {
-	set typ [lindex $cv 0]
-	set pind [intListToArray [lindex $cv 1]]
-	set nind [llength [lindex $cv 1]]
-	DataSpace_AddCV $ds $typ $nind $pind 
-    }
-
-    foreach r $rL {
-	set cvc [restr_getcvc $r]
-	set nCV [llength $cvc]
-	set pcvc [ListToArray $cvc]
-	set k    [restr_getopt $r "SpringConstant" "k" 0.00]
-	set targ [restr_getopt $r "TargetValue"    "b" 0.00]
-	set RestraintFunction [string toupper [restr_getopt $r "RestraintFunction" "rf"  HARMONIC]]
-	set zmin [restr_getopt $r "Minimum" "min" 0.00]
-	set zmax [restr_getopt $r "Maximum" "max" 0.00]
-	if { $RestraintFunction == "PERIODIC" } {
-	    set zmin [expr -1*acos(-1)]
-	    set zmax [expr acos(-1)]
-	}
-	set ir [DataSpace_AddRestr $ds $k $targ $nCV $pcvc $RestraintFunction $zmin $zmax]
-	set TAMDgamma [restr_getopt $r "TAMDgamma" "gamma" -1.0]
-	set TAMDkT    [restr_getopt $r "TAMDkT"    "kT"    -1.0]
-	set TAMDdt    [restr_getopt $r "TAMDdt"    "dt"    -1.0]
-	if {$TAMDgamma != -1 && $TAMDkT != -1 && $TAMDdt != -1} {
-	    DataSpace_AddTamdOpt $ds $ir $TAMDgamma $TAMDkT $TAMDdt
-	}
-	set SMDTarget     [restr_getopt $r "SMDTargetValue" "smd_z"     -1.0]
-	set SMDInitStep   [restr_getopt $r "SMDInitialStep" "smd_t0"    -1.0]
-	set SMDFinalStep  [restr_getopt $r "SMDFinalStep"   "smd_t1"    -1.0]
-	if {$SMDTarget != -1 && $SMDInitStep != -1 && $SMDFinalStep != -1} {
-	    DataSpace_AddSmdOpt $ds $ir $SMDTarget $SMDInitStep $SMDFinalStep
-	}
-    }
-
-    return $ds
 }
 
 proc my_getcellsize { XSCFILE } {
@@ -732,73 +828,6 @@ proc my_getorigin { XSCFILE } {
     print "CFACV) INFO origin $O"
     close $fp
     return $O
-}
-
-proc Tcl_InitializePairCalc { ds XSCFILE cutoff nlcutoff begin_evolve usetamdforces reportparamfreq spline_min nKnots splineoutputfile splineoutputfreq splineoutputlevel updateinterval } {
-    set LL [my_getcellsize $XSCFILE]
-    set O [my_getorigin $XSCFILE]
-    print "CFACV) DEBUG: Tcl_InitializePairCalc box size [lindex $LL 0] [lindex $LL 1] [lindex $LL 2]"
-    print "CFACV) DEBUG: Tcl_InitializePairCalc origin   [lindex $O 0] [lindex $O 1] [lindex $O 2]"
-    DataSpace_SetupPairCalc $ds [lindex $O 0] [lindex $O 1] [lindex $O 2] [lindex $LL 0] [lindex $LL 1] [lindex $LL 2] $cutoff $nlcutoff $begin_evolve $usetamdforces $reportparamfreq $spline_min $nKnots $splineoutputfile $splineoutputfreq $splineoutputlevel $updateinterval
-    print "CFACV) INFO: Pair calc initialized"
-}
-
-proc Tcl_Reinitialize { ds restartINP } {
-    if {[file exists $restartINP]} {
-	print "CFACV) Reinitializing Z values from $restartINP"
-	set fp [open $restartINP "r"]
-	set zinp [read -nonewline $fp]
-	close $fp
-	DataSpace_SetRestraints $ds [ListToArray $zinp]
-	return 0
-    } else {
-	print "CFACV) Error: could not find restart file $restartINP"
-	print "CFACV) Initial z-values taken from CV's."
-	return 1
-    }
-}
-
-proc Tcl_UpdateDataSpace { ds lC groups first timestep } {
-    upvar $lC p
-
-    # Move group center positions to dataspace
-    set i 0
-    foreach g $groups {
-	ListToArray_Data [DataSpace_centerPos $ds $i] $p($g)
-	incr i
-    }
-    MyParanoiaCheck $ds "tripped after moving data to dataspace"
-
-    # Compute CV's within dataspace
-    DataSpace_ComputeCVs $ds
-    MyParanoiaCheck $ds "tripped after computing CV's"
-    # At this point, the (x,y,z) position data is no longer needed.
-    # We can now write into its space the (x,y,z) restraint forces.
-
-    # Compute restraining forces
-    DataSpace_RestrainingForces $ds $first $timestep    
-    MyParanoiaCheck $ds "tripped after computing restraining forces"
-
-    # Transmit forces back to groups
-    set i 0
-    foreach g $groups {
-	addforce $g [ArrayToList [DataSpace_centerPos $ds $i] 3]
-	incr i
-    }
-
-    # Add restraint energy to NAMD energy structure
-    addenergy [DataSpace_RestraintEnergy $ds]
-}
-
-proc Tcl_ObserveDataSpace { ds cntrSel frame } {
-    set i 0
-    foreach sel $cntrSel {
-	$sel frame $frame
-#	print "DB: Tcl_ObserveDataSpace center $i [measure center $sel weight mass]"
-	ListToArray_Data [DataSpace_centerPos $ds $i] [measure center $sel weight mass]
-	incr i
-    }
-    DataSpace_ComputeCVs $ds
 }
 
 proc assign_center_betas { p includeH } {
@@ -864,6 +893,179 @@ proc within_range {selList selB r} {
 	}
     }
     return $nc
+}
+ 
+
+proc Tcl_NewDataSpace { nC cvL rL seed } {
+    global doPairCalc
+    set nCV [llength $cvL]
+    set nR  [llength $rL]
+
+    #                centers CVs restrains
+    set ds [NewDataSpace $nC $nCV $nR $seed]
+
+    foreach cv $cvL {
+      set typ [lindex $cv 0]
+      set pind [intListToArray [lindex $cv 1]]
+      set nind [llength [lindex $cv 1]]
+
+      # Assuming cv=CARTESIAN_X 0 then typ=CARTESIAN_X, pind={0}, nind=1
+      DataSpace_AddCV $ds $typ $nind $pind 
+
+      # switch $typ {
+      #  BILAYP {
+      #    set aux [lindex $cv 2]
+      #    set_zsd_circle [lindex $aux 0] [lindex $aux 1]  [lindex $aux 2]
+      #  }
+      # }
+
+      # For the i+1 cycle of this loop, here some hints for the data structure:
+      # ds->cv[i]->typ=3         | this is the id number for CV type "CARTESIAN_X"
+      # ds->cv[i]->nC=$nind      | of atoms or atom-groups that contribute to this CV
+      # ds->cv[i]->ind[0:0]=g1   | gN (see addgroup tcl NAMD builtin) of the atoms that contribute to this CV
+      # ds->cv[i]->val=0.0       | value fo the CV
+      # ds->cv[i]->gr[0:0][0:2]= | cartesian gradients of this CV gr[atom/atom-group][x|y|z] 
+    }
+
+    foreach r $rL {
+	set cvc [restr_getcvc $r]
+	set nCV [llength $cvc]
+	set pcvc [ListToArray $cvc]
+	set k    [restr_getopt $r "SpringConstant" "k" 0.00]
+	set targ [restr_getopt $r "TargetValue"    "b" 0.00]
+        set RestraintFunction [string toupper [restr_getopt $r "RestraintFunction" "rf"  HARMONIC]]
+	set zmin [restr_getopt $r "Minimum" "min" 0.00]
+	set zmax [restr_getopt $r "Maximum" "max" 0.00]
+        if { $RestraintFunction == "HARMCUTO" } {
+          if { $zmax == 0.00 } {
+            print "restrian max needed for HARMCUTO"
+            exit
+          }
+	}
+        # Assuming, r to be {1 0 0 0 0} {k 1600} {AMDkT 0.19} {TAMDgamma 1} {TAMDdt 0.002}
+        #hints:
+	# cvc=1 0 0 0 0
+	# nCV=5 (the length of cvc)
+	# pcvc={1, 0, 0, 0, 0} # array
+	# k=1600
+	# targ=0.00
+	# RestraintFunction=HARMONIC
+	# zmin=0.00
+	# zmax=0.00
+	set boundf [restr_getopt $r "Bound" "bound" NADA]
+	set boundk [restr_getopt $r "Boundk" "bk" 100.00]
+	
+        switch $boundf {
+          PERIODIC {
+            set zmin [expr -1*acos(-1)]
+            set zmax [expr acos(-1)]
+          }
+          NADA -
+          PBC -
+          SOFTUPPER -
+          SOFTLOWER -
+          SOFT {}
+          default {
+              print "ERROR: $boundf is not a valid boundary type."
+              exit
+          }
+        }
+
+
+        # Here all this information is saved in ds->restr[i] structure
+	set ir [DataSpace_AddRestr $ds $k $targ $nCV $pcvc $RestraintFunction $zmin $zmax $boundf $boundk]
+
+        # And here all tamd options are allocated and asigned to ds->restr[i]->tamdOpt structure
+	set TAMDgamma [restr_getopt $r "TAMDgamma" "gamma" -1.0]
+	set TAMDkT    [restr_getopt $r "TAMDkT"    "kT"    -1.0]
+	set TAMDdt    [restr_getopt $r "TAMDdt"    "dt"    -1.0]
+	if {$TAMDgamma != -1 && $TAMDkT != -1 && $TAMDdt != -1} {
+	    DataSpace_AddTamdOpt $ds $ir $TAMDgamma $TAMDkT $TAMDdt
+	}
+
+        # And here the same with SMD options
+	set SMDTarget     [restr_getopt $r "SMDTargetValue" "smd_z"     -1.0]
+	set SMDInitStep   [restr_getopt $r "SMDInitialStep" "smd_t0"    -1.0]
+	set SMDFinalStep  [restr_getopt $r "SMDFinalStep"   "smd_t1"    -1.0]
+	if {$SMDTarget != -1 && $SMDInitStep != -1 && $SMDFinalStep != -1} {
+	    DataSpace_AddSmdOpt $ds $ir $SMDTarget $SMDInitStep $SMDFinalStep
+	}
+    }
+
+    return $ds
+}
+
+
+proc Tcl_InitializePairCalc { ds XSCFILE cutoff nlcutoff begin_evolve usetamdforces spline_min nKnots splineoutputfile splineoutputfreq splineoutputlevel updateinterval cvnum} {
+    DataSpace_SetupPairCalc $ds $cutoff $nlcutoff $begin_evolve $usetamdforces $spline_min $nKnots $splineoutputfile $splineoutputfreq $splineoutputlevel $updateinterval $cvnum
+    if [string equal $XSCFILE "off"] {
+      print "CFACV) DEBUG: Tcl_InitializePairCalc nobox"
+      DataSpace_SetupPBC $ds 0  0 0 0  0 0 0
+    } else {
+      set LL [my_getcellsize $XSCFILE]
+      set O [my_getorigin $XSCFILE]
+      print "CFACV) DEBUG: Tcl_InitializePairCalc box size [lindex $LL 0] [lindex $LL 1] [lindex $LL 2]"
+      print "CFACV) DEBUG: Tcl_InitializePairCalc origin   [lindex $O 0] [lindex $O 1] [lindex $O 2]"
+      DataSpace_SetupPBC $ds 1 [lindex $O 0] [lindex $O 1] [lindex $O 2] [lindex $LL 0] [lindex $LL 1] [lindex $LL 2] 
+    }
+}
+
+proc Tcl_Reinitialize { ds restartINP } {
+    if {[file exists $restartINP]} {
+	print "CFACV) Reinitializing Z values from $restartINP"
+	set fp [open $restartINP "r"]
+	set zinp [read -nonewline $fp]
+	close $fp
+	DataSpace_SetRestraints $ds [ListToArray $zinp]
+	return 0
+    } else {
+	print "CFACV) Error: could not find restart file $restartINP"
+	print "CFACV) Initial z-values taken from CV's."
+	return 1
+    }
+}
+
+proc Tcl_UpdateDataSpace { ds lC groups first timestep } {
+    upvar $lC p
+
+    # Move group center positions to dataspace
+    set i 0
+    foreach g $groups {
+	ListToArray_Data [DataSpace_centerPos $ds $i] $p($g)
+	incr i
+    }
+    MyParanoiaCheck $ds "tripped after moving data to dataspace"
+
+    # Compute CV's within dataspace
+    DataSpace_ComputeCVs $ds
+    MyParanoiaCheck $ds "tripped after computing CV's"
+    # At this point, the (x,y,z) position data is no longer needed.
+    # We can now write into its space the (x,y,z) restraint forces.
+
+    # Compute restraining forces
+    DataSpace_RestrainingForces $ds $first $timestep    
+    MyParanoiaCheck $ds "tripped after computing restraining forces"
+
+    # Transmit forces back to groups
+    set i 0
+    foreach g $groups {
+        addforce $g [ArrayToList [DataSpace_centerPos $ds $i] 3]
+        incr i
+    }
+
+    # Add restraint energy to NAMD energy structure
+    addenergy [DataSpace_RestraintEnergy $ds]
+}
+
+proc Tcl_ObserveDataSpace { ds cntrSel frame } {
+    set i 0
+    foreach sel $cntrSel {
+	$sel frame $frame
+#	print "DB: Tcl_ObserveDataSpace center $i [measure center $sel weight mass]"
+	ListToArray_Data [DataSpace_centerPos $ds $i] [measure center $sel weight mass]
+	incr i
+    }
+    DataSpace_ComputeCVs $ds
 }
 
 # This routine uses the DataSpace_checkdata function

@@ -65,8 +65,8 @@ int bin_sort ( int * bin, double * x, double * y, double * z, int nAtoms, int nC
   fprintf(stdout,"\n");
   fflush(stdout);
   fprintf(stdout,"CFACV/C) bin_sort initial center rg's: ");
-  for (i=0;i<nCenters;i++) fprintf(stdout,"%.3lf ",rg[i]);
-  fprintf(stdout," average %.3lf\n",srg/nCenters);
+  for (i=0;i<nCenters;i++) fprintf(stdout,"%.3f ",rg[i]);
+  fprintf(stdout," average %.3f\n",srg/nCenters);
   fflush(stdout);
 
 
@@ -118,7 +118,7 @@ int bin_sort ( int * bin, double * x, double * y, double * z, int nAtoms, int nC
 
     if ((srg-srg0)<FUZZ) {
       srg0=srg;
-      fprintf(stdout,"CFACV/C) cycle %i <<rg>> %.5lf\n",c,srg/nCenters);
+      fprintf(stdout,"CFACV/C) cycle %i <<rg>> %.5f\n",c,srg/nCenters);
       nsucc++;
     }
     else {
@@ -156,18 +156,20 @@ int bin_sort ( int * bin, double * x, double * y, double * z, int nAtoms, int nC
   fprintf(stdout,"\n");
   fflush(stdout);
   fprintf(stdout,"CFACV/C) bin_sort final center rg's: ");
-  for (i=0;i<nCenters;i++) fprintf(stdout,"%.3lf ",rg[i]);
-  fprintf(stdout," average %.3lf\n",srg/nCenters);
+  for (i=0;i<nCenters;i++) fprintf(stdout,"%.3f ",rg[i]);
+  fprintf(stdout," average %.3f\n",srg/nCenters);
   fflush(stdout);
   
   for (i=0;i<nCenters;i++) {
-    fprintf(stdout,"CFACV/C) cm %i (%i): %.5lf %.5lf %.5lf : rg %.5lf\n",
+    fprintf(stdout,"CFACV/C) cm %i (%i): %.5f %.5f %.5f : rg %.5f\n",
 	    i+1,cnt[i],cm[i][0],cm[i][1],cm[i][2], rg[i]);
   }
   fprintf(stdout,"CFACV/C) successful swaps: %i out of %i cycles\n",nsucc,nCycles);
   fflush(stdout);
   free(cm);
   free(cnt);
+
+  return 0;
 }
 
 
@@ -248,14 +250,14 @@ void centerStruct_split ( centerStruct * c, double * x, double * y, double * z, 
     centerStruct_rg(c->left,x,y,z);
     centerStruct_rg(c->right,x,y,z);
     rgsum0=c->left->rg+c->right->rg;
-    printf("CFACV/C) split; before cycles %.5lf %.5lf = %.5lf\n",c->left->rg,c->right->rg,rgsum0);
+    printf("CFACV/C) split; before cycles %.5f %.5f = %.5f\n",c->left->rg,c->right->rg,rgsum0);
     
     for (i=0;i<nCycles;i++) {
       centerStruct_randomSwapMember(c->left,c->right,&left,&right);
       centerStruct_rg(c->left,x,y,z);
       centerStruct_rg(c->right,x,y,z);
       rgsum=c->left->rg+c->right->rg;
-      //     printf("CFACV/C) swapped %i and %i : %.5lf %.5lf = %.5lf\n",left,right,c->left->rg,c->right->rg,rgsum);
+      //     printf("CFACV/C) swapped %i and %i : %.5f %.5f = %.5f\n",left,right,c->left->rg,c->right->rg,rgsum);
       if (rgsum<rgsum0) {
 	rgsum0=rgsum;
 	nacc++;
@@ -264,10 +266,10 @@ void centerStruct_split ( centerStruct * c, double * x, double * y, double * z, 
 	centerStruct_SwapMembers(c->left,c->right,left,right);
 	centerStruct_rg(c->left,x,y,z);
 	centerStruct_rg(c->right,x,y,z);
-	//	printf("CFACV/C) unswapped %i and %i : %.5lf %.5lf = %.5lf\n",left,right,c->left->rg,c->right->rg,rgsum);
+	//	printf("CFACV/C) unswapped %i and %i : %.5f %.5f = %.5f\n",left,right,c->left->rg,c->right->rg,rgsum);
       }
     }
-    printf("CFACV/C) split; after cycles (%i/%i): %.5lf %.5lf = %.5lf\n",nacc,nCycles,c->left->rg,c->right->rg,rgsum);
+    printf("CFACV/C) split; after cycles (%i/%i): %.5f %.5f = %.5f\n",nacc,nCycles,c->left->rg,c->right->rg,rgsum);
   }
 }
 
@@ -304,7 +306,7 @@ int rgyr_sort (centerStruct * c, int * bin, double * x, double * y, double * z, 
     }
   }
   else {
-    int i,j;
+    int i;
     srand(Seed);
     c=New_centerStruct(0,nAtom);
     for (i=0;i<nAtom;i++) {
@@ -312,7 +314,7 @@ int rgyr_sort (centerStruct * c, int * bin, double * x, double * y, double * z, 
       bin[i]=0;
     }
     centerStruct_rg(c,x,y,z);
-    printf("CFACV/C) init rg %.3lf\n",c->rg);
+    printf("CFACV/C) init rg %.3f\n",c->rg);
     rgyr_sort(c,bin,x,y,z,nAtom,minAtom,rg,Seed);
     i=0;
     centerStruct_binnify(c,bin,&i,rg);
