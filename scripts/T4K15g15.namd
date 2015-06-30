@@ -1,0 +1,121 @@
+#!/bin/tclsh
+set kB_kcm 0.001987191
+
+set iname           buta
+
+# The molecules
+structure       ${iname}.psf
+coordinates     ${iname}.pdb
+
+timestep            2.0
+rigidBonds          all  
+
+# Potentials and parameters
+paraTypeCharmm         on
+parameters             par_all36_cgenff.prm
+
+set XSCFILE            off ;# ${iname}_eqPT.xsc
+# wrapWater           on
+# wrapAll             on   ;# wrap all the atoms
+
+exclude                scaled1-4
+1-4scaling             1.0
+
+# Non-bonding cutoff
+cutoff              11.0  ;#12.0 
+switching           on    ;# suavisado
+switchdist          10.0  ;#10.0 # Desde donde comienza el suavizado
+
+# Verlet List
+pairlistdist        12.0  ;#14.0 #Radio externo de Verlet
+stepspercycle       10    ;#Pasos para el calculo de la lista de Verlet
+
+# Particle Mesh Ewald algorithm
+# PME                 no
+# PME                 yes
+# PMEGridSizeX        30
+# PMEGridSizeY        30
+# PMEGridSizeZ        30
+
+# Multiple time steps
+nonbondedFreq       1
+fullElectFrequency  2
+
+# Langevin Dynamics
+langevin on
+langevinDamping     50.
+langevinHydrogen    no
+
+# Langevin Piston
+# langevinPiston        on
+# langevinPistonTarget  1.01325 ;#  in bar -> 1 atm
+# langevinPistonPeriod  100.0 ;# oscillation time constant in fs
+# langevinPistonDecay   50.0 ;# damping time constant in fs
+# langevinPistonTemp    $temperature 
+
+# Output
+outputname       [format $job_output_root $loc]
+xstfreq          [expr $steps_per_run / 10]
+outputpressure   [expr $steps_per_run / 10]
+outputTiming     [expr $steps_per_run / 10]
+outputEnergies   [expr $steps_per_run / 10]
+dcdFreq          [expr $steps_per_run * $runs_per_frame]
+
+# TAMD
+tclforces             on
+set CFACV_BASEDIR     OTFP
+tclforcesscript       $CFACV_BASEDIR/cfacv_tclforces.tcl
+
+# CVs and group definition
+set labelPDB          label.pdb ;# PDB file with group ID (1-based) in beta position
+set cvINP             cv.inp ;# list of CVs types togeter with it's parameters
+set pairmask          "{ASD ASD}"
+
+# Verbosidad
+# set DEBUG                   0
+# set PARANOIA                0
+set TAMDverbose             1
+# for DataSpace_ReportRestraints
+set TAMDoutputlevel        15   ;# Z-Th-FD-ND (e.g. 5 => 0101 => Th and ND)
+set TAMDof                 [expr $steps_per_run / 10] ;# frequency 
+# set TAMDbinOutputFile       asd.bin
+# set TAMDbinof               100 ;# frequency
+# for chapeau_output
+set BINREPORTPARAMFREQ     [expr $steps_per_run / 10]         ;#ds->ch->outputFreq
+set BINOUTPUTLEVEL         3            ;#lambda-hits (e.g. 3 => 11 => both)
+set BINREPORTPARAMFILE     [format $job_output_root $loc]
+
+# About grid
+set CUTOFF                  5.3
+set NLCUTOFF                6.3
+set SPLINEMIN               2.5
+set NKNOTS                  201 ;#dr=$CUTOFF-$SPLINEMIN/(NKNOTS-1)
+# set initKnotsINP            wcaknots
+
+# Offset and interval for improve lambda parameters
+set CFACV_doAnalyticalCalc  1  ;# 1 optmize the analytical parameterization
+set USETAMDFORCES           1  ;# 1 use TAMD forces, 0 use gradient of G
+set BEGINEVOLVEPARAMETERS   [expr $steps_per_run / 10]  ;# Number of steps without evolution at the start
+
+# This should be bigger than $runs_per_addchapeaus*steps_per_run to have
+# information in all the chapeaus. If no replica, this should be beger than
+# beginevolveparameters. FIXME, put beginevolveparameters as a propertie of
+# the chapeau object.
+set LAMUPDATEINTERVAL       [expr $steps_per_run / 10]
+
+
+# Restraints
+set restr(num)        1
+set restr(1.cv)       1              ; # The cv or cvs associated
+set restr(1.k)        1500           ; # spring constant
+set restr(1.type)     tamd           ; # spring constant
+ set restr(1.g)        1500          
+ set restr(1.biasf)    10            ; # number between 0 and beta (min and max bias)
+ set restr(1.temp)     $replica(temperature)*10            ; # number between 0 and beta (min and max bias)
+ set restr(1.dt)       0.002         
+set restr(1.bound)    soft           ; # boundary behavior
+ set restr(1.boundk)   100           
+ set restr(1.max)      $CUTOFF       
+ set restr(1.min)      $SPLINEMIN    
+
+

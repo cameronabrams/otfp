@@ -1,0 +1,47 @@
+#!/bin/tcl
+
+# configuration for replica exchange scripts
+
+# run simulation: 
+#   mkdir output
+#   (cd output; mkdir 0 1 2 3 4 5 6 7)
+#   mpirun -np 8 -hostfile hostfile $bindir/namd2 +replicas 8 job0.conf +stdout output/%d/job0.%d.log
+# the number of MPI ranks (-np) must be a multiple of the number of replicas (+replicas)
+
+# to continue:
+#   mpirun -np 8 -hostfile hostfile $bindir/namd2 +replicas 8 job0.conf +stdout output/%d/job1.%d.log
+# increase num_runs below if job completed, or use latest restartXXX.tcl file available
+# be sure to increment jobX for +stdout option on command line
+
+# view in VMD:  source job0.conf; source ../show_replicas.vmd
+# add continued:   source job1.conf; source ../show_replicas.vmd
+# show both:  vmd -e load_all.vmd
+
+# sort into single-temperature trajectories:
+#   $bindir/sortreplicas output/%s/fold_alanin.job0 8 10
+#   $bindir/sortreplicas output/%s/fold_alanin.job1 8 10
+
+set num_replicas 6
+set min_temp 300
+set max_temp 900
+
+set steps_per_run 1000 ; # number of steps between exchange attempts
+set num_runs      1000 ; # runs before stopping, should be divisible by runs_per_frame * frames_per_restart
+
+set runs_per_addchapeaus 5  
+set runs_per_restart     100 
+
+set data_each        [expr $steps_per_run*5] 
+set frames_each      [expr $steps_per_run*10] 
+
+set namd_config_file "T4K15g15.namd"
+set output_root "output/%s/" ; # directories must exist
+
+# # the following used only by show_replicas.vmd
+# set psf_file "buta.psf"
+# set initial_pdb_file "buta.pdb"
+# set fit_pdb_file "alanin.pdb"
+
+# prevent VMD from reading replica.namd by trying command only NAMD has
+if { ! [catch numPes] } { source replica.namd }
+

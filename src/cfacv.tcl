@@ -2,18 +2,10 @@
 # Cameron F Abrams
 # 2009-14
 
-
 # NAMD requeriments:
 #
 # puts must be replaced by print. Other commands
 # could be found in NAMD user guide.
-
-# Any Tcl script that uses this library must set the value
-# of CFACV_BASEDIR correctly.
-
-set CFACV_VERSION 0.30
-# load the C-module
-load ${CFACV_BASEDIR}/cfacv.so cfa_cvlibc
 
 proc cfacv_banner { argv } {
     global CFACV_VERSION
@@ -278,8 +270,7 @@ proc read_centersPDB { templatePdb serArr mass pdb} {
     # }
 
     # if {([string equal [lsort -unique $ch_id] "-1"])} {
-    #   puts "ERROR: No residues found to accelerate"
-    #   exit
+    #   error "ERROR: No residues found to accelerate"
     # }
 
     print "DB: returning nMon $nMon"
@@ -431,10 +422,7 @@ proc read_cvs { cv_file cv_list pdb} {
     set nInd [llength $ind]
 
     # Si todavia no hay indices, doy error
-    if {$nInd==0} {
-      print "Error, no indices para la linea $line"
-      exit
-    }
+    if {$nInd==0} {error "Error, no indices para la linea $line"}
 
 
     lappend cvL [list $typ $ind $optlist] ;#... cvL is cvL+dat
@@ -461,10 +449,7 @@ proc read_cvs { cv_file cv_list pdb} {
       CARTESIAN_X -
       CARTESIAN_Y -
       CARTESIAN_Z {}
-      default {
-          print "ERROR: $typ is not a valid CV type in $cv_file."
-          exit
-      }
+      default {error "ERROR: $typ is not a valid CV type in $cv_file."}
     }
   }
 
@@ -701,99 +686,92 @@ proc cvc_getcvi { cvc } {
     return $r
 }
 
-proc restr_getcvc { r } {
-    return [lindex $r 0]
-}
-proc restr_getoptlist { r } {
-    return [lindex $r 1]
-}
 
-# proc read_linestolist { file } {
-# 
-#   set L {}
-# 
-#   # read the cv file
-#   set inStream [open $file "r"]
-#   set data [read -nonewline $inStream]
-#   close $inStream
-#   set lines [split $data \n]
-# 
-#   foreach line $lines {
-# 
-#     # Allow empty lines and commentries
-#     if {[string index $line 0] == "#"} continue
-#     if {[string length $line] < 0} continue
-# 
-#     lappend L [list $line]
-#   }
-# 
-#   return $L
-# }
-         
-proc restr_getopt { r key altkey def } {
-    set optlist [restr_getoptlist $r]
-    foreach opt $optlist {
-#	print "DB: querying opt $opt for $key..."
-	set thiskey [lindex $opt 0]
-	if {$thiskey == $key || $thiskey == $altkey} {
-	    return [lindex $opt 1]
-	}
+
+proc rlist_setup { ncv } {
+  global ds
+  global restr
+  global temperature
+  global TAMDverbose
+
+  for {set i 1} {$i<=$restr(num)} {incr i} {
+
+    # Set cvc
+    set restr($i.cvc) {}
+    for {set j 0} { $j < $ncv} {incr j} {lappend restr($i.cvc) 0}
+    foreach cvindex [lsort -unique $restr($i.cv)] {
+      set j [expr $cvindex-1]
+      set restr($i.cvc) [lreplace $restr($i.cvc) $j $j 1]
     }
-    return $def
-}
 
-proc read_restraints { restr_file ncv restrList } {
-    upvar $restrList rL
 
-    set inStream [open $restr_file "r"]
-    set data [read -nonewline $inStream]
-    close $inStream
-    set lines [split $data \n]
+    # Defaults and consistency in function
+    if {![info exists restr($i.func)]} {set restr($i.func) HARMONIC}
+    set restr($i.func) [string toupper $restr($i.func)]
+    if {![info exists restr($i.k)]} {print "CFACV) WARNING: restraint with spring constant 0"; set restr($i.k) 0}
 
-    set rL {}
-    set nR 0
-    foreach line $lines {
-	if {[string index $line 0] != "#" && [string length $line] > 0} {
-	    set cvc [lreplace $line $ncv end]
-	    set optlist [lreplace $line 0 [expr $ncv - 1]]
-	    #print "DB: cvc $cvc"
-	    #print "DB: optlist $optlist"
-	    lappend rL [list $cvc $optlist]
-	    incr nR
-	}
+
+    # Defaults and consistency in boundaries
+    if {![info exists restr($i.bound)]} {set restr($i.bound) NADA}
+    set restr($i.bound) [string toupper $restr($i.bound)]
+    switch $restr($i.bound) {
+      NADA {}
+      PERIODIC {
+        set restr($i.min) [expr -1*acos(-1)]
+        set restr($i.max) [expr acos(-1)]
+      }
+      PBC {
+        if {![info exists restr($i.min)]}    {error "CFACV) ERROR: restraint need max value"}
+        if {![info exists restr($i.max)]}    {error "CFACV) ERROR: restraint need min value"}
+      }
+      SOFTUPPER - SOFTLOWER - SOFT {
+        if {![info exists restr($i.min)]}    {error "CFACV) ERROR: restraint need max value"}
+        if {![info exists restr($i.max)]}    {error "CFACV) ERROR: restraint need min value"}
+        if {![info exists restr($i.boundk)]} {error "CFACV) ERROR: restraint need boundk value"}
+      }
+      default {error "ERROR: $restr($i.bound) is not a valid boundary type."} 
     }
-    #print "DB: rL $rL"
-    return $nR
+
+
+    # Allocating ds->restr[i] in the C code.
+    set pcvc [ListToArray $restr($i.cvc)]
+    set inicial 0 ; # obsolet when r->z=r->val is placed at first iteration (see cfacv.c)
+    set restr($i.address) [DataSpace_AddRestr $ds $restr($i.k) $inicial $ncv $pcvc $restr($i.func) $restr($i.min) $restr($i.max) $restr($i.bound) $restr($i.boundk)]
+     
+    # Default and consistency in type. Allocating ds->restr[i]->tamdOpt in the C code.
+    if {![info exists restr($i.type)]} {error "CFACV) ERROR: restraint need a type"}
+    set restr($i.type) [string toupper $restr($i.type)]
+    switch $restr($i.type) {
+      TAMD {
+        if {![info exists restr($i.g)]}     {error "CFACV) ERROR: TAMD restraint need g"}
+        if {![info exists restr($i.dt)]}    {error "CFACV) ERROR: TAMD restraint need dt"}
+        if {![info exists restr($i.temp)]}  {error "CFACV) ERROR: TAMD temperature variable is needed."}
+        if {![info exists restr($i.chid)]}  {set restr($i.chid) 0}
+
+        # DataSpace_AddTamdOpt $ds $ir $restr($i.g) [expr $temperature*$restr($i.biasf)*0.00198735] $restr($i.dt)
+        restr_AddTamdOpt $restr($i.address) $restr($i.g) [expr $restr($i.temp)*0.00198735] $restr($i.dt)
+      }
+      SMD {
+        if {![info exists restr($i.target)]} {error "CFACV) ERROR: SMD restraint need target"}
+        if {![info exists restr($i.ini)]} {error "CFACV) ERROR: SMD restraint need ini"}
+        if {![info exists restr($i.end)]} {error "CFACV) ERROR: SMD restraint need end"}
+        restr_AddSmdOpt $restr($i.address) $restr($i.target) $restr($i.ini) $restr($i.end)
+      }
+      default {error "ERROR: $restr($i.type) is not a valid boundary type."} 
+    } 
+
+  }
+
+  if {[info exists TAMDverbose]} {foreach ri [array get restr] {print "CFACV) $ri"}}
+  
 }
 
-proc create_single_cv_restraints { ncv restrList restrPARAMS } {
-    upvar $restrList rL
-    set rL {}
-    set nR 0
-#    set cvc [lrepeat $ncv 0]
-    set cvc {}
 
-    #Supouse ncv is "5"...
-    #Supouse restrPARAMS is {k 1600} {AMDkT 0.19} {TAMDgamma 1} {TAMDdt 0.002}
-
-
-    for {set i 0} { $i < $ncv} {incr i} {lappend cvc 0}
-    #...cvc is "0 0 0 0 0"
-
-    for {set i 0} { $i < $ncv} {incr i}  {
-	set tcvc [lreplace $cvc $i $i 1]
-	lappend rL [list $tcvc $restrPARAMS]
-    }
-    #...rl is {1 0 0 0 0} {k 1600} {AMDkT 0.19} {TAMDgamma 1} {TAMDdt 0.002} 
-    
-    return $ncv
-}
 
 proc my_getcellsize { XSCFILE } {
     if {[info exists XSCFILE] && [file exists $XSCFILE]} {
     } else {
-      print "CFACV) ERROR: no xsc file for box info."
-      exit
+      error "CFACV) ERROR: no xsc file for box info."
     }
     #print "CFACV) DEBUG my_getcellsize opening $XSCFILE"
     set fp [open $XSCFILE "r"]
@@ -815,8 +793,7 @@ proc my_getcellsize { XSCFILE } {
 proc my_getorigin { XSCFILE } {
     if {[info exists XSCFILE] && [file exists $XSCFILE]} {
     } else {
-      print "CFACV) ERROR: no xsc file for box info."
-      exit
+      error "CFACV) ERROR: no xsc file for box info."
     }
     set fp [open $XSCFILE "r"]
     set dat [read -nonewline $fp]
@@ -883,121 +860,80 @@ proc initialize_base_template { pdb } {
 }
 
 proc within_range {selList selB r} {
-    set nc 0
-    foreach sel $selList {
-	set ABlist [measure contacts $r $sel $selB]
-	set Alist [lindex $ABlist 0]
-	set Blist [lindex $ABlist 1]
-	if {[llength $Alist] > 0} {
-	    incr nc [llength $Alist]
-	}
-    }
-    return $nc
+  set nc 0
+  foreach sel $selList {
+      set ABlist [measure contacts $r $sel $selB]
+      set Alist [lindex $ABlist 0]
+      set Blist [lindex $ABlist 1]
+      if {[llength $Alist] > 0} {
+          incr nc [llength $Alist]
+      }
+  }
+  return $nc
 }
  
+proc cvs_setup { } {
+  global cvList
+  global ds
 
-proc Tcl_NewDataSpace { nC cvL rL seed } {
-    global doPairCalc
-    set nCV [llength $cvL]
-    set nR  [llength $rL]
+  foreach cv $cvList {
+    set typ [lindex $cv 0]
+    set pind [intListToArray [lindex $cv 1]]
+    set nind [llength [lindex $cv 1]]
 
-    #                centers CVs restrains
-    set ds [NewDataSpace $nC $nCV $nR $seed]
+    # Assuming cv=CARTESIAN_X 0 then typ=CARTESIAN_X, pind={0}, nind=1
+    DataSpace_AddCV $ds $typ $nind $pind 
+  }
 
-    foreach cv $cvL {
-      set typ [lindex $cv 0]
-      set pind [intListToArray [lindex $cv 1]]
-      set nind [llength [lindex $cv 1]]
-
-      # Assuming cv=CARTESIAN_X 0 then typ=CARTESIAN_X, pind={0}, nind=1
-      DataSpace_AddCV $ds $typ $nind $pind 
-
-      # switch $typ {
-      #  BILAYP {
-      #    set aux [lindex $cv 2]
-      #    set_zsd_circle [lindex $aux 0] [lindex $aux 1]  [lindex $aux 2]
-      #  }
-      # }
-
-      # For the i+1 cycle of this loop, here some hints for the data structure:
-      # ds->cv[i]->typ=3         | this is the id number for CV type "CARTESIAN_X"
-      # ds->cv[i]->nC=$nind      | of atoms or atom-groups that contribute to this CV
-      # ds->cv[i]->ind[0:0]=g1   | gN (see addgroup tcl NAMD builtin) of the atoms that contribute to this CV
-      # ds->cv[i]->val=0.0       | value fo the CV
-      # ds->cv[i]->gr[0:0][0:2]= | cartesian gradients of this CV gr[atom/atom-group][x|y|z] 
-    }
-
-    foreach r $rL {
-	set cvc [restr_getcvc $r]
-	set nCV [llength $cvc]
-	set pcvc [ListToArray $cvc]
-	set k    [restr_getopt $r "SpringConstant" "k" 0.00]
-	set targ [restr_getopt $r "TargetValue"    "b" 0.00]
-        set RestraintFunction [string toupper [restr_getopt $r "RestraintFunction" "rf"  HARMONIC]]
-	set zmin [restr_getopt $r "Minimum" "min" 0.00]
-	set zmax [restr_getopt $r "Maximum" "max" 0.00]
-        if { $RestraintFunction == "HARMCUTO" } {
-          if { $zmax == 0.00 } {
-            print "restrian max needed for HARMCUTO"
-            exit
-          }
-	}
-        # Assuming, r to be {1 0 0 0 0} {k 1600} {AMDkT 0.19} {TAMDgamma 1} {TAMDdt 0.002}
-        #hints:
-	# cvc=1 0 0 0 0
-	# nCV=5 (the length of cvc)
-	# pcvc={1, 0, 0, 0, 0} # array
-	# k=1600
-	# targ=0.00
-	# RestraintFunction=HARMONIC
-	# zmin=0.00
-	# zmax=0.00
-	set boundf [restr_getopt $r "Bound" "bound" NADA]
-	set boundk [restr_getopt $r "Boundk" "bk" 100.00]
-	
-        switch $boundf {
-          PERIODIC {
-            set zmin [expr -1*acos(-1)]
-            set zmax [expr acos(-1)]
-          }
-          NADA -
-          PBC -
-          SOFTUPPER -
-          SOFTLOWER -
-          SOFT {}
-          default {
-              print "ERROR: $boundf is not a valid boundary type."
-              exit
-          }
-        }
-
-
-        # Here all this information is saved in ds->restr[i] structure
-	set ir [DataSpace_AddRestr $ds $k $targ $nCV $pcvc $RestraintFunction $zmin $zmax $boundf $boundk]
-
-        # And here all tamd options are allocated and asigned to ds->restr[i]->tamdOpt structure
-	set TAMDgamma [restr_getopt $r "TAMDgamma" "gamma" -1.0]
-	set TAMDkT    [restr_getopt $r "TAMDkT"    "kT"    -1.0]
-	set TAMDdt    [restr_getopt $r "TAMDdt"    "dt"    -1.0]
-	if {$TAMDgamma != -1 && $TAMDkT != -1 && $TAMDdt != -1} {
-	    DataSpace_AddTamdOpt $ds $ir $TAMDgamma $TAMDkT $TAMDdt
-	}
-
-        # And here the same with SMD options
-	set SMDTarget     [restr_getopt $r "SMDTargetValue" "smd_z"     -1.0]
-	set SMDInitStep   [restr_getopt $r "SMDInitialStep" "smd_t0"    -1.0]
-	set SMDFinalStep  [restr_getopt $r "SMDFinalStep"   "smd_t1"    -1.0]
-	if {$SMDTarget != -1 && $SMDInitStep != -1 && $SMDFinalStep != -1} {
-	    DataSpace_AddSmdOpt $ds $ir $SMDTarget $SMDInitStep $SMDFinalStep
-	}
-    }
-
-    return $ds
 }
 
+proc chapeau_setup { NUMREP ds XSCFILE min N max begin_evolve usetamdforces outputfile outfreq outlevel nupdate} {
+    global chape
 
-proc Tcl_InitializePairCalc { ds XSCFILE cutoff nlcutoff begin_evolve usetamdforces spline_min nKnots splineoutputfile splineoutputfreq splineoutputlevel updateinterval cvnum} {
-    DataSpace_SetupPairCalc $ds $cutoff $nlcutoff $begin_evolve $usetamdforces $spline_min $nKnots $splineoutputfile $splineoutputfreq $splineoutputlevel $updateinterval $cvnum
+    # FIXME: This code was here to allow compute chapeau functions separatedly
+    # for different pair types of particles. For instance, this allow to
+    # recover SOD SOD, CLA CLA and SOD CLA pair potentials in 1 TAMD
+    # simulation. Each index has a number in ch_id which allow to sort the pair
+    # in the different chapeau objects on the c code.  From the studies with
+    # SOD CLA, this pair potentials will be OK only if the ficticius
+    # temperature is the same that the real one.  On the other hand, a better
+    # way to achive this is needed (without saving a lot of numbers in ch_id).
+    # For understand how this worked, see the previous versions of the code.
+    #
+    # # chplist holds the list of pair potential types 
+    # # e.g. {{SOD CLA} {CLA CLA} {SOD SOD}}
+    # if {![info exists chlist]} {set chlist "{}"}
+    # set chnum [llength $chlist]
+    #
+    # # Pair potentinal interaction
+    # intListToArray_Data [DataSpace_chid $ds ] $ch_id
+    # print "CFACV) The pair chapeau (map in vector) is:"
+    # for {set i 0} { $i < $nCntr } { incr i } {
+    #   set aux ""
+    #   for {set j 0} { $j <= $i } { incr j } {set aux "$aux  "}
+    #   for {set j [expr $i+1]} { $j < $nCntr } { incr j } {
+    #     set aux "$aux [lindex $ch_id [expr $j+($nCntr-2)*$i-($i-1)*$i/2-1]]"
+    #   }
+    #   puts $aux
+    # }
+
+    # FIXME. Add a index to load a  initial knots file for each chapeau
+    # if {[info exists initKnotsINP]} {Tcl_DataSpace_InitKnots $ds $initKnotsINP}
+
+    # FIXME: pairwise analytical potential
+    # DataSpace_SetupPairCalc $ds $min $N $coff $nlcoff $begin_evolve $usetamdforces $outputfile $outfreq $outlevel $nupdate $chnum
+
+    # TODO: I guess one setup subroutine per chapeau object would be nice, so each chapeau can have different grid
+    # and be asociated with differen CV sets
+
+    # Currently only option is a 1D grid
+    DataSpace_Setup1Dchapeau $ds $NUMREP $min $N $max $begin_evolve $usetamdforces $outputfile $outfreq $outlevel $nupdate
+
+    # Get the adress of the chapeaus
+    for {set i 0} {$i<$NUMREP} {incr i} {
+      set chape($i.address) [DataSpace_get_chapeauadress $ds $i]
+    }
+
     if [string equal $XSCFILE "off"] {
       print "CFACV) DEBUG: Tcl_InitializePairCalc nobox"
       DataSpace_SetupPBC $ds 0  0 0 0  0 0 0
@@ -1046,6 +982,8 @@ proc Tcl_UpdateDataSpace { ds lC groups first timestep } {
     DataSpace_RestrainingForces $ds $first $timestep    
     MyParanoiaCheck $ds "tripped after computing restraining forces"
 
+    #  fprintf(stderr,"AAAAAAAAAAAS");
+
     # Transmit forces back to groups
     set i 0
     foreach g $groups {
@@ -1091,8 +1029,7 @@ proc Tcl_DataSpace_InitKnots { ds filename } {
     if {[file exists $filename]} {
 	DataSpace_InitKnots $ds $filename
     } {
-	print "CFACV) error: initial knots file $filename not found."
-	exit
+	error "CFACV) error: initial knots file $filename not found."
     }
 
 }

@@ -152,7 +152,11 @@ typedef struct RESTRSTRUCT {
   // pointer to boundary energy and force function
   double boundk;
   int (*boundFunc)(struct RESTRSTRUCT * self);
- 
+   
+  // integer to chapeau index, this will change
+  // in replica exchange simulation
+  int chid;
+
 } restrStruct;
 
 
@@ -222,9 +226,8 @@ typedef struct DATASPACESTRUCT {
   // for evolution of the parameterization
   double lamfric;
   double lamdt;
-  int nsamples;
   int evolveAnalyticalParameters;
-  int beginEvolveParameters;
+  int beginaccum;
   int useTAMDforces; // indicates whether tamd forces are used to
 		     // update auxiliary variables; other choice is
 		     // the use forces available from the
@@ -244,14 +247,16 @@ unsigned short * Xi;
 FILE * my_fopen ( char * name, char * code ) ;
 DataSpace * NewDataSpace ( int N, int M, int K, long int seed );
 int DataSpace_SetupPBC ( DataSpace * ds, int pbc, double Ox, double Oy, double Oz, double Lx, double Ly, double Lz );
-int DataSpace_SetupPairCalc ( DataSpace * ds, double cutoff, double nlcutoff, int beginEvolve, int useTAMDforces, double spline_min, int nKnots, char * splineoutputfile, int splineoutputfreq, int splineoutputlevel, int lamupdateinterval, int chnum );
+int DataSpace_Setup1Dchapeau ( DataSpace * ds, int numrep, double min, int nKnots, double max, int beginaccum, int useTAMDforces, char * outfile, int outfreq, int outlevel, int nupdate);
+chapeau * DataSpace_get_chapeauadress ( DataSpace * ds, int i );
 int DataSpace_getN ( DataSpace * ds );
 double * DataSpace_centerPos ( DataSpace * ds, int i );
 int DataSpace_AddAtomCenter ( DataSpace * ds, int n, int * ind, double * m );
 int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind ) ;
-int DataSpace_AddRestr  ( DataSpace * ds, double k, double targ, int nCV, double * cvc, char * rftypstr, double zmin, double zmax,char * boundf, double boundk );
-int DataSpace_AddTamdOpt ( DataSpace * ds, int ir, double g, double kt, double dt );
-int DataSpace_AddSmdOpt  ( DataSpace * ds, int ir, double target, int t0, int t1 );
+restrStruct * DataSpace_AddRestr  ( DataSpace * ds, double k, double targ, int nCV, double * cvc, char * rftypstr, double zmin, double zmax,char * boundf, double boundk );
+int restr_UpdateTamdOpt ( restrStruct * r, double g, double kt, double dt );
+int restr_AddTamdOpt ( restrStruct * r, double g, double kt, double dt );
+int restr_AddSmdOpt  ( restrStruct * r, double target, int t0, int t1 );
 int DataSpace_ComputeCVs ( DataSpace * ds );
 int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep );
 double DataSpace_RestraintEnergy ( DataSpace * ds );
@@ -288,3 +293,6 @@ int HarmonicCart_cutoff ( restrStruct * r );
 int HarmonicCart_pbc ( restrStruct * r );
 int HarmonicCart_cutoff_pbc ( restrStruct * r );
 
+double restr_getz ( restrStruct * r );
+double restr_getu ( restrStruct * r );
+int restr_set_rchid ( restrStruct * r, DataSpace * ds, int chid);
