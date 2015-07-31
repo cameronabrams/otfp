@@ -307,7 +307,50 @@ double my_getdihed ( double p1[3], double p2[3], double p3[3], double p4[3],
 }
 
 double my_whitenoise ( unsigned short xsubi[3]  ) {
-  //  return (1-2*erand48(xsubi))*M_SQRT3;
+  //return (1-2*erand48(xsubi))*M_SQRT3;
   return ((erand48(xsubi)+erand48(xsubi)+erand48(xsubi)+erand48(xsubi)+erand48(xsubi)+erand48(xsubi))-3.0)*M_SQRT2;
 }
 
+//double rang ( double r1, optional double r2 ) {
+//   /* Como la gasdev obtiene numeros con distribucion gaussiana de a pares,
+//      esta subrrutina se asegura que siempre pida numeros de a pares. De no ser
+//      asi, uno de los numeros se tira a la basura. Esto es para poder recuperar
+//      exactamente la secuencia de numeros random, dado que la variable de fase
+//      (gaus_stored) del numerical es interna */
+//     double trash;
+//     r1=gasdev();
+//     if(present(r2)) r2=gasdev()
+//}
+
+double gasdev() {  
+  //generate a standard normally-distributed (i.e. Gaussian) random
+
+  static int iset=0; 
+  static float gset; 
+  float fac,rsq,v1,v2; 
+
+  if (iset == 0) {  
+
+    //We don't have an extra deviate handy, so 
+    do { 
+      // pick two uniform numbers in the square 
+      // extending from -1 to +1 in each direction
+      //v1=2.0*ran1(idum,GENERATE,"a")-1.0; 
+      //v2=2.0*ran1(idum,GENERATE,"a")-1.0; 
+      // patch here to use drand48 (alexis)
+      v1=2.0*drand48()-1.0; 
+      v2=2.0*drand48()-1.0; 
+      rsq=v1*v1+v2*v2; // see if they are in the unit circle,
+    } while (rsq >= 1.0 || rsq == 0.0); // and if they are not, try again. 
+
+    // Box-Muller transformation to get two normal deviates.
+    // Return one and save the other for next time.
+    fac=sqrt(-2.0*log(rsq)/rsq); 
+    gset=v1*fac; 
+    iset=1; // Set ag. 
+    return (double) v2*fac; 
+  } else { // We have an extra deviate handy, 
+    iset=0; // so unset the ag, 
+    return (double) gset; // and return it. 
+  } 
+}

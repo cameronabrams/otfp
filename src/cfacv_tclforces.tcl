@@ -64,8 +64,11 @@ for {set i 0} { $i < $nCntr } { incr i } {
 
 
 # Set the pseudorandom number generator seed
-if {![info exists seed]} {set seed [clock clicks]}
-print "CFACV) setting seed to $seed"
+if {![info exists seed]} {
+  print "CFACV) setting seed from clock"
+  set seed [clock clicks]
+}
+print "CFACV) random seed $seed"
 
  
 # Set up list of CV's

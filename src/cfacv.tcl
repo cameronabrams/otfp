@@ -715,7 +715,9 @@ proc rlist_setup { ncv } {
     if {![info exists restr($i.bound)]} {set restr($i.bound) NADA}
     set restr($i.bound) [string toupper $restr($i.bound)]
     switch $restr($i.bound) {
-      NADA {}
+      NADA {
+        if {![info exists restr($i.boundk)]} {set restr($i.boundk) 0.}
+      }
       PERIODIC {
         set restr($i.min) [expr -1*acos(-1)]
         set restr($i.max) [expr acos(-1)]

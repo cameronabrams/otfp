@@ -215,7 +215,7 @@ int HarmonicCart_cutoff ( restrStruct * r ) {
 
   // Set up initial acording to a distribution around the CV
   if(!r->evolve) {
-    r->z=r->val+sqrt(r->tamdOpt->kT/r->k)*my_whitenoise(Xi);
+    r->z=r->val+sqrt(r->tamdOpt->kT/r->k)*gasdev();
     r->evolve=1;
   }
 
@@ -265,7 +265,7 @@ int HarmonicCart_cutoff_pbc ( restrStruct * r ) {
 
   // Set up initial acording to a distribution around the CV
   if(!r->evolve) {
-    r->z=r->val+sqrt(r->tamdOpt->kT/r->k)*my_whitenoise(Xi);
+    r->z=r->val+sqrt(r->tamdOpt->kT/r->k)*gasdev();
     r->evolve=1;
   }
 
@@ -328,7 +328,7 @@ int pbc ( restrStruct * r ) {
 int cbd ( restrStruct * r, double f ) {
   tamdOptStruct * tamd=r->tamdOpt;
   double dd = tamd->ginv*tamd->dt*f;
-  double rd = tamd->noise*my_whitenoise(Xi);
+  double rd = tamd->noise*gasdev();
 
   if (!r->evolve) return 0;
   r->tamd_noise=rd;
@@ -372,13 +372,25 @@ DataSpace * NewDataSpace ( int N, int M, int K, long int seed ) {
   ds->K=K;
   ds->iN=ds->iM=ds->iK=0;
 
-  // Random seed. I deatached this from the data space a do it global
-  // for all the file (see for example HarmonicCart_cutoff function)
-  Xi=(unsigned short *)malloc(3*sizeof(unsigned short));
-  Xi[0]=(seed & 0xffff00000000) >> 32;
-  Xi[1]=(seed & 0x0000ffff0000) >> 16;
-  Xi[2]= 0x330e;
+  // This will not work with numbers less that 16 bits!
+  //// Random seed. I deatached this from the data space a do it global
+  //// for all the file (see for example HarmonicCart_cutoff function)
+  //Xi=(unsigned short *)malloc(3*sizeof(unsigned short));
+  //Xi[0]=(seed & 0xffff00000000) >> 32;
+  //Xi[1]=(seed & 0x0000ffff0000) >> 16;
+  //Xi[2]= 0x330e;
+  //fprintf(stderr,"CFACV/C/PARANOIA) XI1 %u\n",Xi[0]);
+  //fprintf(stderr,"CFACV/C/PARANOIA) XI2 %u\n",Xi[1]);
+  //fprintf(stderr,"CFACV/C/PARANOIA) XI3 %u\n",Xi[2]);
+  srand48(seed);
+  fprintf(stderr,"CFACV/C/PARANOIA) first drand48 %.5f\n",drand48());
+  fprintf(stderr,"CFACV/C/PARANOIA) first gasdev %.5f\n",gasdev());
 
+  //pfout=fopen("/dev/urandom","r");
+  //fread(&kkk,sizeof(long int),1,pfout);
+  //srand48(kkk);
+  //oldptr=seed48(&Xi[0]);
+   
   ds->R=(double**)malloc(N*sizeof(double*));
   for (i=0;i<N;i++) ds->R[i]=calloc(3,sizeof(double));
 

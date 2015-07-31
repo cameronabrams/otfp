@@ -78,6 +78,7 @@
 struct cvStruct;  
 typedef struct CVSTRUCT cvStruct;
 #include "cvs.h"           // collective variables
+#include "measurements.h"  // random numbers
 
 
 // Temperature-accelerated MD options structure; will be owned by the

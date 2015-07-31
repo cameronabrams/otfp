@@ -15,3 +15,4 @@ double my_getbond  ( double p0[3], double p1[3], double g0[3], double g1[3] );
 double my_getangle ( double p0[3], double p1[3], double p2[3], double g0[3], double g1[3], double g2[3] );
 double my_getdihed ( double p1[3], double p2[3], double p3[3], double p4[3],
 		     double g1[3], double g2[3], double g3[3], double g4[3] );
+double gasdev();
