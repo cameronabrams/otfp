@@ -1,3 +1,4 @@
 src/*.o
 src/version
 src/*_wrap.c
+message

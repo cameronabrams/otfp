@@ -37,7 +37,6 @@ int main ( int argc, char * argv[] ) {
     ch[i]->outputFreq =ch[0]->outputFreq;
     ch[i]->outputLevel=ch[0]->outputLevel;
     ch[i]->ofp=ch[0]->ofp;
-    ch[i]->ofs=ch[0]->ofs;
     ch[i]->nupdate=1;
   }
 

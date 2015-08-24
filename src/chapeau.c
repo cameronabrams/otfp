@@ -44,8 +44,10 @@ void chapeau_sum ( chapeau * ch1, chapeau * ch2 ) {
 }
 
 chapeau * chapeau_alloc ( int m, double rmin, double rmax, int npart ) {
-  chapeau * ch = (chapeau*)malloc(sizeof(chapeau));
+  chapeau * ch;
   int d,i;
+
+  ch=(chapeau*)malloc(sizeof(chapeau));
 
   if (npart<1) {
     fprintf(stderr,"CFACV/C) ERROR: chapeau objects without particles\n");
@@ -101,24 +103,22 @@ void chapeau_setPeaks ( chapeau * ch, double * peaks ) {
 
 
 void chapeau_setupoutput ( chapeau * ch, char * filename, int outputFreq, int outputLevel ) {
-  char foo[255];
+
+  if (!ch) exit(-1);
+
+  // output
+  ch->ofp=fopen(filename,"w");
+  char * flag="CxCx";
+  fwrite(flag,sizeof(char),4,ch->ofp);
+  fwrite(&outputLevel,sizeof(int),1,ch->ofp);
+  fwrite(&ch->m,sizeof(int),1,ch->ofp);
+  ch->outputFreq=outputFreq;
+  ch->outputLevel=outputLevel;
+
+  // restart
+  strcpy(ch->filename,filename);
+  strcat(ch->filename,".restart");
     
-  if (ch) {
-    char * flag="CxCx";
-    ch->ofp=fopen(filename,"w");
-
-    //header
-    fwrite(flag,sizeof(char),4,ch->ofp);
-    fwrite(&outputLevel,sizeof(int),1,ch->ofp);
-    fwrite(&ch->m,sizeof(int),1,ch->ofp);
-
-    ch->outputFreq=outputFreq;
-    ch->outputLevel=outputLevel;
-
-    strcpy(foo,filename);
-    strcat(foo,".restart");
-    ch->ofs=fopen(foo,"w");
-  }
 }
 
 void chapeau_output ( chapeau * ch, int timestep ) {
@@ -140,52 +140,57 @@ void chapeau_output ( chapeau * ch, int timestep ) {
     }
     fflush(ch->ofp);
 
-    chapeau_savestate(ch,timestep);
   }
 }
 
-void chapeau_savestate ( chapeau * ch, int timestep ) {
-  if (ch&&ch->ofs&&!(timestep%ch->outputFreq)) {
-    int N=ch->N;
-    int m=ch->m;
+void chapeau_savestate ( chapeau * ch, int timestep, char * filename ) {
+  int N=ch->N;
+  int m=ch->m;
+  FILE *ofs;
 
-    rewind(ch->ofs);
-    fwrite(&timestep,sizeof(int),1,ch->ofs);
+  ofs=fopen(filename,"w");
 
-    fwrite(ch, sizeof(*ch), 1, ch->ofs);
-    fwrite(ch->hits,sizeof(*(ch->hits)),m,ch->ofs);
-    fwrite(ch->mask,sizeof(*(ch->mask)),N,ch->ofs);
-    //fwrite(ch->s,sizeof(***(ch->s)),m*N*3,ch->ofs);
+  fwrite(&timestep,sizeof(int),1,ofs);
+  fwrite(ch, sizeof(*ch), 1, ofs);
+  fwrite(ch->hits,sizeof(*(ch->hits)),m,ofs);
+  fwrite(ch->mask,sizeof(*(ch->mask)),N,ofs);
+  //fwrite(ch->s,sizeof(***(ch->s)),m*N*3,ofs);
 
-    gsl_matrix_fwrite(ch->ofs,ch->A);
-    gsl_vector_fwrite(ch->ofs,ch->b);
-    gsl_matrix_fwrite(ch->ofs,ch->Afull);
-    gsl_vector_fwrite(ch->ofs,ch->bfull);
-    gsl_vector_fwrite(ch->ofs,ch->lam);
-    fflush(ch->ofs);
-  }
+  gsl_matrix_fwrite(ofs,ch->A);
+  gsl_vector_fwrite(ofs,ch->b);
+  gsl_matrix_fwrite(ofs,ch->Afull);
+  gsl_vector_fwrite(ofs,ch->bfull);
+  gsl_vector_fwrite(ofs,ch->lam);
+
+  fclose(ofs);
+  
 }
 
 chapeau * chapeau_allocloadstate ( char * filename ) {
-    int i,m,N,d;
-    FILE * ofs=fopen(filename,"r");
+    int i,m,N;
+    FILE * ofs;
     chapeau * ch;
    
-    fread(&i,sizeof(int),1,ofs);
-    fprintf(stdout,"## Recovering chapeau state of step %i of some previous simulation\n",i);
+    fprintf(stdout,"CFACV) Allocating chapeau object from restart file\n");
 
     ch = (chapeau*)malloc(sizeof(chapeau));
   
+    // Reading only the size
+    ofs=fopen(filename,"r");
+    fread(&i,sizeof(int),1,ofs);
     fread(ch, sizeof(*ch), 1, ofs);
     N=ch->N;
     m=ch->m;
+    fclose(ofs);
    
+    // Allocating
     ch->hits=(int*)malloc(m*sizeof(int));
-    fread(ch->hits,sizeof(*(ch->hits)),m,ofs);
-
     ch->mask=(int*)malloc(N*sizeof(int));
-    fread(ch->mask,sizeof(*(ch->mask)),N,ofs);
-
+    ch->A=gsl_matrix_calloc(m,m);
+    ch->b=gsl_vector_calloc(m);
+    ch->Afull=gsl_matrix_calloc(m,m);
+    ch->bfull=gsl_vector_calloc(m);
+    ch->lam=gsl_vector_calloc(m);
     //ch->s=(double***) malloc(N*sizeof(double**));
     //for (i=0;i<N;i++) {
     //  ch->s[i]=(double**)malloc(3*sizeof(double*));
@@ -194,24 +199,61 @@ chapeau * chapeau_allocloadstate ( char * filename ) {
     //    fread(ch->s[i][d],sizeof(*(ch->s[i][d])),m,ofs);
     //  }
     //}
+  
+    //BUG? fread(&ch,sizeof(*ch),1,ofs);
 
-    ch->A=gsl_matrix_calloc(m,m);
+    // Now reading the state
+    chapeau_loadstate(ch,filename);
+
+    return ch;
+}
+    
+void chapeau_loadstate ( chapeau * ch, char * filename ) {
+    int i,m,N;
+    chapeau * chaux = (chapeau*)malloc(sizeof(chapeau));
+    FILE * ofs;
+   
+    ofs=fopen(filename,"r");
+
+    if (!ch) {
+      fprintf(stderr,"CFACV) ERROR in load chapeau file because holding object was not allocated\n");
+      exit(-1);
+    }
+
+    fread(&i,sizeof(int),1,ofs);
+    fprintf(stdout,"CFACV) Recovering chapeau state of step %i of some previous simulation\n",i);
+
+    // With chaux we prevent override of addresses (hits, mask, etc) when
+    // reading integers (N,M,et), that is only what we want... better way to do
+    // this?
+    fread(chaux, sizeof(*chaux), 1, ofs);
+    ch->N           = chaux->N          ;
+    ch->m           = chaux->m          ;
+    ch->nsample     = chaux->nsample    ;
+    ch->nupdate     = chaux->nupdate    ;
+    ch->alpha       = chaux->alpha      ;
+    strcpy(ch->filename,chaux->filename);
+    ch->outputFreq  = chaux->outputFreq ;
+    ch->outputLevel = chaux->outputLevel;
+    ch->rmin        = chaux->rmin       ;
+    ch->rmax        = chaux->rmax       ;
+    ch->dr          = chaux->dr         ;
+    ch->idr         = chaux->idr        ;
+
+    N=ch->N;
+    m=ch->m;
+     
+    fread(ch->hits,sizeof(*(ch->hits)),ch->m,ofs);
+    fread(ch->mask,sizeof(*(ch->mask)),ch->N,ofs);
+
     gsl_matrix_fread(ofs,ch->A);
-    ch->b=gsl_vector_calloc(m);
     gsl_vector_fread(ofs,ch->b);
-
-    ch->Afull=gsl_matrix_calloc(m,m);
     gsl_matrix_fread(ofs,ch->Afull);
-    ch->bfull=gsl_vector_calloc(m);
     gsl_vector_fread(ofs,ch->bfull);
-
-    ch->lam=gsl_vector_calloc(m);
     gsl_vector_fread(ofs,ch->lam);
 
-    fread(&ch,sizeof(*ch),1,ofs);
     fclose(ofs);
- 
-    return ch;
+    free(chaux);
 }
     
 void chapeau_update_peaks ( chapeau * ch ) {

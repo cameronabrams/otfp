@@ -92,19 +92,78 @@ if {[info exists restart_root]} { #restart
 
 # Set initial (or restart) temperature 
 proc replica_temp { i } {
-  global num_replicas min_temp max_temp
-  return [format "%.2f" [expr ($min_temp * \
-         exp( log(1.0*$max_temp/$min_temp)*(1.0*$i/($num_replicas-1)) ) )]]
-}
+  global num_replicas min_temp nmin_temp max_temp
+  
+  # This funciton use the formtula for the probability of aceptation from:
+  #
+  # Kone, A., & Kofke, D. a. (2005). Selection of temperature intervals for
+  # parallel-tempering simulations. Journal of Chemical Physics, 122(20), 1–2.
+  # http://doi.org/10.1063/1.1917749
+  #
+  # and set the temperature of each replica by fixing a constant probability of
+  # aceptation for all the replicas and using as input max_temp (the
+  # temperature of the last replica) and min_temp (the temperature of the
+  # nmin_temp replica).
+  
+  if {![info exists nmin_temp]} {set nmin_temp 0}
+
+  # FIXME, need Cp
+  # set Max [expr pow($max_temp,1./($num_replicas-1.-$nmin_temp))]
+  # set min [expr pow($min_temp,1./($num_replicas-1.-$nmin_temp))]
+  # puts "The probabiliy of acceptance will be near to [expr ($Max-$min)/($min+$Max)]"
+         
+  # In the simple case the target temperature is also the minimum temperature
+  # and nmin_temp=0, then return [format "%.2f" [expr
+  # $min_temp*pow(1.*$max_temp/$min_temp,1.*$i/($num_replicas-1.))] ]
+
+  # However, one could need nmin_temp extra replicas under the target
+  # temperature, to imporove the sampling on it. Considering that num_replicas
+  # also include the nmin_temp extra replicas, the general case will be:
+
+  #return [format "%.2f" [expr $max_temp*pow($m/$M,$num_replicas-1-$i)]]
+  return [format "%.2f" [expr $max_temp*pow(1.*$min_temp/$max_temp,($num_replicas-1.-$i)/($num_replicas-1.-$nmin_temp))]]
+
+  # So if nmin_temp=2 and num_replicas=18, there will be 2 of the 18 replicas
+  # below the target temperature min_temp. In this case the replicas 2 to 17 will
+  # have the same distribution that if nmin_temp=0 and num_replicas=16. To
+  # understand better, paste this in gnuplot:
+  #
+  # f(x,m,M,N)=m*exp(log(M/m)*(x)/(N-1)) 
+  # f2(x,m,M,N,s)=(m/M**s)**(1./(1-s))*exp(log(M*(M**s/m)**(1./(1-s)))*(x)/(N-1))
+  # plot [0:17] '+' u ($0):(f2($0,300.,400.,18.,2./17)) t 'general function',\
+  #             '+' u ($0+2):(f($0,300.,400.,16.)) t 'function assuming nmin_temp=0'
+  # 
+  # Or follow the next test in tcl:
+  # % set min_temp 300
+  # % set max_temp 400
+  # % set nmin_temp 0
+  # % set num_replicas 16
+  # % puts "[replica_temp 0] [replica_temp 1] [replica_temp 15]"
+  # 300.00 305.81 400.00
+  # % set nmin_temp 2
+  # % set num_replicas 18
+  # % puts "[replica_temp 0] [replica_temp 1]"
+  # 288.71 294.30
+  # % puts "[replica_temp 2] [replica_temp 3] [replica_temp 17]"
+  # 300.00 305.81 400.00
+}  
 
 set replica(temperature)   [replica_temp $replica(index)]
 set replica(temperature.a) [replica_temp $replica(index.a)]
 set replica(temperature.b) [replica_temp $replica(index.b)]
 set replica(beta)          [expr 1.0/($replica(temperature)*$kB_kcm)]
-set replica(beta.a)        [expr 1.0/($replica(temperature.a)*$kB_kcm)]
-set replica(beta.b)        [expr 1.0/($replica(temperature.b)*$kB_kcm)]
-set dbeta(a) [expr $replica(beta.a)-$replica(beta)]
-set dbeta(b) [expr $replica(beta.b)-$replica(beta)]
+set replica(dbeta.a)       [expr 1.0/($replica(temperature.a)*$kB_kcm)-$replica(beta)]
+set replica(dbeta.b)       [expr 1.0/($replica(temperature.b)*$kB_kcm)-$replica(beta)]
+
+# Output
+set job_output_root "${output_root}job$i_job"
+outputname              [format $job_output_root $replica_id]
+firsttimestep           $i_step
+
+# mystderr error to avoid parallel hits on stderr
+set mystderr [open [format "$job_output_root.mystderr" $replica_id] "w"]
+fconfigure $mystderr -buffering line
+
 
 # Save variables
 proc save_callback {labels values} {
@@ -128,16 +187,11 @@ proc save_array {} {
 # seed variable is also used by OTFP
 set seed [expr int(0*srand(int(100000*rand()) + 100*$replica_id) + 100000*rand() + 1)]
 seed $seed
-puts stderr "random seed on replica $replica_id $seed"
+puts $mystderr "random seed on replica $replica_id $seed"
 
-# Output
-set job_output_root "${output_root}job$i_job"
-outputname          [format $job_output_root $replica_id]
-firsttimestep       $i_step
-   
 # Initial temperature
-set NEWTEMP      $replica(temperature)
-langevinTemp     $NEWTEMP
+set NEWTEMP        $replica(temperature)
+langevinTemp       $NEWTEMP
 
 # Initial state
 if {$i_run} {
@@ -191,13 +245,13 @@ while {$i_run < $num_runs} {
     # Compute Delta U term
     set dpot  [replicaRecv $replica(loc.$swap)]
     set dpot  [expr ($dpot-$POTENTIAL)]
-    set delta [expr $dbeta($swap)*$dpot]
+    set delta [expr $replica(dbeta.$swap)*$dpot]
 
     # Metropoli creiterion and send results
     set prob [expr exp($delta)]
-    set doswap [expr $delta > 0. || $prob > rand()]
+    set nrand [expr rand()]
+    set doswap [expr $delta > 0. || $prob > $nrand]
 
-    puts stderr "DELTA_INFO $i_run, $replica_id $replica(loc.$swap), $replica(index) $replica(index.$swap), $prob, $dbeta($swap) $dpot"
     # To make a fake replica exchange with no exchange
     # uncoment this
     # set doswap 0
@@ -205,9 +259,11 @@ while {$i_run < $num_runs} {
     replicaSend $doswap $replica(loc.$swap)
 
     if { $doswap } {
-      puts stderr "EXCHANGE_ACCEPT $replica(temperature) $replica(temperature.$swap)"
+      # puts $mystderr "EXCHANGE_ACCEPT $replica(temperature) $replica(temperature.$swap)"
       incr replica(exchanges_accepted)
     }
+
+    puts $mystderr "DELTA_INFO $i_run $doswap $replica_id $replica(loc.$swap) $replica(index) $replica(index.$swap) $prob $nrand $replica(dbeta.$swap) $dpot"
 
     incr replica(exchanges_attempted)
   }
@@ -261,13 +317,13 @@ while {$i_run < $num_runs} {
   # Restart
   if { $i_run % $runs_per_restart == 0 || $i_run == $num_runs } {  
 
-    # All the processor should dump the local state
     set restart_root "$job_output_root.restart$i_run"
+
+    # All the processor should dump namd local state
     output [format $restart_root $replica_id]
     set rfile [open [format "$restart_root.tcl" $replica_id] "w"]
     puts $rfile [list array set replica [array get replica]]
     close $rfile
-    # TODO: Dump chapeau state
 
     # Let processor 1 to write to the restart the global info
     replicaBarrier
@@ -313,7 +369,7 @@ if $attempts {
   set temp2 $replica(temperature.$swap)
   set accepts $replica(exchanges_accepted)
   set ratio [expr 1.0*$accepts/$attempts]
-  puts stderr "EXCHANGE_RATIO $replica(index) $replica(index.$swap) $temp $temp2 $accepts $attempts $ratio"
+  puts $mystderr "EXCHANGE_RATIO $replica(index) $replica(index.$swap) $temp $temp2 $accepts $attempts $ratio"
 }
 
 replicaBarrier

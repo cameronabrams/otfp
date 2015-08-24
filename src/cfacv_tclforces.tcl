@@ -105,11 +105,13 @@ if {[info exists CFACV_doAnalyticalCalc]} {
     chapeau_setup $NUMREP $ds $XSCFILE $SPLINEMIN $NKNOTS $CUTOFF $BEGINEVOLVEPARAMETERS $USETAMDFORCES $BINREPORTPARAMFILE $BINREPORTPARAMFREQ $BINOUTPUTLEVEL $LAMUPDATEINTERVAL
   }
 }
-       
 
 # read z values from a restart file
 set first 1
-if {[info exists restartINP]} {set first [Tcl_Reinitialize $ds $restartINP]}
+if {[info exists restart_root]} {
+  cfacv_loadstate $ds $NUMREP $restart_root
+  set first 0
+}
 
 # Some default values regarding output
 if {![info exists TAMDof]}          {set TAMDof 1 }

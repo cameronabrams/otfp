@@ -22,7 +22,11 @@ typedef struct CHAPEAU {
   int outputFreq;
   int outputLevel;
 
-  FILE * ofs; // for save current chapeu status
+  // Since restart file is open and closed in the subrroutine, might be better
+  // to store the name and not the unit? Besides, if I want to take advantage
+  // of save state subroutines using another name?
+  char filename[255]; 
+
   // file name is the same of ofp but with a .restart prefix
 
   //// single-particle-sums; initialize at every step, every particle
@@ -73,10 +77,14 @@ void chapeau_setPeaks ( chapeau * ch, double * peaks );
 
 void chapeau_pair_eval_g ( chapeau * ch, double z, double * u, double * g_r );
 
+// Output system
 void chapeau_setupoutput ( chapeau * ch, char * filename, int outputFreq, int outputLevel );
 void chapeau_output ( chapeau * ch, int timestep );
-void chapeau_savestate ( chapeau * ch, int timestep );
+
+// Restart system
+void chapeau_savestate ( chapeau * ch, int timestep, char * filename );
 chapeau * chapeau_allocloadstate ( char * filename ) ;
+void chapeau_loadstate ( chapeau * ch, char * filename ) ;
 
 void chapeau_init_global_accumulators ( chapeau * ch );
 

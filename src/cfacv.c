@@ -112,9 +112,11 @@ restrStruct * New_restrStruct (
     if      (newr->rfityp==HARMONIC) {newr->energyFunc = HarmonicCart_pbc;}
     else if (newr->rfityp==HARMCUTO) {newr->energyFunc = HarmonicCart_cutoff_pbc;}
   } else if (b_peri) {
-    //TODO
-    //if      (newr->rfityp==HARMONIC) {newr->energyFunc = HarmonicCart_periodic;}
-    //else if (newr->rfityp==HARMCUTO) {newr->energyFunc = HarmonicCart_cutoff_periodic;}
+    if      (newr->rfityp==HARMONIC) {newr->energyFunc = HarmonicCart_pbc;}
+    else {
+      fprintf(stderr, "Error: TODO HARMCUTO with periodic");
+      exit(1);
+    }
   } else {
     if      (newr->rfityp==HARMONIC) {newr->energyFunc = HarmonicCart;}
     else if (newr->rfityp==HARMCUTO) {newr->energyFunc = HarmonicCart_cutoff;}
@@ -167,21 +169,51 @@ int smdOptInit ( smdOptStruct * smd, double initval) {
   
 }
 
-void ds_saverestrains ( DataSpace * ds, int timestep ) {
+void ds_saverestrains ( DataSpace * ds, int timestep, char * filename ) {
   int i;
   restrStruct * r;
+  FILE * ofs;
 
-  if (!(timestep%ds->restrsavefreq)) {
-    rewind(ds->restrofs);
-    for (i=0;i<ds->iK;i++) {
-      r=ds->restr[i];
-      fwrite(&(r->z),sizeof(double),1,ds->restrofs);
-      fwrite(&(r->val),sizeof(double),1,ds->restrofs);
-    }
-    fflush(ds->restrofs);
+  ofs=fopen(filename,"w");
+
+  fwrite(&timestep,sizeof(int),1,ofs);
+  fwrite(&ds->iK,sizeof(int),1,ofs);
+  for (i=0;i<ds->iK;i++) {
+    r=ds->restr[i];
+    fwrite(&(r->z),sizeof(double),1,ofs);
+    fwrite(&(r->val),sizeof(double),1,ofs);
   }
+
+  fclose(ofs);
+  
 }
 
+void ds_loadrestrains ( DataSpace * ds, char * filename ) {
+  int i;
+  restrStruct * r;
+  FILE * ofs;
+  
+  ofs=fopen(filename,"r");
+
+  fread(&i,sizeof(int),1,ofs);
+  fprintf(stdout,"CFACV) Recovering restraint state of step %i of some previous simulation\n",i);
+
+  fread(&i,sizeof(int),1,ofs);
+  if ( i!=ds->iK ) {
+    fprintf(stderr,"CFACV) ERROR restraint restart because holding object has not the proper size\n",i);
+    exit(-1);
+  }
+
+  for (i=0;i<ds->iK;i++) {
+    r=ds->restr[i];
+    fread(&(r->z),sizeof(double),1,ofs);
+    fread(&(r->val),sizeof(double),1,ofs);
+    printf("CFACV/C) Recovering restraint %i, z=%.5f; val=%.5f \n",i,r->z,r->val);
+  }
+
+  fclose(ofs);
+
+}
 
 //ENERGY FUNCTIONS
 
@@ -383,8 +415,9 @@ DataSpace * NewDataSpace ( int N, int M, int K, long int seed ) {
   //fprintf(stderr,"CFACV/C/PARANOIA) XI2 %u\n",Xi[1]);
   //fprintf(stderr,"CFACV/C/PARANOIA) XI3 %u\n",Xi[2]);
   srand48(seed);
-  fprintf(stderr,"CFACV/C/PARANOIA) first drand48 %.5f\n",drand48());
-  fprintf(stderr,"CFACV/C/PARANOIA) first gasdev %.5f\n",gasdev());
+  fprintf(stderr,"CFACV/C/PARANOIA) first drand48 will be %.5f\n",drand48());
+  fprintf(stderr,"CFACV/C/PARANOIA) first gasdev  will be %.5f and %.5f\n",gasdev(),gasdev());
+  srand48(seed);
 
   //pfout=fopen("/dev/urandom","r");
   //fread(&kkk,sizeof(long int),1,pfout);
@@ -473,11 +506,9 @@ int DataSpace_Setup1Dchapeau ( DataSpace * ds, int numrep, double min, int nKnot
     ds->ch[i]->nupdate=nupdate;
   }
 
+  //restart
   ds->restrsavefreq=outfreq;
-
-  //TODO: this two lines should be before the restart
-  sprintf(buf, "%s_restr.restart",outfile);
-  ds->restrofs=fopen(buf,"w");
+  sprintf(ds->filename, "%s_restr.restart",outfile);
 
   ds->lamfric=0.0;
   ds->lamdt=0.0;
@@ -598,13 +629,13 @@ int restr_set_rchid ( restrStruct * r, DataSpace * ds, int chid) {
   return 0;
 }
  
-int restr_AddTamdOpt ( restrStruct * r, double g, double kt, double dt ) {
+int restr_AddTamdOpt ( restrStruct * r, double g, double kt, double dt, int chid ) {
   
   if (!r) return -1;
 
   r->evolveFunc = cbd;
   r->tamdOpt=New_tamdOptStruct(g,kt,dt,r->rfityp);
-  r->chid = 0;
+  r->chid = chid;
   return 0;
 }
 
@@ -637,17 +668,6 @@ double restr_getz ( restrStruct * r ) {
 double restr_getu ( restrStruct * r ) {
   if (!r) return -1;
   return r->u;
-}
-  
-int DataSpace_SetRestraints ( DataSpace * ds, double * rval ) {
-  int i;
-  restrStruct * r;
-  for (i=0;i<ds->iK;i++) {
-    r=ds->restr[i];
-    r->z=rval[i];
-    printf("CFACV/C) Reinitialize Z[%i] = %.5f\n",i,r->z);
-  }
-  return 0;
 }
 
 int DataSpace_ComputeCVs ( DataSpace * ds ) {
@@ -850,9 +870,14 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 
         if (timestep>ds->beginaccum && !(timestep % ch->nupdate)) {
           chapeau_update_peaks(ch);
+
           //aux=ch->nsample/ch->nupdate
           //if(!(aux%ch->outputFreq)) chapeau_output(ch);
-          chapeau_output(ch,timestep);
+
+          if (!(timestep % ch->outputFreq)) {
+            chapeau_output(ch,timestep);
+            chapeau_savestate(ch,timestep,ch->filename);
+          }
         }
       }
     }
@@ -883,7 +908,7 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
   }
 
   //Save restr trajectory for future restart
-  if (!(timestep % ds->restrsavefreq)) ds_saverestrains(ds,timestep);
+  if (!(timestep % ds->restrsavefreq)) ds_saverestrains(ds,timestep,ds->filename);
 
   return 0;
 }
@@ -969,15 +994,26 @@ void DataSpace_ReportRestraints ( DataSpace * ds, int step, int outputlevel, FIL
       fprintf(fp,"% 11.5f",ds->restr[i]->tamd_restraint);
     }
     fprintf(fp,"\n");
-  }
-  if (outputlevel & 8) {
     fprintf(fp,"CFACV_OTFP/C) ND % 10i ",step);
     for (i=0;i<ds->iK;i++) {
       fprintf(fp,"% 11.5f",ds->restr[i]->tamd_noise);
-    }
+    } 
+  }
+  if (outputlevel & 8) {
     fprintf(fp,"\n");
+    fprintf(fp,"CFACV_OTFP/C) CHid % 10i ",step);
+    for (i=0;i<ds->iK;i++) {
+      fprintf(fp,"%d",ds->restr[i]->chid);
+    }
+    fprintf(fp,"\n"); 
+    fprintf(fp,"CFACV_OTFP/C) kT % 10i ",step);
+    for (i=0;i<ds->iK;i++) {
+      fprintf(fp,"% 11.5f",ds->restr[i]->tamdOpt->kT);
+    }
+    fprintf(fp,"\n"); 
   }
   fflush(fp);
+
 /*   printf("CFACV_OTFP/C) INFO %i ",step); */
 /*   for (i=0;i<ds->iK;i++) { */
 /*     printf(" | typ %s min %.5lf max %.5lf ",rf_getstyp(ds->restr[i]->rfityp),ds->restr[i]->min,ds->restr[i]->max); */

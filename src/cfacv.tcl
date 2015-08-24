@@ -721,6 +721,7 @@ proc rlist_setup { ncv } {
       PERIODIC {
         set restr($i.min) [expr -1*acos(-1)]
         set restr($i.max) [expr acos(-1)]
+        if {![info exists restr($i.boundk)]} {set restr($i.boundk) 0.}
       }
       PBC {
         if {![info exists restr($i.min)]}    {error "CFACV) ERROR: restraint need max value"}
@@ -734,6 +735,7 @@ proc rlist_setup { ncv } {
       default {error "ERROR: $restr($i.bound) is not a valid boundary type."} 
     }
 
+        
 
     # Allocating ds->restr[i] in the C code.
     set pcvc [ListToArray $restr($i.cvc)]
@@ -747,11 +749,26 @@ proc rlist_setup { ncv } {
       TAMD {
         if {![info exists restr($i.g)]}     {error "CFACV) ERROR: TAMD restraint need g"}
         if {![info exists restr($i.dt)]}    {error "CFACV) ERROR: TAMD restraint need dt"}
-        if {![info exists restr($i.temp)]}  {error "CFACV) ERROR: TAMD temperature variable is needed."}
         if {![info exists restr($i.chid)]}  {set restr($i.chid) 0}
 
-        # DataSpace_AddTamdOpt $ds $ir $restr($i.g) [expr $temperature*$restr($i.biasf)*0.00198735] $restr($i.dt)
-        restr_AddTamdOpt $restr($i.address) $restr($i.g) [expr $restr($i.temp)*0.00198735] $restr($i.dt)
+        if {[info exists restr($i.temp)]}  {
+          set ktaux [expr $restr($i.temp)*0.001987191]
+        }
+
+        if {[info exists restr($i.biasf)]}  {
+
+          if {![info exists temperature]} {error "CFACV) ERROR: restr(biasf) declared but not temperature"}
+          set ktaux [expr $temperature*$restr($i.biasf)*0.001987191]
+
+          if {[info exists restr($i.temp)]} {
+            if [expr {abs($temperature-$restr($i.temp)) < 1e-6}] {error "CFACV) ERROR: Declared restr(temp) differ from the desire restr(biasf)."}
+          }
+        }
+
+        if {![info exists ktaux]}  {error "CFACV) ERROR: TAMD temperature info is needed."}
+
+        # DataSpace_AddTamdOpt $ds $ir $restr($i.g) [expr $temperature*$restr($i.biasf)*0.001987191] $restr($i.dt)
+        restr_AddTamdOpt $restr($i.address) $restr($i.g) $ktaux $restr($i.dt) $restr($i.chid)
       }
       SMD {
         if {![info exists restr($i.target)]} {error "CFACV) ERROR: SMD restraint need target"}
@@ -948,20 +965,39 @@ proc chapeau_setup { NUMREP ds XSCFILE min N max begin_evolve usetamdforces outp
     }
 }
 
-proc Tcl_Reinitialize { ds restartINP } {
-    if {[file exists $restartINP]} {
-	print "CFACV) Reinitializing Z values from $restartINP"
-	set fp [open $restartINP "r"]
-	set zinp [read -nonewline $fp]
-	close $fp
-	DataSpace_SetRestraints $ds [ListToArray $zinp]
-	return 0
-    } else {
-	print "CFACV) Error: could not find restart file $restartINP"
-	print "CFACV) Initial z-values taken from CV's."
-	return 1
+proc cfacv_loadstate { ds NUMREP output_root } {
+    global chape     
+  
+    set f $output_root.rstr 
+    print "CFACV) Reinitializing restraints from $f"
+    if {![file exists $f]} {error "CFACV) Error: file not found"}
+    ds_loadrestrains $ds $f
+
+    # print "CFACV) is setting the namd random seed to $seed"
+    # set seed [ds_seed]
+    # seed $seed
+
+    for {set i 0} {$i < $NUMREP} {incr i} {
+      set f $output_root.ch$i
+      print "CFACV) Reinitializing chapeau $i from $f"
+      if {![file exists $f]} {error "CFACV) Error: file not found"}
+      print "$chape($i.address) $f"
+      chapeau_loadstate $chape($i.address) $f
     }
+
 }
+
+proc cfacv_savestate { ds timestep NUMREP output_root} {
+    global chape     
+
+    puts "CFACV) Writing restart files with basename $output_root"
+    ds_saverestrains $ds $timestep $output_root.rstr
+
+    for {set i 0} {$i < $NUMREP} {incr i} {
+      chapeau_savestate $chape($i.address) $timestep $output_root.ch$i
+    }
+
+} 
 
 proc Tcl_UpdateDataSpace { ds lC groups first timestep } {
     upvar $lC p
