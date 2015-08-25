@@ -2,6 +2,26 @@
 # Cameron F Abrams
 # 2009-14
 
+# This script is intended to be sourced by namd tclforce feature.  Therefore
+# some of the procedures or variables used here are intrinsec of NAMD or can be
+# found in the NAMD config file or in NAMD tcl master script for replica
+# exechange.
+#
+# Procedures or variables defined in the tcl master script for replica
+# exechanges will be aviabales here. At the same time procedures or variables
+# defined in the present scope will be aviabales in tcl master script only
+# after first run command invocation are executed in that script.
+# 
+# NOTE: NAMD require that the tcl command "puts" be replaced by "print" here.
+#
+
+# Global variables
+set CFACV_VERSION 0.30
+set kB_kcm 0.001987191
+
+# load the C-module
+load ${CFACV_BASEDIR}/cfacv.so cfa_cvlibc
+
 # will die if CFACV_BASEDIR is invalid
 source ${CFACV_BASEDIR}/cfacv.tcl
 
@@ -10,26 +30,8 @@ cfacv_banner NAMD
 # Search for missing key
 set tripped 0
 foreach key {labelPDB cvINP} {
-    if {![info exists $key]} {
-	print "CFACV) ERROR: you must set $key in the NAMD config. file."
-	exit
-    }
+  if {![info exists $key]} {error "CFACV) ERROR: you must set $key in the NAMD config. file."}
 }
-
-# FIXME: This code was here to allow compute chapeau functions separatedly
-# for different pair types of particles. For instance, this allow to
-# recover SOD SOD, CLA CLA and SOD CLA pair potentials in 1 TAMD
-# simulation. Each index has a number in ch_id which allow to sort the pair
-# in the different chapeau objects on the c code.  From the studies with
-# SOD CLA, this pair potentials will be OK only if the ficticius
-# temperature is the same that the real one.  On the other hand, a better
-# way to achive this is needed (without saving a lot of numbers in ch_id).
-# For understand how this worked, see the previous versions of the code.
-# # chplist holds the list of pair potential types 
-# # e.g. {{SOD CLA} {CLA CLA} {SOD SOD}}
-# if {![info exists chlist]} {set chlist "{}"}
-# set chnum [llength $chlist]
-set chnum 1
 
 
 #### Get the groups using the addgroup of tclforces
@@ -60,80 +62,56 @@ for {set i 0} { $i < $nCntr } { incr i } {
     lappend groups $gid
 }
 
+
+# Set the pseudorandom number generator seed
+if {![info exists seed]} {
+  print "CFACV) setting seed from clock"
+  set seed [clock clicks]
+}
+print "CFACV) random seed $seed"
+
+ 
 # Set up list of CV's
+#cvList is some like {CARTESIAN_X 0} {CARTESIAN_Y 0} ....
 set cvList {}
 set nCV [read_cvs $cvINP cvList pdbline]
+if {!$nCV} {error "CFACV) ERROR: wrong cv.inp file. See mk_tPDB.tcl"}
 print "CFACV) nCV $nCV"
-
-#Now, cvList is some like {CARTESIAN_X 0} {CARTESIAN_Y 0} ....
 if {[info exists TAMDverbose]} {print "CFACV) cvList: $cvList"}
 
-if {!$nCV} {
-    print "CFACV) ERROR: Perhaps you need to use mk_tPDB.tcl to generate the cv.inp file?"
-}
 
-# Set up list of restraints
-set rList {}
-if {[info exists restrINP]} {
-    set nR [read_restraints $restrINP $nCV rList]
-    print "CFACV) $restrINP : nRestraints $nR"
-} else {
-    set nR [create_single_cv_restraints $nCV rList $restrPARAMS]
-    print "CFACV) $nR single-cv restraints created:"
-}
+# Allocate dataspace in C code
+set ds [NewDataSpace $nCntr $nCV $restr(num) $seed]
 
-if {[info exists TAMDverbose]} {foreach r $rList {print "CFACV) $r"}}
- 
-#Now, rListis something like "{{1 0 0 0 0} {k 1600} {AMDkT 0.19} {TAMDgamma
-#1} {TAMDdt 0.002}} {{0 1 0 0 0} {k 1600} {AMDkT 0.19} {TAMDgamma 1}
-#{TAMDdt 0.002}} ... "
+# Add restraints to the dataspace structure and setup restraint global variable
+rlist_setup $nCV
 
+# Add CVs to the dataspace structure
+cvs_setup
 
-# set the pseudorandom number generator seed
-#if {![info exists seed]} {set seed [clock clicks]}
-print "CFACV) setting seed to $seed"
-   
-# declare and allocate data space
-# Here all the previous information is stacked
-set ds [Tcl_NewDataSpace $nCntr $cvList $rList $seed]
-
-# OTFP
-if {[info exists CFACV_doAnalyticalCalc] && $CFACV_doAnalyticalCalc == 1} {
-
+# Add chapeau to the dataspace structure and setup chapeau global variable
+# TODO: improve chapeau global variable
+if {[info exists CFACV_doAnalyticalCalc]} {
+  if {$CFACV_doAnalyticalCalc == 1} {
     if {![info exists USETAMDFORCES]} {set USETAMDFORCES 0}
 
-    # currently only option is a pairwise analytical potential
-    Tcl_InitializePairCalc $ds $XSCFILE $CUTOFF $NLCUTOFF $BEGINEVOLVEPARAMETERS $USETAMDFORCES $SPLINEMIN $NKNOTS $BINREPORTPARAMFILE $BINREPORTPARAMFREQ $BINOUTPUTLEVEL $LAMUPDATEINTERVAL $chnum
+    # Replica exechange mode: 
+    if {![info exists NUMREP]} {set NUMREP 1}
+    # TODO: NUMREP podria ser un numero de chapeaus distintos (estilo el
+    # problema sodio cloro) a obtener en una simulacion. En ese caso
+    # corregir.
 
-    # FIXME. Add a index to load a  initial knots file for each chapeau
-    # if {[info exists initKnotsINP]} {Tcl_DataSpace_InitKnots $ds $initKnotsINP}
-
-    # # Pair potentinal interaction
-    # FIXME: This code was here to allow compute chapeau functions separatedly
-    # for different pair types of particles. For instance, this allow to
-    # recover SOD SOD, CLA CLA and SOD CLA pair potentials in 1 TAMD
-    # simulation. Each index has a number in ch_id which allow to sort the pair
-    # in the different chapeau objects on the c code.  From the studies with
-    # SOD CLA, this pair potentials will be OK only if the ficticius
-    # temperature is the same that the real one.  On the other hand, a better
-    # way to achive this is needed (without saving a lot of numbers in ch_id).
-    # For understand how this worked, see the previous versions of the code.
-    # intListToArray_Data [DataSpace_chid $ds ] $ch_id
-    # print "CFACV) The pair chapeau (map in vector) is:"
-    # for {set i 0} { $i < $nCntr } { incr i } {
-    #   set aux ""
-    #   for {set j 0} { $j <= $i } { incr j } {set aux "$aux  "}
-    #   for {set j [expr $i+1]} { $j < $nCntr } { incr j } {
-    #     set aux "$aux [lindex $ch_id [expr $j+($nCntr-2)*$i-($i-1)*$i/2-1]]"
-    #   }
-    #   puts $aux
-    # }
-              
+    # Saving for allocate chapeau functions
+    chapeau_setup $NUMREP $ds $XSCFILE $SPLINEMIN $NKNOTS $CUTOFF $BEGINEVOLVEPARAMETERS $USETAMDFORCES $BINREPORTPARAMFILE $BINREPORTPARAMFREQ $BINOUTPUTLEVEL $LAMUPDATEINTERVAL
+  }
 }
 
 # read z values from a restart file
 set first 1
-if {[info exists restartINP]} {set first [Tcl_Reinitialize $ds $restartINP]}
+if {[info exists restart_root]} {
+  cfacv_loadstate $ds $NUMREP $restart_root
+  set first 0
+}
 
 # Some default values regarding output
 if {![info exists TAMDof]}          {set TAMDof 1 }
