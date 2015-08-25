@@ -1,0 +1,529 @@
+#!/usr/bin/tclsh
+
+replicaBarrier
+
+# Boltzman constant
+set kB_kcm 0.001987191
+
+# This should be set for each particular system taking in account a high
+# probability configuration
+set zprob 2.5
+
+# The replica_id is the procesor where the present replica runs. A replica can
+# change its temperature (index) but will never change its replica_id. So
+# replica_id is constant during this script. 
+set NUMREP [numReplicas]
+if { $num_replicas != $NUMREP } {error "restart with wrong number of replicas"}
+set replica_id [myReplica]
+
+if {[info exists restart_root]} { #restart
+  set restart_root [format $restart_root $replica_id]
+  source $restart_root.tcl
+} else {
+  set i_job 0 
+  set i_run 0
+  set i_step 0
+  if {[info exists first_timestep]} {
+    set i_step $first_timestep
+  }
+
+  # index is the replica index in the temperature scale.  "temp_id" could have
+  # been a happiest name for this variable.
+  set replica(index) $replica_id
+
+  # index.a and index.b is only defined in order to compute the acceptance
+  # always using the lower temperature. Note that this is not required for the
+  # algorithm, but it will allows to keep an statistics of exechange ratios
+  # (the exechange 3-4 is stored in 3)
+  set replica(index.a) $replica_id
+  set replica(index.b) $replica_id
+
+
+  # loc.a and loc.b holds the replica_id of the replica with the nearest
+  # lower or nearest higher temperature (previus or next replica index in the
+  # temperature scale). "replica_id.a" could have been a happiest name for this
+  # variable. loc.a can be either the next or the previous replica in the
+  # temperature scale, since it swap with loc.b after each exchange attempt.
+  # Note: replica moves in the temperature scale so the replica_id of the
+  # nearest replicas in temperature is a priori unkown.
+  set replica(loc.a) $replica_id
+  set replica(loc.b) $replica_id
+  set replica(exchanges_attempted) 0
+  set replica(exchanges_accepted) 0
+
+  # Initially, a map of the replica network will be:
+  #
+  #              a         b       a          b
+  # temp         300     330      360       ...       600
+  # index        0 <----> 1 <----> 2 <----> ... <----> n
+  # replica_id   0        1        2        ...        n
+  #
+  # if replica_id is odd, left replica is "a" and right replica is "b".
+  # if replica_id is even, left replica is "b" and right replica is "a"
+  #
+  # "a" and "b" pairs are alternately considered in the swaping attempt. So in
+  # each turn, if 0 swap with 1, 2 can swap with 3 safety. In all the cases,
+  # only the replica with lower temperature (index) is in charge to compute the
+  # metropoly crietrion while the other replica only send the needed information.
+  #
+  # After a number of swaps, the new scheme could be
+  #
+  #              a         b       a          b
+  # temp         330     450      600       ...       260
+  # index        1 <----> 4 <----> n <----> ... <----> 2
+  # replica_id   0        1        2        ...        n
+
+  if { $replica_id % 2 == 0 && $replica_id+1 < $NUMREP } {
+    set replica(loc.a) [expr $replica_id+1]
+    set replica(index.a) [expr $replica_id+1]
+  }
+  if { $replica_id % 2 == 1 && $replica_id > 0 } {
+    set replica(loc.a) [expr $replica_id-1]
+    set replica(index.a) [expr $replica_id-1]
+  }
+
+  if { $replica_id % 2 == 1 && $replica_id+1 < $NUMREP } {
+    set replica(loc.b) [expr $replica_id+1]
+    set replica(index.b) [expr $replica_id+1]
+  }
+  if { $replica_id % 2 == 0 && $replica_id > 0 } {
+    set replica(loc.b) [expr $replica_id-1]
+    set replica(index.b) [expr $replica_id-1]
+  }
+
+}
+
+
+# Set initial (or restart) temperature 
+proc replica_temp { i } {
+  global num_replicas min_temp nmin_temp max_temp
+  
+  # This funciton use the formtula for the probability of aceptation from:
+  #
+  # Kone, A., & Kofke, D. a. (2005). Selection of temperature intervals for
+  # parallel-tempering simulations. Journal of Chemical Physics, 122(20), 1–2.
+  # http://doi.org/10.1063/1.1917749
+  #
+  # and set the temperature of each replica by fixing a constant probability of
+  # aceptation for all the replicas and using as input max_temp (the
+  # temperature of the last replica) and min_temp (the temperature of the
+  # nmin_temp replica).
+  
+  if {![info exists nmin_temp]} {set nmin_temp 0}
+
+  # FIXME, need Cp
+  # set Max [expr pow($max_temp,1./($num_replicas-1.-$nmin_temp))]
+  # set min [expr pow($min_temp,1./($num_replicas-1.-$nmin_temp))]
+  # puts "The probabiliy of acceptance will be near to [expr ($Max-$min)/($min+$Max)]"
+         
+  # In the simple case the target temperature is also the minimum temperature
+  # and nmin_temp=0, then return [format "%.2f" [expr
+  # $min_temp*pow(1.*$max_temp/$min_temp,1.*$i/($num_replicas-1.))] ]
+
+  # However, one could need nmin_temp extra replicas under the target
+  # temperature, to imporove the sampling on it. Considering that num_replicas
+  # also include the nmin_temp extra replicas, the general case will be:
+
+  #return [format "%.2f" [expr $max_temp*pow($m/$M,$num_replicas-1-$i)]]
+  return [format "%.2f" [expr $max_temp*pow(1.*$min_temp/$max_temp,($num_replicas-1.-$i)/($num_replicas-1.-$nmin_temp))]]
+
+  # So if nmin_temp=2 and num_replicas=18, there will be 2 of the 18 replicas
+  # below the target temperature min_temp. In this case the replicas 2 to 17 will
+  # have the same distribution that if nmin_temp=0 and num_replicas=16. To
+  # understand better, paste this in gnuplot:
+  #
+  # f(x,m,M,N)=m*exp(log(M/m)*(x)/(N-1)) 
+  # f2(x,m,M,N,s)=(m/M**s)**(1./(1-s))*exp(log(M*(M**s/m)**(1./(1-s)))*(x)/(N-1))
+  # plot [0:17] '+' u ($0):(f2($0,300.,400.,18.,2./17)) t 'general function',\
+  #             '+' u ($0+2):(f($0,300.,400.,16.)) t 'function assuming nmin_temp=0'
+  # 
+  # Or follow the next test in tcl:
+  # % set min_temp 300
+  # % set max_temp 400
+  # % set nmin_temp 0
+  # % set num_replicas 16
+  # % puts "[replica_temp 0] [replica_temp 1] [replica_temp 15]"
+  # 300.00 305.81 400.00
+  # % set nmin_temp 2
+  # % set num_replicas 18
+  # % puts "[replica_temp 0] [replica_temp 1]"
+  # 288.71 294.30
+  # % puts "[replica_temp 2] [replica_temp 3] [replica_temp 17]"
+  # 300.00 305.81 400.00
+}  
+
+set replica(temperature)   [replica_temp $replica(index)]
+set replica(temperature.a) [replica_temp $replica(index.a)]
+set replica(temperature.b) [replica_temp $replica(index.b)]
+set replica(beta)          [expr 1.0/($replica(temperature)*$kB_kcm)]
+set replica(dbeta.a)       [expr 1.0/($replica(temperature.a)*$kB_kcm)-$replica(beta)]
+set replica(dbeta.b)       [expr 1.0/($replica(temperature.b)*$kB_kcm)-$replica(beta)]
+
+# Output
+set job_output_root "${output_root}job$i_job"
+outputname              [format $job_output_root $replica_id]
+set BINREPORTPARAMFILE  [format $job_output_root $replica_id]
+firsttimestep           $i_step
+
+# mystderr error to avoid parallel hits on stderr
+set mystderr [open [format "$job_output_root.mystderr" $replica_id] "w"]
+fconfigure $mystderr -buffering line
+                
+
+# Set ficticius temperature 
+proc replica_auxtemp { x t } {
+  global kB_kcm
+
+  # Here Tmin is the temperature of the target (not needed to be the minimum)
+
+  # The boost in TAMD is controled by alpha=beta-auxbeta with alpha between
+  # (0,beta) for a positive boost. 0 is the lower boost and beta the higher.
+  # From this we get: auxT=T/(1.-alpha kB T).
+  #
+  # Defining c=1/(1.-alpha kB T) and x=auxTmin/Tmin, some options are:
+  #
+  # 1- A decreasing boost with T ( alpha=(1-1/x)/(kBT) ):
+  # set c $x
+  
+  # 2- A constant boost for all T ( alpha=(1-1/x)/(kBTmin) ):
+  #    this form needed that x<1/(1-Tmin/Tmax), because if Tmax is large enough
+  #    then no auxTmax will exist to keep acomplish with a certain alpha.
+  global min_temp
+  # global max_temp
+  # set maxx [expr 1./(1.-(1.*$min_temp)/(1.*$max_temp))]
+  # if { $x>$maxx } {error "An max bias factor is $maxx"}
+  # set c [expr 1./(1.-(1.-1./$x.)*$t/($min_temp) )]
+  # So if t-min_temp and x=10, c=10. but then, it will increase with t
+  
+  return [expr $min_temp*$x]
+}
+
+set r  1; # FIXME
+set temperature        $replica(temperature)
+set replica(auxtemp)   [replica_auxtemp $restr($r.biasf) $replica(temperature)]
+puts $mystderr "I'm $replica_id reporting $replica(auxtemp)"
+set replica(auxbeta)   [expr 1.0/($replica(auxtemp)*$kB_kcm)]
+set replica(dbeta)     [expr $replica(auxbeta)-$replica(beta)]
+
+# Update the chapeau id that store the restrain evolution
+set restr($r.chid) $replica(index)
+set restr($r.temp) $replica(auxtemp)
+
+# Save variables
+proc save_callback {labels values} {
+  global saved_labels saved_values
+  set saved_labels $labels
+  set saved_values $values
+}
+callback save_callback
+
+proc save_array {} {
+  global saved_labels saved_values saved_array
+  foreach label $saved_labels value $saved_values {
+    set saved_array($label) $value
+  }
+}
+
+
+
+# NAMD config ------------------------
+
+# seed variable is also used by OTFP
+set seed [expr int(0*srand(int(100000*rand()) + 100*$replica_id) + 100000*rand() + 1)]
+seed $seed
+puts $mystderr "random seed on replica $replica_id $seed"
+
+# Initial temperature
+set NEWTEMP        $replica(temperature)
+langevinTemp       $NEWTEMP
+
+# Initial state
+if {$i_run} {
+  # restart
+  bincoordinates $restart_root.coor
+  binvelocities  $restart_root.vel
+  extendedSystem $restart_root.xsc
+} else {
+  temperature $NEWTEMP
+}
+
+# ------------------------------------
+
+
+# Log  of exchanges
+set history_file [open [format "$job_output_root.history" $replica_id] "w"]
+fconfigure $history_file -buffering line
+
+# Main loop
+while {$i_run < $num_runs} {
+
+  # After the first run, the global scope of the tclforces is accesible. Then,
+  # variables like "chape" or "restr" can be used now.
+  run $steps_per_run
+  
+  # Create array with the properties of namd ETITLE
+  save_array
+
+  incr i_step $steps_per_run
+
+
+  # if { ($i_run+1) % $runs_per_addchapeaus == 0 } {
+  #   set chserial [chapeau_serialize $chape(0.address)]
+  #   puts $mystderr "Befor: I'm $replica_id, writing chapeau 0: $chserial"
+  # }
+   
+  # Do I have to add all the chapeaus?
+  if { ($i_run+1) % $runs_per_addchapeaus == 0 } {
+
+    if { $replica_id == 0 } {puts $mystderr "EXCHANGE_CHAPEAUS at $i_step"}
+
+    # To do it in parallel. Each processor can add the chapeaus of a
+    # different temperature. The adition is carry on after all the
+    # comunications ends. 
+   
+    # First, all process comunicate each other the chapeaus
+    for {set i 0} {$i < $NUMREP} {incr i} {
+      if { $replica_id == $i } {
+        # I get all the contributions
+        for {set j 0} {$j < $NUMREP} {incr j} {
+          if { $i == $j } continue
+          set chserials($i.$j) [replicaRecv $j]
+        }
+      } else {
+        # Send partial statistics to the center replica
+        set chserial [chapeau_serialize $chape($i.address)]
+        replicaSend $chserial $i
+      }
+    }
+    
+    # Then, all process perform the adition
+    for {set i 0} {$i < $NUMREP} {incr i} {
+      if { $replica_id == $i } continue
+      chapeau_addserialized $chape($replica_id.address) $chserials($replica_id.$i)
+    }
+
+    # Finally, the comunication backward of the results
+    for {set i 0} {$i < $NUMREP} {incr i} {
+      if { $replica_id == $i } {
+        # Send the full statistics to the other replicas
+        set chserial [chapeau_serialize $chape($i.address)]
+        for {set j 0} {$j < $NUMREP} {incr j} {
+          if { $i == $j } continue
+          replicaSend $chserial $j
+        }
+      } else {
+        # Set full replica statistic variables and clean the partial ones
+        set chserial [replicaRecv $i]
+        chapeau_setserialized $chape($i.address) $chserial
+      }
+    }
+
+  }
+
+  # if { ($i_run+1) % $runs_per_addchapeaus == 0 } {
+  #   set chserial [chapeau_serialize $chape(0.address)]
+  #   puts $mystderr "After: I'm $replica_id, writing chapeau 0: $chserial"
+  # }
+
+  # Get replica info from NAMD
+  set TEMP $saved_array(TEMP)      ;# Only to include in the log...?
+  set POTENTIAL [expr $saved_array(TOTAL) - $saved_array(KINETIC)]
+
+  # Get replica info from TAMD
+  set r  1 ;# FIXME
+  set chapeau $chape($replica(index).address)
+  set z  [ restr_getz $restr($r.address)  ]
+  set f  [ chapeau_evalf $chapeau $z  ]
+  set u  [ restr_getu $restr($r.address)  ]
+  
+  # This should be set for each particular system taking in account a high
+  # probability configuration
+  # set zprob 3.2
+  set fref  [ chapeau_evalf $chapeau $zprob ]
+
+  puts $history_file "$i_step $replica(index) $NEWTEMP $TEMP $POTENTIAL $z $f $fref $u"
+  
+  # Select a or b replica
+  if { $i_run % 2 == 0 } {
+    set swap a; set other b
+  } else {
+    set swap b; set other a
+  }
+
+  # Aceptance computed only for the replica with lower temperature. Note that this criteria
+  # allows to accumulate exechange information not like other criteria (e.g.
+  # replica located at the left)
+  set doswap 0
+  if { $replica(index) < $replica(index.$swap) } {
+
+    # Compute Delta U term
+    set dpot  [replicaRecv $replica(loc.$swap)]
+    set dpot  [expr ($dpot-$POTENTIAL)]
+    set delta $dpot
+
+    # NO needed, energy already counted in POTENTIAL trough MISC COLUMN
+    # # Compute Delta Uk term
+    # set duk   [replicaRecv $replica(loc.$swap)]
+    # set duk   [expr ($duk-$u)]
+    # set delta [expr $dpot + $duk]
+     
+    # Compute Delta Free Energy of this replica
+    set z2    [replicaSendrecv $z $replica(loc.$swap) $replica(loc.$swap)]
+    set dfre  [chapeau_evalf $chapeau $z2 ]
+    set dfre  [expr $replica(dbeta)*($dfre-$f)]
+    set delta [expr $replica(dbeta.$swap)*$delta - $dfre]
+      
+    # Compute Delta Free Energy of the swap replica
+    set dfre2 [replicaRecv $replica(loc.$swap) ]
+    set delta [expr $delta + $dfre2]
+
+    # Metropoli creiterion and send results
+    set prob [expr exp($delta)]
+    set nrand [expr rand()]
+    set doswap [expr $delta > 0. || $prob > $nrand]
+
+    # To make a fake replica exchange with no exchange
+    # uncoment this
+    # set doswap 0
+
+    replicaSend $doswap $replica(loc.$swap)
+
+    if { $doswap } {
+      # puts $mystderr "EXCHANGE_ACCEPT $replica(temperature) $replica(temperature.$swap)"
+      incr replica(exchanges_accepted)
+    }
+
+    puts $mystderr "DELTA_INFO $i_run $doswap $replica_id $replica(loc.$swap) $replica(index) $replica(index.$swap) $prob $nrand $replica(dbeta.$swap) $replica(dbeta) $dpot $dfre $dfre2"
+
+    incr replica(exchanges_attempted)
+  }
+
+  if { $replica(index) > $replica(index.$swap) } {
+
+    replicaSend $POTENTIAL $replica(loc.$swap)
+    #replicaSend $u         $replica(loc.$swap)
+    set z2 [replicaSendrecv $z $replica(loc.$swap) $replica(loc.$swap)]
+    set f2  [ chapeau_evalf $chapeau $z2 ]
+
+    set delta [expr $replica(dbeta) * ($f-$f2)]
+    replicaSend $delta $replica(loc.$swap)
+
+    set doswap [replicaRecv $replica(loc.$swap)]
+  }
+
+  # About the update of variable other
+  #
+  # Think in this escenario, being the present replica in loc 5
+  #    loc=9    |  loc=5    |  loc=3    
+  #   .$other=5 | .$other=9 | .$other=8  
+  # If replica 5 had swap with 3
+  #    loc=9    |  loc=5    |  loc=3    
+  #   .$other=3 | .$other=8 | .$other=9
+  # If replica 9 had swap with X
+  #    loc=9    |  loc=5    |  loc=3    
+  #   .$other=Z | .$other=X | .$other=8
+  # If both things happend
+  #    loc=9    |  loc=5    |  loc=3    
+  #   .$other=Z | .$other=8 | .$other=X
+  
+  # Let newOtherOther=5 or change it to 3 if doswap occurs
+  set newOtherOther $replica_id
+  if { $doswap } {
+    set newOtherOther $replica(loc.$swap)
+    set replica(loc.$swap) $replica_id
+  }
+
+  # On send change loc(9).other to newOtherOther
+  # On recive update loc(5).other to the newOtherOther coming from loc(9).other  
+  set replica(loc.$other) [replicaSendrecv $newOtherOther $replica(loc.$other) $replica(loc.$other)]
+
+  if { $doswap } {
+
+    # The entire replica array is sent. Take care of keep it minimal.
+    set OLDTEMP $replica(temperature)
+    array set replica [replicaSendrecv [array get replica] $newOtherOther $newOtherOther]
+    set NEWTEMP $replica(temperature)
+
+    # Set new temperature and rescale velocities
+    rescalevels [expr sqrt(1.0*$NEWTEMP/$OLDTEMP)]
+    langevinTemp $NEWTEMP
+
+    # Update the auxiliary temperature of the OTFP restraint
+    set r  1; # FIXME
+    set restr($r.temp) $replica(auxtemp)
+    restr_UpdateTamdOpt $restr($r.address) $restr($r.g) [expr $kB_kcm*$restr($r.temp)] $restr($r.dt)
+
+    # Update the chapeau id that store the restrain evolution
+    set r  1; # FIXME
+    set restr($r.chid) $replica(index)
+    restr_set_rchid $restr($r.address) $ds $replica(index)
+    # set chapeau $chape($replica(index).address)
+  }
+
+  incr i_run
+
+  # Restart
+  if { $i_run % $runs_per_restart == 0 || $i_run == $num_runs } {  
+
+    set restart_root "$job_output_root.restart$i_run"
+
+    # All the processors should dump cfacv local state
+    cfacv_savestate $ds $i_step $NUMREP [format $restart_root $replica_id]
+
+    # All the processor should dump namd local state
+    output [format $restart_root $replica_id]
+    set rfile [open [format "$restart_root.tcl" $replica_id] "w"]
+    puts $rfile [list array set replica [array get replica]]
+    close $rfile
+
+    # Let processor 1 to write to the restart the global info
+    replicaBarrier
+    if { $replica_id == 0 } {
+      set rfile [open [format "$restart_root.tcl" ""] "w"]
+      puts $rfile [list set i_job [expr $i_job + 1]]
+      puts $rfile [list set i_run $i_run]
+      puts $rfile [list set i_step $i_step]
+      puts $rfile [list set restart_root $restart_root]
+      close $rfile
+      if [info exists old_restart_root] {
+        set oldroot [format $old_restart_root ""]
+        file delete $oldroot.tcl
+      }
+    }
+    replicaBarrier
+
+    # Remove old restart local state files
+    if [info exists old_restart_root] {
+      set oldroot [format $old_restart_root $replica_id]
+      file delete $oldroot.tcl
+      file delete $oldroot.coor
+      file delete $oldroot.vel
+      file delete $oldroot.xsc
+      file delete $oldroot.rstr
+      file delete {*}[glob -nocomplain $oldroot.ch*]
+    }
+    set old_restart_root $restart_root
+  }
+}
+
+
+# Output statistics on exchange...
+set attempts $replica(exchanges_attempted)
+if $attempts {
+
+  #...between this replica and the replica in the right
+  if { $replica(index.a) > $replica(index) } {
+    set swap a
+  } else {
+    set swap b
+  }
+
+  set temp $replica(temperature)
+  set temp2 $replica(temperature.$swap)
+  set accepts $replica(exchanges_accepted)
+  set ratio [expr 1.0*$accepts/$attempts]
+  puts $mystderr "EXCHANGE_RATIO $replica(index) $replica(index.$swap) $temp $temp2 $accepts $attempts $ratio"
+}
+
+replicaBarrier
+
