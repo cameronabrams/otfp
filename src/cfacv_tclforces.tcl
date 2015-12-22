@@ -1,6 +1,6 @@
 # tclforces file for CFACV
-# Cameron F Abrams
-# 2009-14
+# Cameron F Abrams 2009-14
+# Sergio A Paz 2014-15
 
 # This script is intended to be sourced by namd tclforce feature.  Therefore
 # some of the procedures or variables used here are intrinsec of NAMD or can be
@@ -108,8 +108,8 @@ if {[info exists CFACV_doAnalyticalCalc]} {
 
 # read z values from a restart file
 set first 1
-if {[info exists restart_root]} {
-  cfacv_loadstate $ds $NUMREP $restart_root
+if {[info exists restart_otfp]} {
+  cfacv_loadstate $ds $NUMREP $restart_otfp
   set first 0
 }
 

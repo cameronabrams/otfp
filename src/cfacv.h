@@ -268,7 +268,6 @@ int DataSpace_checkdata ( DataSpace * ds );
 int DataSpace_dump ( DataSpace * ds ); 
 FILE * my_binfopen ( char * name, char * code, unsigned int outputLevel, DataSpace * ds );
 void DataSpace_BinaryReportRestraints ( DataSpace * ds, int step, int outputlevel, FILE * fp );
-int DataSpace_InitKnots ( DataSpace * ds, char * filename, int j);
 
 
 int fes1D( DataSpace * ds, restrStruct * r );

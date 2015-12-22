@@ -474,10 +474,11 @@ int DataSpace_Setup1Dchapeau ( DataSpace * ds, int numrep, double min, int nKnot
   ds->useTAMDforces=useTAMDforces;
   if (ds->useTAMDforces) fprintf(stdout,"CFACV/C) INFO: using TAMD forces instead of analytical forces.\n");
 
-  ds->evolveAnalyticalParameters=1;
-
   // This is to let the system equilibrate
+  ds->evolveAnalyticalParameters=1;
   ds->beginaccum=beginaccum;
+  if (beginaccum < 0) ds->evolveAnalyticalParameters=0;
+
 
   //FIXME: This code was here to allow compute chapeau functions separatedly
   //for different pair types of particles. For instance, this allow to
@@ -679,25 +680,6 @@ int DataSpace_ComputeCVs ( DataSpace * ds ) {
   for (i=0;i<ds->iM;i++){
     c=ds->cv[i];
     c->calc(c,ds);
-  }
-  return 0;
-}
-
-int DataSpace_InitKnots ( DataSpace * ds, char * filename, int j) {
-  if (ds) {
-    chapeau * ch = ds->ch[j];
-    FILE * fp = fopen(filename,"r");
-    double * knots=(double*)calloc(ch->m,sizeof(double));
-    int i=0;
-    char ln[255];
-    while (fgets(ln,255,fp)) {
-      sscanf(ln,"%lf",&knots[i++]);
-    }
-    fclose(fp);
-    chapeau_setPeaks(ch,knots);
-    free(knots);
-    fprintf(stdout,"INFO) Read %i knot values from %s\n",i,filename);
-    fflush(stdout);
   }
   return 0;
 }

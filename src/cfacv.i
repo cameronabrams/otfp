@@ -38,8 +38,6 @@ extern int DataSpace_dump ( DataSpace * ds );
 extern FILE * my_binfopen ( char * name, char * code, unsigned int outputLevel, DataSpace * ds );
 extern void DataSpace_BinaryReportRestraints ( DataSpace * ds, int step, int outputlevel, FILE * fp );
 
-extern int DataSpace_InitKnots ( DataSpace * ds, char * filename, int j);
-
 extern int set_zsd_circle ( double x,double y, double xy, double s );
 extern int set_zsd_ring ( double x,double y, double r1, double r2, double s );
 
@@ -49,6 +47,7 @@ extern void chapeau_addserialized ( chapeau * ch, char * str );
 extern void chapeau_setserialized ( chapeau *ch, char * str );
 extern void chapeau_setserialized ( chapeau *ch, char * str );
 
+extern void chapeau_set_peaks ( chapeau * ch, char * filename );
 extern void chapeau_loadstate ( chapeau * ch, char * filename );
 extern void chapeau_savestate ( chapeau * ch, int timestep, char * filename );
 extern void ds_loadrestrains ( DataSpace * ds, char * filename );

@@ -255,6 +255,83 @@ if {$i_run} {
 set history_file [open [format "$job_output_root.history" $replica_id] "w"]
 fconfigure $history_file -buffering line
 
+# Runs without exchange
+while {$i_run < $runs_noexchange} {
+
+  # After the first run, the global scope of the tclforces is accesible. Then,
+  # variables like "chape" or "restr" can be used now.
+  run $steps_per_run
+  
+  # Create array with the properties of namd ETITLE
+  save_array
+
+  incr i_step $steps_per_run
+
+  # Get replica info from NAMD
+  set TEMP $saved_array(TEMP)      ;# Only to include in the log...?
+  set POTENTIAL [expr $saved_array(TOTAL) - $saved_array(KINETIC)]
+
+  # Get replica info from TAMD
+  set r  1 ;# FIXME
+  set chapeau $chape($replica(index).address)
+  set z  [ restr_getz $restr($r.address)  ]
+  set f  [ chapeau_evalf $chapeau $z  ]
+  set u  [ restr_getu $restr($r.address)  ]
+  
+  # This should be set for each particular system taking in account a high
+  # probability configuration
+  # set zprob 3.2
+  set fref  [ chapeau_evalf $chapeau $zprob ]
+
+  puts $history_file "$i_step $replica(index) $NEWTEMP $TEMP $POTENTIAL $z $f $fref $u"
+  
+  incr i_run
+
+  # Restart
+  if { $i_run % $runs_per_restart == 0 || $i_run == $num_runs } {  
+
+    set restart_root "$job_output_root.restart$i_run"
+
+    # All the processors should dump cfacv local state
+    cfacv_savestate $ds $i_step $NUMREP [format $restart_root $replica_id]
+
+    # All the processor should dump namd local state
+    output [format $restart_root $replica_id]
+    set rfile [open [format "$restart_root.tcl" $replica_id] "w"]
+    puts $rfile [list array set replica [array get replica]]
+    close $rfile
+
+    # Let processor 1 to write to the restart the global info
+    replicaBarrier
+    if { $replica_id == 0 } {
+      set rfile [open [format "$restart_root.tcl" ""] "w"]
+      puts $rfile [list set i_job [expr $i_job + 1]]
+      puts $rfile [list set i_run $i_run]
+      puts $rfile [list set i_step $i_step]
+      puts $rfile [list set restart_root $restart_root]
+      close $rfile
+      # if [info exists old_restart_root] {
+      #   set oldroot [format $old_restart_root ""]
+      #   file delete $oldroot.tcl
+      # }
+    }
+    replicaBarrier
+
+    # Remove old restart local state files
+    # if [info exists old_restart_root] {
+    #   set oldroot [format $old_restart_root $replica_id]
+    #   file delete $oldroot.tcl
+    #   file delete $oldroot.coor
+    #   file delete $oldroot.vel
+    #   file delete $oldroot.xsc
+    #   file delete $oldroot.rstr
+    #   file delete {*}[glob -nocomplain $oldroot.ch*]
+    # }
+    set old_restart_root $restart_root
+  }
+}
+ 
+
 # Main loop
 while {$i_run < $num_runs} {
 
@@ -492,24 +569,25 @@ while {$i_run < $num_runs} {
       puts $rfile [list set i_run $i_run]
       puts $rfile [list set i_step $i_step]
       puts $rfile [list set restart_root $restart_root]
+      puts $rfile [list set restart_otfp $restart_root]
       close $rfile
-      if [info exists old_restart_root] {
-        set oldroot [format $old_restart_root ""]
-        file delete $oldroot.tcl
-      }
+      # if [info exists old_restart_root] {
+      #   set oldroot [format $old_restart_root ""]
+      #   file delete $oldroot.tcl
+      # }
     }
     replicaBarrier
 
     # Remove old restart local state files
-    if [info exists old_restart_root] {
-      set oldroot [format $old_restart_root $replica_id]
-      file delete $oldroot.tcl
-      file delete $oldroot.coor
-      file delete $oldroot.vel
-      file delete $oldroot.xsc
-      file delete $oldroot.rstr
-      file delete {*}[glob -nocomplain $oldroot.ch*]
-    }
+    # if [info exists old_restart_root] {
+    #   set oldroot [format $old_restart_root $replica_id]
+    #   file delete $oldroot.tcl
+    #   file delete $oldroot.coor
+    #   file delete $oldroot.vel
+    #   file delete $oldroot.xsc
+    #   file delete $oldroot.rstr
+    #   file delete {*}[glob -nocomplain $oldroot.ch*]
+    # }
     set old_restart_root $restart_root
   }
 }

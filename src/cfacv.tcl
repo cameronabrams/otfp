@@ -1,6 +1,6 @@
 # tcl library for CFACV
-# Cameron F Abrams
-# 2009-14
+# Cameron F Abrams 2009-14
+# Sergio A Paz 2014-15
 
 # NAMD requeriments:
 #
@@ -13,7 +13,8 @@ proc cfacv_banner { argv } {
     print "================================================"
     print "CFACV) Collective Variables in VMD/NAMD v. $CFACV_VERSION"
     cfacvBanner
-    print "CFACV) 2009-2011, Cameron F Abrams, Drexel University"
+    print "CFACV) 2009-2014, Cameron F Abrams, Drexel University"
+    print "CFACV) 2014-2015, Sergio A Paz, Drexel University"
     print "================================================"
     print "Base directory: $CFACV_BASEDIR"
     print "argv: $argv"
@@ -936,9 +937,6 @@ proc chapeau_setup { NUMREP ds XSCFILE min N max begin_evolve usetamdforces outp
     #   puts $aux
     # }
 
-    # FIXME. Add a index to load a  initial knots file for each chapeau
-    # if {[info exists initKnotsINP]} {Tcl_DataSpace_InitKnots $ds $initKnotsINP}
-
     # FIXME: pairwise analytical potential
     # DataSpace_SetupPairCalc $ds $min $N $coff $nlcoff $begin_evolve $usetamdforces $outputfile $outfreq $outlevel $nupdate $chnum
 
@@ -1063,11 +1061,3 @@ proc MyParanoiaCheck {ds msg} {
     }
 }
 
-proc Tcl_DataSpace_InitKnots { ds filename } {
-    if {[file exists $filename]} {
-	DataSpace_InitKnots $ds $filename
-    } {
-	error "CFACV) error: initial knots file $filename not found."
-    }
-
-}

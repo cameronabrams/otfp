@@ -73,8 +73,6 @@ chapeau * chapeau_alloc ( int m, double rmin, double rmax, int npart );
 
 void chapeau_setUpdateInterval ( chapeau * ch, int i );
 
-void chapeau_setPeaks ( chapeau * ch, double * peaks );
-
 void chapeau_pair_eval_g ( chapeau * ch, double z, double * u, double * g_r );
 
 // Output system
@@ -99,3 +97,5 @@ double chapeau_evalf ( chapeau * ch, double z );
 char * chapeau_serialize ( chapeau * ch );
 void chapeau_addserialized ( chapeau * ch, char * str );
 void chapeau_setserialized ( chapeau *ch, char * str );
+
+void chapeau_set_peaks ( chapeau * ch, char * filename );

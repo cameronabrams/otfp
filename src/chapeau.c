@@ -92,16 +92,6 @@ chapeau * chapeau_alloc ( int m, double rmin, double rmax, int npart ) {
   return ch;
 }
 
-void chapeau_setPeaks ( chapeau * ch, double * peaks ) {
-  if (ch) {
-    if (peaks) {
-      int i;
-      for (i=0;i<ch->m;i++) gsl_vector_set(ch->lam,i,peaks[i]);
-    }
-  }
-}
-
-
 void chapeau_setupoutput ( chapeau * ch, char * filename, int outputFreq, int outputLevel ) {
 
   if (!ch) exit(-1);
@@ -329,6 +319,23 @@ void chapeau_update_peaks ( chapeau * ch ) {
   gsl_permutation_free(p);
 }
 
+void chapeau_set_peaks ( chapeau * ch, char * filename ) {
+  FILE * fp = fopen(filename,"r");
+  double knots;
+  int i=0;
+  char ln[255];
+
+  fprintf(stdout,"INFO) Read knots from %s\n",filename);
+
+  for (i=0;i<ch->m;i++) {
+    fgets(ln,255,fp);
+    sscanf(ln,"%lf",&knots);
+    fprintf(stdout,"INFO) %i,%s\n",i++,knots);
+    gsl_vector_set(ch->lam,i,knots);
+  }
+
+  fflush(stdout);
+}
 
 // Process for replica exechange
     
