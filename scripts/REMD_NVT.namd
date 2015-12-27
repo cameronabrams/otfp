@@ -9,19 +9,45 @@ set kB_kcm 0.001987191
 # change its temperature (index) but will never change its replica_id. So
 # replica_id is constant during this script. 
 set NUMREP [numReplicas]
-if { $num_replicas != $NUMREP } {error "restart with wrong number of replicas"}
+if { $num_replicas != $NUMREP } {error "wrong number of replicas"}
 set replica_id [myReplica]
 
-if {[info exists restart_root]} { #restart
-  set restart_root [format $restart_root $replica_id]
-  source $restart_root.tcl
-} else {
+
+# Set i_job, i_run and i_step
+if {![info exists restart_root]} {
   set i_job 0 
   set i_run 0
-  set i_step 0
+  set i_step 0  
   if {[info exists first_timestep]} {
     set i_step $first_timestep
   }
+}
+
+# Set output
+set job_output_root     "${output_root}job$i_job"
+outputname              [format $job_output_root $replica_id]
+firsttimestep           $i_step
+
+
+
+# Set mystderr to avoid parallel hits on stderr
+set mystderr [open [format "$job_output_root.mystderr" $replica_id] "w"]
+fconfigure $mystderr -buffering line
+
+
+# seed variable
+set seed [expr int(0*srand(int(100000*rand()) + 100*$replica_id) + 100000*rand() + 1)]
+seed $seed
+puts $mystderr "random seed on replica $replica_id $seed"
+
+
+
+# Initialize replica array
+if {[info exists restart_root]} {
+  # Check for restart mode
+  set restart_root [format $restart_root $replica_id]
+  source $restart_root.tcl
+} else {
 
   # index is the replica index in the temperature scale.  "temp_id" could have
   # been a happiest name for this variable.
@@ -89,7 +115,6 @@ if {[info exists restart_root]} { #restart
 
 }
 
-
 # Set initial (or restart) temperature 
 proc replica_temp { i } {
   global num_replicas min_temp nmin_temp max_temp
@@ -154,15 +179,7 @@ set replica(temperature.b) [replica_temp $replica(index.b)]
 set replica(beta)          [expr 1.0/($replica(temperature)*$kB_kcm)]
 set replica(dbeta.a)       [expr 1.0/($replica(temperature.a)*$kB_kcm)-$replica(beta)]
 set replica(dbeta.b)       [expr 1.0/($replica(temperature.b)*$kB_kcm)-$replica(beta)]
-
-# Output
-set job_output_root "${output_root}job$i_job"
-outputname              [format $job_output_root $replica_id]
-firsttimestep           $i_step
-
-# mystderr error to avoid parallel hits on stderr
-set mystderr [open [format "$job_output_root.mystderr" $replica_id] "w"]
-fconfigure $mystderr -buffering line
+               
 
 
 # Save variables
@@ -182,14 +199,7 @@ proc save_array {} {
 
 
 
-# NAMD config ------------------------
-
-# seed variable is also used by OTFP
-set seed [expr int(0*srand(int(100000*rand()) + 100*$replica_id) + 100000*rand() + 1)]
-seed $seed
-puts $mystderr "random seed on replica $replica_id $seed"
-
-# Initial temperature
+# NAMD temperature setup
 set NEWTEMP        $replica(temperature)
 langevinTemp       $NEWTEMP
 
@@ -203,7 +213,6 @@ if {$i_run} {
   temperature $NEWTEMP
 }
 
-# ------------------------------------
 
 
 # Log  of exchanges
@@ -334,21 +343,21 @@ while {$i_run < $num_runs} {
       puts $rfile [list set i_step $i_step]
       puts $rfile [list set restart_root $restart_root]
       close $rfile
-      if [info exists old_restart_root] {
-        set oldroot [format $old_restart_root ""]
-        file delete $oldroot.tcl
-      }
+      # if [info exists old_restart_root] {
+      #   set oldroot [format $old_restart_root ""]
+      #   file delete $oldroot.tcl
+      # }
     }
     replicaBarrier
 
     # Remove old restart local state files
-    if [info exists old_restart_root] {
-      set oldroot [format $old_restart_root $replica_id]
-      file delete $oldroot.tcl
-      file delete $oldroot.coor
-      file delete $oldroot.vel
-      file delete $oldroot.xsc
-    }
+    # if [info exists old_restart_root] {
+    #   set oldroot [format $old_restart_root $replica_id]
+    #   file delete $oldroot.tcl
+    #   file delete $oldroot.coor
+    #   file delete $oldroot.vel
+    #   file delete $oldroot.xsc
+    # }
     set old_restart_root $restart_root
   }
 }

@@ -5,27 +5,81 @@ replicaBarrier
 # Boltzman constant
 set kB_kcm 0.001987191
 
-# This should be set for each particular system taking in account a high
-# probability configuration
-set zprob 2.5
-
 # The replica_id is the procesor where the present replica runs. A replica can
 # change its temperature (index) but will never change its replica_id. So
 # replica_id is constant during this script. 
 set NUMREP [numReplicas]
-if { $num_replicas != $NUMREP } {error "restart with wrong number of replicas"}
+if { $num_replicas != $NUMREP } {error "wrong number of replicas"}
 set replica_id [myReplica]
 
-if {[info exists restart_root]} { #restart
-  set restart_root [format $restart_root $replica_id]
-  source $restart_root.tcl
-} else {
+
+# Set i_job, i_run and i_step
+if {![info exists restart_root]} {
   set i_job 0 
   set i_run 0
-  set i_step 0
+  set i_step 0  
   if {[info exists first_timestep]} {
     set i_step $first_timestep
   }
+}
+
+# Set output
+set job_output_root     "${output_root}job$i_job"
+outputname              [format $job_output_root $replica_id]
+firsttimestep           $i_step
+
+
+
+# Set mystderr to avoid parallel hits on stderr
+set mystderr [open [format "$job_output_root.mystderr" $replica_id] "w"]
+fconfigure $mystderr -buffering line
+
+
+# seed variable is also used by OTFP
+set seed [expr int(0*srand(int(100000*rand()) + 100*$replica_id) + 100000*rand() + 1)]
+seed $seed
+puts $mystderr "random seed on replica $replica_id $seed"
+
+
+# Load OTFP settings 
+source OTFP.namd
+
+# This should be set for each particular system taking in account a high
+# probability configuration
+set zprob 2.5
+ 
+# Initialize OTFP program
+source $CFACV_BASEDIR/cfacv.tcl
+
+
+# Initialize replica array
+if {[info exists restart_root]} {
+
+  # Restart replica array from previous simulation
+  set restart_root [format $restart_root $replica_id]
+  source $restart_root.tcl
+  
+  # Restart restraints
+  set f $restart_root.rstr 
+  print "CFACV) Reinitializing restraints from $f"
+  if {![file exists $f]} {error "CFACV) Error: file not found"}
+  ds_loadrestrains $ds $f
+  
+  # Restart seed
+  # print "CFACV) is setting the namd random seed to $seed"
+  # set seed [ds_seed]
+  # seed $seed
+          
+  # Restart chapeaus
+  for {set i 0} {$i < $NUMREP} {incr i} {
+    set f $restart_root.ch$i
+    print "CFACV) Reinitializing chapeau $i from $f"
+    if {![file exists $f]} {error "CFACV) Error: file not found"}
+    print "$chape($i.address) $f"
+    $restart_chapeau $chape($i.address) $f
+  }
+          
+} else {
 
   # index is the replica index in the temperature scale.  "temp_id" could have
   # been a happiest name for this variable.
@@ -93,7 +147,6 @@ if {[info exists restart_root]} { #restart
 
 }
 
-
 # Set initial (or restart) temperature 
 proc replica_temp { i } {
   global num_replicas min_temp nmin_temp max_temp
@@ -158,49 +211,39 @@ set replica(temperature.b) [replica_temp $replica(index.b)]
 set replica(beta)          [expr 1.0/($replica(temperature)*$kB_kcm)]
 set replica(dbeta.a)       [expr 1.0/($replica(temperature.a)*$kB_kcm)-$replica(beta)]
 set replica(dbeta.b)       [expr 1.0/($replica(temperature.b)*$kB_kcm)-$replica(beta)]
+               
 
-# Output
-set job_output_root "${output_root}job$i_job"
-outputname              [format $job_output_root $replica_id]
-set BINREPORTPARAMFILE  [format $job_output_root $replica_id]
-firsttimestep           $i_step
-
-# mystderr error to avoid parallel hits on stderr
-set mystderr [open [format "$job_output_root.mystderr" $replica_id] "w"]
-fconfigure $mystderr -buffering line
-                
-
-# Set ficticius temperature 
-proc replica_auxtemp { x t } {
-  global kB_kcm
-
-  # Here Tmin is the temperature of the target (not needed to be the minimum)
-
-  # The boost in TAMD is controled by alpha=beta-auxbeta with alpha between
-  # (0,beta) for a positive boost. 0 is the lower boost and beta the higher.
-  # From this we get: auxT=T/(1.-alpha kB T).
-  #
-  # Defining c=1/(1.-alpha kB T) and x=auxTmin/Tmin, some options are:
-  #
-  # 1- A decreasing boost with T ( alpha=(1-1/x)/(kBT) ):
-  # set c $x
-  
-  # 2- A constant boost for all T ( alpha=(1-1/x)/(kBTmin) ):
-  #    this form needed that x<1/(1-Tmin/Tmax), because if Tmax is large enough
-  #    then no auxTmax will exist to keep acomplish with a certain alpha.
-  global min_temp
-  # global max_temp
-  # set maxx [expr 1./(1.-(1.*$min_temp)/(1.*$max_temp))]
-  # if { $x>$maxx } {error "An max bias factor is $maxx"}
-  # set c [expr 1./(1.-(1.-1./$x.)*$t/($min_temp) )]
-  # So if t-min_temp and x=10, c=10. but then, it will increase with t
-  
-  return [expr $min_temp*$x]
-}
+# # Set ficticius temperature 
+# proc replica_auxtemp { x t } {
+#   global kB_kcm
+# 
+#   # Here Tmin is the temperature of the target (not needed to be the minimum)
+# 
+#   # The boost in TAMD is controled by alpha=beta-auxbeta with alpha between
+#   # (0,beta) for a positive boost. 0 is the lower boost and beta the higher.
+#   # From this we get: auxT=T/(1.-alpha kB T).
+#   #
+#   # Defining c=1/(1.-alpha kB T) and x=auxTmin/Tmin, some options are:
+#   #
+#   # 1- A decreasing boost with T ( alpha=(1-1/x)/(kBT) ):
+#   # set c $x
+#   
+#   # 2- A constant boost for all T ( alpha=(1-1/x)/(kBTmin) ):
+#   #    this form needed that x<1/(1-Tmin/Tmax), because if Tmax is large enough
+#   #    then no auxTmax will exist to keep acomplish with a certain alpha.
+#   global min_temp
+#   # global max_temp
+#   # set maxx [expr 1./(1.-(1.*$min_temp)/(1.*$max_temp))]
+#   # if { $x>$maxx } {error "An max bias factor is $maxx"}
+#   # set c [expr 1./(1.-(1.-1./$x.)*$t/($min_temp) )]
+#   # So if t-min_temp and x=10, c=10. but then, it will increase with t
+#   
+#   return [expr $min_temp*$x]
+# }
 
 set r  1; # FIXME
 set temperature        $replica(temperature)
-set replica(auxtemp)   [replica_auxtemp $restr($r.biasf) $replica(temperature)]
+set replica(auxtemp)   $restr($r.temp)
 puts $mystderr "I'm $replica_id reporting $replica(auxtemp)"
 set replica(auxbeta)   [expr 1.0/($replica(auxtemp)*$kB_kcm)]
 set replica(dbeta)     [expr $replica(auxbeta)-$replica(beta)]
@@ -226,14 +269,7 @@ proc save_array {} {
 
 
 
-# NAMD config ------------------------
-
-# seed variable is also used by OTFP
-set seed [expr int(0*srand(int(100000*rand()) + 100*$replica_id) + 100000*rand() + 1)]
-seed $seed
-puts $mystderr "random seed on replica $replica_id $seed"
-
-# Initial temperature
+# NAMD temperature setup
 set NEWTEMP        $replica(temperature)
 langevinTemp       $NEWTEMP
 langevinPistonTemp $NEWTEMP; # should be set equal to the target temperature (langevinTemp).
@@ -248,7 +284,6 @@ if {$i_run} {
   temperature $NEWTEMP
 }
 
-# ------------------------------------
 
 
 # Log  of exchanges
@@ -291,10 +326,15 @@ while {$i_run < $runs_noexchange} {
   if { $i_run % $runs_per_restart == 0 || $i_run == $num_runs } {  
 
     set restart_root "$job_output_root.restart$i_run"
-
-    # All the processors should dump cfacv local state
-    cfacv_savestate $ds $i_step $NUMREP [format $restart_root $replica_id]
-
+ 
+    # All the processors should dump restraint state
+    ds_saverestrains $ds $i_step [format $restart_root.rstr $replica_id]
+     
+    # All the processors should dump their chapeau states
+    for {set i 0} {$i < $NUMREP} {incr i} {
+      chapeau_savestate $chape($i.address) $i_step [format $restart_root.ch$i $replica_id]
+    }
+      
     # All the processor should dump namd local state
     output [format $restart_root $replica_id]
     set rfile [open [format "$restart_root.tcl" $replica_id] "w"]
@@ -551,10 +591,15 @@ while {$i_run < $num_runs} {
   if { $i_run % $runs_per_restart == 0 || $i_run == $num_runs } {  
 
     set restart_root "$job_output_root.restart$i_run"
-
-    # All the processors should dump cfacv local state
-    cfacv_savestate $ds $i_step $NUMREP [format $restart_root $replica_id]
-
+      
+    # All the processors should dump restraint state
+    ds_saverestrains $ds  $i_step [format $restart_root.rstr $replica_id]
+     
+    # All the processors should dump their chapeau states
+    for {set i 0} {$i < $NUMREP} {incr i} {
+      chapeau_savestate $chape($i.address) $i_step [format $restart_root.ch$i $replica_id]
+    }
+    
     # All the processor should dump namd local state
     output [format $restart_root $replica_id]
     set rfile [open [format "$restart_root.tcl" $replica_id] "w"]

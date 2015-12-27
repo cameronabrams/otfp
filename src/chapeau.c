@@ -60,6 +60,7 @@ chapeau * chapeau_alloc ( int m, double rmin, double rmax, int npart ) {
   }         
 
   ch->m=m;
+  //ch->mref=0;
   ch->N=npart;
   ch->rmin=rmin;
   ch->rmax=rmax;
@@ -92,12 +93,39 @@ chapeau * chapeau_alloc ( int m, double rmin, double rmax, int npart ) {
   return ch;
 }
 
-void chapeau_setupoutput ( chapeau * ch, char * filename, int outputFreq, int outputLevel ) {
+void chapeau_free ( chapeau * ch ) {
+  free(ch->hits);
+  free(ch->mask);
+  gsl_vector_free(ch->b);
+  gsl_matrix_free(ch->A);
+  gsl_vector_free(ch->bfull);
+  gsl_matrix_free(ch->Afull);
+  free(ch);
+}
+
+int chapeau_quickcompare ( chapeau * ch1,  chapeau * ch2) {
+  //this comparision routine does not compare any high rank member
+  if (ch1->N           != ch2->N          ) return 0;
+  if (ch1->m           != ch2->m          ) return 0;
+  //if (ch1->nsample     != ch2->nsample    ) return 0;
+  //if (ch1->nupdate     != ch2->nupdate    ) return 0;
+  //if (ch1->alpha       != ch2->alpha      ) return 0;
+  //if (ch1->outputFreq  != ch2->outputFreq ) return 0;
+  //if (ch1->outputLevel != ch2->outputLevel) return 0;
+  //if (ch1->rmin        != ch2->rmin       ) return 0;
+  //if (ch1->rmax        != ch2->rmax       ) return 0;
+  //if (ch1->dr          != ch2->dr         ) return 0;
+  //if (ch1->idr         != ch2->idr        ) return 0;
+  //if (strcmp(ch1->filename,ch2->filename)) return 0;
+  return 1;
+}
+        
+void chapeau_setupoutput ( chapeau * ch, char * outfile, char * restartfile, int outputFreq, int outputLevel ) {
 
   if (!ch) exit(-1);
 
   // output
-  ch->ofp=fopen(filename,"w");
+  ch->ofp=fopen(outfile,"w");
   char * flag="CxCx";
   fwrite(flag,sizeof(char),4,ch->ofp);
   fwrite(&outputLevel,sizeof(int),1,ch->ofp);
@@ -106,8 +134,7 @@ void chapeau_setupoutput ( chapeau * ch, char * filename, int outputFreq, int ou
   ch->outputLevel=outputLevel;
 
   // restart
-  strcpy(ch->filename,filename);
-  strcat(ch->filename,".restart");
+  strcpy(ch->filename,restartfile);
     
 }
 
@@ -197,9 +224,49 @@ chapeau * chapeau_allocloadstate ( char * filename ) {
 
     return ch;
 }
-    
-void chapeau_loadstate ( chapeau * ch, char * filename ) {
+
+void chapeau_loadlambda ( chapeau * ch, char * filename ) {
     int i,m,N;
+    chapeau * chaux;
+    FILE * ofs;
+ 
+    if (!ch) {
+      fprintf(stderr,"CFACV) ERROR in load chapeau file because holding object was not allocated\n");
+      exit(-1);
+    }
+                                           
+    chaux=chapeau_allocloadstate(filename);
+
+    // With chaux we prevent override of addresses (hits, mask, etc) when
+    // reading integers (N,M,et), that is only what we want... better way to do
+    // this?
+    if (!chapeau_quickcompare(ch,chaux)) {
+      fprintf(stdout,"CFACV) ERROR, the chapeau object from the file is diferent\n");
+    }
+
+    // This variables are alredy set during allocation, might be better to
+    // compare them instead
+    ch->nsample     = chaux->nsample    ;
+    ch->rmin        = chaux->rmin       ;
+    ch->rmax        = chaux->rmax       ;
+    ch->dr          = chaux->dr         ;
+    ch->idr         = chaux->idr        ;
+    
+    // This variables might be not set
+    ch->nupdate     = chaux->nupdate    ;
+    ch->alpha       = chaux->alpha      ;
+    strcpy(ch->filename,chaux->filename);
+    ch->outputFreq  = chaux->outputFreq ;
+    ch->outputLevel = chaux->outputLevel;
+    
+    // Discarding all this readings by using chaux
+    gsl_vector_memcpy(ch->lam,chaux->lam);
+    chapeau_free(chaux);
+}
+
+
+void chapeau_loadstate ( chapeau * ch, char * filename ) {
+    int i;
     chapeau * chaux = (chapeau*)malloc(sizeof(chapeau));
     FILE * ofs;
    
@@ -217,21 +284,24 @@ void chapeau_loadstate ( chapeau * ch, char * filename ) {
     // reading integers (N,M,et), that is only what we want... better way to do
     // this?
     fread(chaux, sizeof(*chaux), 1, ofs);
-    ch->N           = chaux->N          ;
-    ch->m           = chaux->m          ;
+    if (!chapeau_quickcompare(ch,chaux)) {
+      fprintf(stdout,"CFACV) ERROR, the chapeau object from the file is diferent\n");
+    }
+            
+    // This variables are alredy set during allocation, might be better to
+    // compare them instead
     ch->nsample     = chaux->nsample    ;
+    ch->rmin        = chaux->rmin       ;
+    ch->rmax        = chaux->rmax       ;
+    ch->dr          = chaux->dr         ;
+    ch->idr         = chaux->idr        ;
+    
+    // This variables might be not set
     ch->nupdate     = chaux->nupdate    ;
     ch->alpha       = chaux->alpha      ;
     strcpy(ch->filename,chaux->filename);
     ch->outputFreq  = chaux->outputFreq ;
     ch->outputLevel = chaux->outputLevel;
-    ch->rmin        = chaux->rmin       ;
-    ch->rmax        = chaux->rmax       ;
-    ch->dr          = chaux->dr         ;
-    ch->idr         = chaux->idr        ;
-
-    N=ch->N;
-    m=ch->m;
      
     fread(ch->hits,sizeof(*(ch->hits)),ch->m,ofs);
     fread(ch->mask,sizeof(*(ch->mask)),ch->N,ofs);
@@ -317,6 +387,9 @@ void chapeau_update_peaks ( chapeau * ch ) {
   gsl_vector_free(bbar);
   gsl_vector_free(lambar);
   gsl_permutation_free(p);
+
+  //chapeau_baselinehits(ch); 
+
 }
 
 void chapeau_set_peaks ( chapeau * ch, char * filename ) {
@@ -361,14 +434,58 @@ double chapeau_evalf ( chapeau * ch, double z ) {
   // /---------dm---------/
 
   dm=ch->idr*(z-ch->rmin);
-
   m=(int) dm;
   dm=dm-m;
+
   la=gsl_vector_get(ch->lam,m);
   lb=gsl_vector_get(ch->lam,m+1);
   return la+(lb-la)*dm; 
 
 }  
+
+//void chapeau_setmref ( chapeau * ch, double z ) {
+//  // set the mref peak from the z rage and use it as baseline
+//  int i;
+//  double dm;
+//  double la,lb;
+//   
+//  // Early return to avoid interpolations beyond the boundaries
+//  if ( z > ch->rmax ) return;
+//  if ( z <= ch->rmin ) return;
+//   
+//  // o                    z   
+//  // |                o   |   
+//  // |       o        |   |   o
+//  // |       |        |   |   |
+//  // |       |        |   |   |
+//  // min  min+dr ...  |   v   |
+//  // +-------+---//---+-------+---
+//  // 0       1   ...  m      m+1
+//  // /---------dm---------/
+//
+//  dm=ch->idr*(z-ch->rmin);
+//  ch->mref=(int) dm; 
+//
+//  la=gsl_vector_get(ch->lam,ch->mref);
+//  for (i=0;i<ch->m;i++) {
+//    lb=gsl_vector_get(ch->lam,i);
+//    gsl_vector_set(ch->lam,i,lb-la);
+//  }  
+//}  
+//     
+//void chapeau_baselinehits ( chapeau * ch) {
+//  // Add a constant to the lam vector in order to set the baseline in the
+//  // element k.
+//  int i,m;
+//  double dm,la,lb;
+//   
+//  la=gsl_vector_get(ch->lam,ch->mref);
+//  for (i=0;i<ch->m;i++) {
+//    if (!ch->hits[i]) continue;
+//    lb=gsl_vector_get(ch->lam,i);
+//    gsl_vector_set(ch->lam,i,lb-la);
+//  }  
+//}  
     
 char * chapeau_serialize ( chapeau * ch ) {
   // return a str containing the serialized chapeau with partial statistics. If

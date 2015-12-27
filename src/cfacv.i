@@ -17,7 +17,7 @@ extern void cfacvBanner ( void );
 extern FILE * my_fopen ( char * name, char * code );
 extern DataSpace * NewDataSpace ( int N, int M, int K, long int seed ) ;
 extern int DataSpace_SetupPBC ( DataSpace * ds, int pbc, double Ox, double Oy, double Oz, double Lx, double Ly, double Lz);
-extern int DataSpace_Setup1Dchapeau ( DataSpace * ds, int numrep, double min, int nKnots, double max, int beginaccum, int useTAMDforces, char * outfile, int outfreq, int outlevel, int nupdate);
+extern int DataSpace_Setup1Dchapeau ( DataSpace * ds, int numrep, double min, int nKnots, double max, int beginaccum, int beginsolve, int useTAMDforces, char * outfile, int outfreq, int outlevel, int nupdate);
 extern chapeau * DataSpace_get_chapeauadress ( DataSpace * ds, int i );
 extern int DataSpace_AddAtomCenter ( DataSpace * ds, int n, int * ind, double * m );
 extern int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind ) ;
@@ -49,6 +49,7 @@ extern void chapeau_setserialized ( chapeau *ch, char * str );
 
 extern void chapeau_set_peaks ( chapeau * ch, char * filename );
 extern void chapeau_loadstate ( chapeau * ch, char * filename );
+extern void chapeau_loadlambda ( chapeau * ch, char * filename );
 extern void chapeau_savestate ( chapeau * ch, int timestep, char * filename );
 extern void ds_loadrestrains ( DataSpace * ds, char * filename );
 extern void ds_saverestrains ( DataSpace * ds, int timestep, char * filename );
@@ -57,3 +58,4 @@ extern double restr_getz ( restrStruct * r );
 extern double restr_getu ( restrStruct * r );
 extern int restr_set_rchid ( restrStruct * r, DataSpace * ds, int chid);
 
+//extern void chapeau_setmref ( chapeau * ch, double z );

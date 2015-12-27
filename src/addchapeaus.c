@@ -27,7 +27,7 @@ int main ( int argc, char * argv[] ) {
   }
   
   // Output of the first chapeau before add in it
-  chapeau_setupoutput(ch[0],"chaps",1,1);
+  chapeau_setupoutput(ch[0],"chaps.bsp","chaps",1,1);
   ch[0]->nupdate=1;
   chapeau_update_peaks(ch[0]);
   chapeau_output(ch[0],1);

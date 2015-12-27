@@ -9,7 +9,7 @@
 
 # Restart REMD: uncomment and correct the name of the restart file to match the
 # existing file. Then run again.
-#   source output/job0.restart5000.tcl
+#   source output/job0.restart1000.tcl
 
 # Restart OTFP: There is two modes to restart otfp, chose one:
 #   set restart_otfp cfacv_loadstate
@@ -20,19 +20,16 @@ set restart_chapeau chapeau_loadlambda
 # Warning: sortreplicas has a BUG when runs_per_frame is not 1
 
 set num_replicas            6
-set min_temp              300
-set nmin_temp               1
-set max_temp              400
+set min_temp              100
+set nmin_temp               0
+set max_temp             1000
 
 set steps_per_run        1000 ; # number of steps between exchange attempts
-set num_runs         10000000 ; # runs before stopping, should be divisible by runs_per_frame * frames_per_restart
+set num_runs             1000 ; # runs before stopping, should be divisible by runs_per_frame * frames_per_restart
 
 set runs_per_frame         1 ;# sortreplicas has a serious BUG when this is not 1
 set runs_per_restart     100 
 set runs_noexchange      300
-set runs_noevolvech        0
-set runs_nosolvech         0
-set runs_per_addchapeaus   5  
 
 set data_each        [expr $steps_per_run*1]
 
@@ -47,11 +44,8 @@ set output_root      "output/%s/" ; # directories must exist
 if { ! [catch numPes] } { 
 
   # The molecules
-  structure         prpwb.psf
-  coordinates       prp_wb.pdb
-  binCoordinates    md0.coor  ;# coordinates from last run (binary)
-  extendedsystem    md0.xsc
-
+  structure           ../butane_files/buta.psf
+  coordinates         ../butane_files/buta.pdb
 
   # The previous coordinates and boundary conditions
   # bincoordinates rep1999.coor
@@ -59,11 +53,16 @@ if { ! [catch numPes] } {
   rigidBonds          all  
 
   # Periodic Boundary Conditions
-  wrapall             on   ;# wrap all the atoms
+  set XSCFILE         off
+  # cellBasisVector1    54.0    0    0.0
+  # cellBasisVector2     0.0 54.0    0.0
+  # cellBasisVector3     0.0    0   54.0
+  # cellOrigin           0.0    0.0  0.0
+  # wrapall             on   ;# wrap all the atoms
    
   # Potentials and parameters
   paraTypeCharmm      on
-  parameters          par_all27_prot_lipid_na.inp 
+  parameters          ../butane_files/par_all36_cgenff.prm
   exclude             scaled1-4
   1-4scaling          1.0
 
@@ -77,8 +76,8 @@ if { ! [catch numPes] } {
   stepspercycle       10    ;#Pasos para el calculo de la lista de Verlet
 
   # Particle Mesh Ewald algorithm
-  PME                 on    ; # 3D grid representing the system charge.
-  PMEgridspacing      1     ; # Maximum distance between grid points in each direction.
+  # PME                 on    ; # 3D grid representing the system charge.
+  # PMEgridspacing      1     ; # Maximum distance between grid points in each direction.
 
   # Multiple time steps
   nonbondedFreq       1
@@ -90,15 +89,17 @@ if { ! [catch numPes] } {
   langevinDamping     50.
 
   # # Ensamble NPT
-  langevinPiston      on
-  set pressure          1.01325
-  langevinPistonTarget  $pressure ;# in bar
-  set pressure          [expr $pressure*1.43933857e-10] ;#  in kcalmol/A3 
-  langevinPistonPeriod  100.0 ;# oscillation time constant in fs
-  langevinPistonDecay   50.0 ;# damping time constant in fs
-  useGroupPresyysure    yes ;# needed for rigidBonds
-  useFlexibleCell       no  ;# three directions are independent
-  useConstantArea       no  ;# xy area constant.
+  # langevinPiston      off
+  #
+  # set pressure          1.01325
+  # langevinPistonTarget  $pressure ;# in bar
+  # set pressure          [expr $pressure*1.43933857e-10] ;#  in kcalmol/A3 
+  #
+  # langevinPistonPeriod  100.0 ;# oscillation time constant in fs
+  # langevinPistonDecay   50.0 ;# damping time constant in fs
+  # useGroupPresyysure    yes ;# needed for rigidBonds
+  # useFlexibleCell       no  ;# three directions are independent
+  # useConstantArea       no  ;# xy area constant.
    
   # Output
   # If steps_per_run is not multiple of outputEnergies, the potential energy
@@ -109,10 +110,10 @@ if { ! [catch numPes] } {
   dcdFreq         [expr $steps_per_run*$runs_per_frame] 
  
   # Call replica (make sure is in the correct ensamble)
-  # source REMD_NVT.namd 
+  source ../../scripts/REMD_NVT.namd 
   # source REMD_NPT.namd 
 
-  source REOFP_NPT.namd 
+  # source REOFP_NPT.namd 
   # source REOFP_NVT.namd 
 }
 

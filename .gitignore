@@ -1,4 +1,6 @@
 src/*.o
 src/version
 src/*_wrap.c
+examples/*/output
+examples/*/*log
 message

@@ -227,8 +227,12 @@ typedef struct DATASPACESTRUCT {
   // for evolution of the parameterization
   double lamfric;
   double lamdt;
+
+  // TODO: This should be controles from the input script
   int evolveAnalyticalParameters;
   int beginaccum;
+  int beginsolve;
+
   int useTAMDforces; // indicates whether tamd forces are used to
 		     // update auxiliary variables; other choice is
 		     // the use forces available from the
@@ -248,7 +252,7 @@ unsigned short * Xi;
 FILE * my_fopen ( char * name, char * code ) ;
 DataSpace * NewDataSpace ( int N, int M, int K, long int seed );
 int DataSpace_SetupPBC ( DataSpace * ds, int pbc, double Ox, double Oy, double Oz, double Lx, double Ly, double Lz );
-int DataSpace_Setup1Dchapeau ( DataSpace * ds, int numrep, double min, int nKnots, double max, int beginaccum, int useTAMDforces, char * outfile, int outfreq, int outlevel, int nupdate);
+int DataSpace_Setup1Dchapeau ( DataSpace * ds, int numrep, double min, int nKnots, double max, int beginaccum, int beginsolve, int useTAMDforces, char * outfile, int outfreq, int outlevel, int nupdate);
 chapeau * DataSpace_get_chapeauadress ( DataSpace * ds, int i );
 int DataSpace_getN ( DataSpace * ds );
 double * DataSpace_centerPos ( DataSpace * ds, int i );

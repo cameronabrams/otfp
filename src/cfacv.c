@@ -463,11 +463,11 @@ chapeau * DataSpace_get_chapeauadress ( DataSpace * ds, int i ) {
 }
   
 int DataSpace_Setup1Dchapeau ( DataSpace * ds, int numrep, double min, int nKnots,
-    double max, int beginaccum, int useTAMDforces, char * outfile, 
+    double max, int beginaccum, int beginsolve, int useTAMDforces, char * outfile, 
     int outfreq, int outlevel, int nupdate) {
   int i,j;
   int N=ds->N; // number of centers
-  char buf[80];
+  char buf[80], buf2[80];
 
   fprintf(stdout,"CFACV/C) DEBUG DataSpace_Setup %i\n",N);fflush(stdout);
   ds->doAnalyticalCalc=1;
@@ -477,6 +477,7 @@ int DataSpace_Setup1Dchapeau ( DataSpace * ds, int numrep, double min, int nKnot
   // This is to let the system equilibrate
   ds->evolveAnalyticalParameters=1;
   ds->beginaccum=beginaccum;
+  ds->beginsolve=beginsolve;
   if (beginaccum < 0) ds->evolveAnalyticalParameters=0;
 
 
@@ -503,13 +504,14 @@ int DataSpace_Setup1Dchapeau ( DataSpace * ds, int numrep, double min, int nKnot
     //gsl_matrix_set_zero(ds->ch[i]->A);
     //gsl_vector_set_zero(ds->ch[i]->b);
     sprintf(buf, "%s_ch%d.bsp", outfile,i);
-    chapeau_setupoutput(ds->ch[i],buf,outfreq,outlevel);
+    sprintf(buf2, "%s.ch%d", outfile,i);
+    chapeau_setupoutput(ds->ch[i],buf,buf2,outfreq,outlevel);
     ds->ch[i]->nupdate=nupdate;
   }
 
   //restart
   ds->restrsavefreq=outfreq;
-  sprintf(ds->filename, "%s_restr.restart",outfile);
+  sprintf(ds->filename, "%s.rstr",outfile);
 
   ds->lamfric=0.0;
   ds->lamdt=0.0;
@@ -850,16 +852,16 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
       for (ic=0;ic<ds->ch_num;ic++) {
         ch=ds->ch[ic];
 
-        if (timestep>ds->beginaccum && !(timestep % ch->nupdate)) {
-          chapeau_update_peaks(ch);
+        if (timestep>ds->beginsolve && !(timestep % ch->nupdate)) chapeau_update_peaks(ch);
 
-          //aux=ch->nsample/ch->nupdate
-          //if(!(aux%ch->outputFreq)) chapeau_output(ch);
+        //aux=ch->nsample/ch->nupdate
+        //if(!(aux%ch->outputFreq)) chapeau_output(ch);
 
-          if (!(timestep % ch->outputFreq)) {
-            chapeau_output(ch,timestep);
-            chapeau_savestate(ch,timestep,ch->filename);
-          }
+        if (!(timestep % ch->outputFreq)) {
+          chapeau_output(ch,timestep);
+
+          // TODO: separete savestate from outputFreq
+          chapeau_savestate(ch,timestep,ch->filename);
         }
       }
     }

@@ -1,9 +1,9 @@
 #!/bin/tclsh
 
 tclforces             on
-set CFACV_BASEDIR     OTFP
+set CFACV_BASEDIR     ../../src
 tclforcesscript       $CFACV_BASEDIR/calcforces.tcl
- 
+
 # Periodic Boundary Conditions
 set XSCFILE         off
 
@@ -18,30 +18,29 @@ set TAMDverbose            1
 
 # for DataSpace_ReportRestraints
 set TAMDoutputlevel        15   ;# Z-Th-FD-ND (e.g. 5 => 0101 => Th and ND)
-set TAMDof                 $data_each ;# frequency 
+set TAMDof                 5000 ;# frequency 
 # set TAMDbinOutputFile       asd.bin
 # set TAMDbinof               100 ;# frequency
 
 # for chapeau_output
-set BINREPORTPARAMFREQ     $data_each ;#ds->ch->outputFreq
-set BINREPORTPARAMFILE     [format $job_output_root $replica_id]
-set BINOUTPUTLEVEL         3          ;#lambda-hits (e.g. 3 => 11 => both)
+set BINREPORTPARAMFREQ     1000
+set BINREPORTPARAMFILE     ${oname} ;#ds->ch->ofp
+set BINOUTPUTLEVEL         3        ;#lambda-hits (e.g. 3 => 11 => both)
  
 # About grid
-set CUTOFF                  4.0
-set NLCUTOFF                4.1
-set SPLINEMIN               0.3
-set NKNOTS                  371 ;#dr=$CUTOFF-$SPLINEMIN/(NKNOTS-1)
+set CUTOFF                  5.3
+set NLCUTOFF                6.3
+set SPLINEMIN               2.5
+set NKNOTS                  201 ;#dr=$CUTOFF-$SPLINEMIN/(NKNOTS-1)
 # set initKnotsINP            wcaknots
 
 # Offset and interval for improve lambda parameters
 set CFACV_doAnalyticalCalc  1  ;# 1 optmize the analytical parameterization
 set USETAMDFORCES           1  ;# 1 use TAMD forces, 0 use gradient of G
-set BEGINEVOLVEPARAMETERS   [expr $steps_per_run*$runs_noevolvech]  ;# Number of steps without evolution at the start
 
-
-set LAMUPDATEINTERVAL       $data_each
-set BEGINSOLVELAM           [expr $steps_per_run*$runs_nosolvech]  ;# Number of steps without evolution at the start
+set BEGINEVOLVEPARAMETERS   5000  ;# Number of steps without evolution at the start
+set LAMUPDATEINTERVAL       5000
+set BEGINSOLVELAM           5000  ;# Number of steps without evolution at the start
 
 
 # Restraints
@@ -57,4 +56,6 @@ set restr(1.bound)    soft           ; # boundary behavior
  set restr(1.max)      $CUTOFF       
  set restr(1.min)      $SPLINEMIN    
 
-
+# Initialize OTFP program
+source $CFACV_BASEDIR/cfacv.tcl
+ 

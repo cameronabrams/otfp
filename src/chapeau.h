@@ -18,6 +18,8 @@ typedef struct CHAPEAU {
   double rmin, rmax, dr, idr;  // range and increment or argument of
 			       // pair potential
 
+  //int mref;  // reference peak
+
   FILE * ofp; // for output chapeu
   int outputFreq;
   int outputLevel;
@@ -76,13 +78,14 @@ void chapeau_setUpdateInterval ( chapeau * ch, int i );
 void chapeau_pair_eval_g ( chapeau * ch, double z, double * u, double * g_r );
 
 // Output system
-void chapeau_setupoutput ( chapeau * ch, char * filename, int outputFreq, int outputLevel );
+void chapeau_setupoutput ( chapeau * ch,  char * outfile, char * restartfile, int outputFreq, int outputLevel );
 void chapeau_output ( chapeau * ch, int timestep );
 
 // Restart system
 void chapeau_savestate ( chapeau * ch, int timestep, char * filename );
-chapeau * chapeau_allocloadstate ( char * filename ) ;
-void chapeau_loadstate ( chapeau * ch, char * filename ) ;
+chapeau * chapeau_allocloadstate ( char * filename );
+void chapeau_loadstate ( chapeau * ch, char * filename );
+void chapeau_loadlambda ( chapeau * ch, char * filename );
 
 void chapeau_init_global_accumulators ( chapeau * ch );
 
@@ -99,3 +102,5 @@ void chapeau_addserialized ( chapeau * ch, char * str );
 void chapeau_setserialized ( chapeau *ch, char * str );
 
 void chapeau_set_peaks ( chapeau * ch, char * filename );
+//void chapeau_baselinehits ( chapeau * ch );
+//void chapeau_setmref ( chapeau * ch, double z );

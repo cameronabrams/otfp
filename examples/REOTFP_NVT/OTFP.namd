@@ -1,7 +1,7 @@
 #!/bin/tclsh
 
 tclforces             on
-set CFACV_BASEDIR     OTFP
+set CFACV_BASEDIR     ../../src
 tclforcesscript       $CFACV_BASEDIR/calcforces.tcl
  
 # Periodic Boundary Conditions
@@ -28,10 +28,10 @@ set BINREPORTPARAMFILE     [format $job_output_root $replica_id]
 set BINOUTPUTLEVEL         3          ;#lambda-hits (e.g. 3 => 11 => both)
  
 # About grid
-set CUTOFF                  4.0
-set NLCUTOFF                4.1
-set SPLINEMIN               0.3
-set NKNOTS                  371 ;#dr=$CUTOFF-$SPLINEMIN/(NKNOTS-1)
+set CUTOFF                  5.0
+set NLCUTOFF                5.1
+set SPLINEMIN               2.0
+set NKNOTS                  301 ;#dr=$CUTOFF-$SPLINEMIN/(NKNOTS-1)
 # set initKnotsINP            wcaknots
 
 # Offset and interval for improve lambda parameters
