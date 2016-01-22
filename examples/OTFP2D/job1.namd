@@ -11,8 +11,8 @@ seed                $seed
  
 
 # The molecules
-structure           ../systems/buta.psf
-coordinates         ../systems/buta.pdb
+structure           ../butane_files/buta.psf
+coordinates         ../butane_files/buta.pdb
 binCoordinates      job0.restart.coor
 binVelocities       job0.restart.vel
 # extendedsystem      job0.restart.xsc
@@ -30,7 +30,7 @@ rigidBonds          all
  
 # Potentials and parameters
 paraTypeCharmm      on
-parameters          ../systems/par_all36_cgenff.prm
+parameters          ../butane_files/par_all36_cgenff.prm
 exclude             scaled1-4
 1-4scaling          1.0
 
@@ -84,7 +84,7 @@ source OTFP.namd
 
 # Restart restraints
 ds_loadrestrains $ds job0.rstr 
-
+    
 # Restart chapeaus
 chapeau_loadstate $chape(0.address) job0.ch0
           

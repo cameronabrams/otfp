@@ -8,10 +8,10 @@ getnamdset () {
 }
  
 # # Run simulation
-namd2 job0.namd 2>&1 | tee job0.log
+# namd2 job0.namd 2>&1 | tee job0.log
 
 # Run simulation
-namd2 job1.namd 2>&1 | tee job1.log
+# namd2 job1.namd 2>&1 | tee job1.log
 
 # Computing free energy.
 for file in $(ls *bsp); do
@@ -22,21 +22,25 @@ for file in $(ls *bsp); do
     | awk 'BEGIN{a=""} (NR>1&&$2!=a){a=$2;$1="";$2="";print $0}'\
     > ${f}.LAMBDA
 
-  rmin=$(getnamdset SPLINEMIN OTFP.namd)
-  rmax=$(getnamdset CUTOFF OTFP.namd)
-  knots=$(getnamdset NKNOTS OTFP.namd)
-  dr=$(perl -E "(($rmax)-($rmin))/($knots-1)") 
-   
-  sed -n '$s/\(.\)\s\s*\(.\)/\1\n\2/g;$p' ${f}.LAMBDA \
-    | awk '{print (NR-1)*'$dr'+'$rmin',$1}' \
-    > ${f}.fes
-   
+  awk  -v line=$(wc -l < ${f}.LAMBDA) -v j=0 \
+     -v Nx=151 -v Ny=151 \
+     -v dx=0.0418879020478639 -v dy=0.0418879020478639 \
+     -v xmin=-3.14159265358979 -v ymin=-3.14159265358979 \
+     '(line==NR){
+        for (j=0;j<Ny;j++){
+          for (i=0;i<Nx;i++){
+            a=i+j*Nx+1
+            print ymin+dy*j,xmin+dx*i,$a
+          }
+          print ""
+        }
+      }' ${f}.LAMBDA > ${f}.fes
 done
- 
-#Computing the begining of job1
-sed -n '1s/\(.\)\s\s*\(.\)/\1\n\2/g;1p' job1_ch0.LAMBDA \
-  | awk '{print (NR-1)*'$dr'+'$rmin',$1}' \
-  > job1_ch0.fes1
+
+# #Computing the begining of job1
+# sed -n '1s/\(.\)\s\s*\(.\)/\1\n\2/g;1p' job1_ch0.LAMBDA \
+#   | awk '{print (NR-1)*'$dr'+'$rmin',$1}' \
+#   > job1_ch0.fes1
 
 #Computing traces
 for file in $(ls *dcd); do
@@ -45,7 +49,7 @@ for file in $(ls *dcd); do
 
 vmd -dispdev text << HERETCL
    
-  mol new ../systems/buta.psf type psf first 0 last -1 step 1 filebonds 1 autobonds 0 waitfor all
+  mol new ../systems/ala2.psf type psf first 0 last -1 step 1 filebonds 1 autobonds 0 waitfor all
   mol addfile $file type dcd first 0 last -1 step 1 filebonds 1 autobonds 0 waitfor all
 
   proc distance { i1 i2 } {
@@ -63,7 +67,7 @@ vmd -dispdev text << HERETCL
   puts \$nframes
   for {set frame 0} {\$frame < \$nframes} {incr frame} {
       animate goto \$frame
-      puts \$fil [distance 0 10] 
+      puts \$fil "[measure dihed {2 0 16 14}] [measure dihed {0 16 14 13}]"
   }
   close \$fil
 

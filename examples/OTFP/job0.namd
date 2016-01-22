@@ -11,10 +11,10 @@ seed                $seed
  
 
 # The molecules
-structure           ../butane_files/buta.psf
-coordinates         ../butane_files/buta.pdb
-
+structure           ../systems/buta.psf
+coordinates         ../systems/buta.pdb
 firsttimestep       0
+
 timestep            2.0
 rigidBonds          all  
 
@@ -27,7 +27,7 @@ rigidBonds          all
  
 # Potentials and parameters
 paraTypeCharmm      on
-parameters          ../butane_files/par_all36_cgenff.prm
+parameters          ../systems/par_all36_cgenff.prm
 exclude             scaled1-4
 1-4scaling          1.0
 

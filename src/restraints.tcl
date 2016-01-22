@@ -110,6 +110,7 @@ proc rlist_setup { ncv } {
         if {![info exists restr($i.g)]}     {error "CFACV) ERROR: TAMD restraint need g"}
         if {![info exists restr($i.dt)]}    {error "CFACV) ERROR: TAMD restraint need dt"}
         if {![info exists restr($i.chid)]}  {set restr($i.chid) 0}
+        if {![info exists restr($i.chdm)]}  {set restr($i.chdm) 0}
 
         if {[info exists restr($i.temp)]}  {
           set ktaux [expr $restr($i.temp)*0.001987191]
@@ -128,7 +129,7 @@ proc rlist_setup { ncv } {
         if {![info exists ktaux]}  {error "CFACV) ERROR: TAMD temperature info is needed."}
 
         # DataSpace_AddTamdOpt $ds $ir $restr($i.g) [expr $temperature*$restr($i.biasf)*0.001987191] $restr($i.dt)
-        restr_AddTamdOpt $restr($i.address) $restr($i.g) $ktaux $restr($i.dt) $restr($i.chid)
+        restr_AddTamdOpt $restr($i.address) $restr($i.g) $ktaux $restr($i.dt) $restr($i.chid) $restr($i.chdm)
       }
       SMD {
         if {![info exists restr($i.target)]} {error "CFACV) ERROR: SMD restraint need target"}

@@ -37,7 +37,7 @@ FILE * my_fopen ( char * name, char * code ) {
 FILE * my_binfopen ( char * name, char * code, unsigned int outputLevel, DataSpace * ds ) {
   FILE * fp=fopen(name,code);
   fwrite(&outputLevel,sizeof(unsigned int),1,fp);
-  fwrite(&(ds->iK),sizeof(int),1,fp);
+  fwrite(&(ds->K),sizeof(int),1,fp);
   return fp;
 }
 
@@ -169,16 +169,15 @@ int smdOptInit ( smdOptStruct * smd, double initval) {
   
 }
 
-void ds_saverestrains ( DataSpace * ds, int timestep, char * filename ) {
+void ds_saverestrains ( DataSpace * ds, char * filename ) {
   int i;
   restrStruct * r;
   FILE * ofs;
 
   ofs=fopen(filename,"w");
 
-  fwrite(&timestep,sizeof(int),1,ofs);
-  fwrite(&ds->iK,sizeof(int),1,ofs);
-  for (i=0;i<ds->iK;i++) {
+  fwrite(&ds->K,sizeof(int),1,ofs);
+  for (i=0;i<ds->K;i++) {
     r=ds->restr[i];
     fwrite(&(r->z),sizeof(double),1,ofs);
     fwrite(&(r->val),sizeof(double),1,ofs);
@@ -197,14 +196,12 @@ void ds_loadrestrains ( DataSpace * ds, char * filename ) {
 
   fread(&i,sizeof(int),1,ofs);
   fprintf(stdout,"CFACV) Recovering restraint state of step %i of some previous simulation\n",i);
-
-  fread(&i,sizeof(int),1,ofs);
-  if ( i!=ds->iK ) {
+  if ( i!=ds->K ) {
     fprintf(stderr,"CFACV) ERROR restraint restart because holding object has not the proper size\n",i);
     exit(-1);
   }
 
-  for (i=0;i<ds->iK;i++) {
+  for (i=0;i<ds->K;i++) {
     r=ds->restr[i];
     fread(&(r->z),sizeof(double),1,ofs);
     fread(&(r->val),sizeof(double),1,ofs);
@@ -402,7 +399,9 @@ DataSpace * NewDataSpace ( int N, int M, int K, long int seed ) {
   ds->N=N;
   ds->M=M;
   ds->K=K;
-  ds->iN=ds->iM=ds->iK=0;
+  ds->iN=0;
+  ds->iM=0;
+  ds->iK=0;
 
   // This will not work with numbers less that 16 bits!
   //// Random seed. I deatached this from the data space a do it global
@@ -433,43 +432,27 @@ DataSpace * NewDataSpace ( int N, int M, int K, long int seed ) {
   ds->restr=(restrStruct**)malloc(K*sizeof(restrStruct*));
 
   ds->doAnalyticalCalc=0;
-  ds->O[0]=ds->O[1]=ds->O[2]=0.0;
-  ds->L[0]=ds->L[1]=ds->L[2]=0.0;
-  ds->hL[0]=ds->hL[1]=ds->hL[2]=0.0;
   ds->evolveAnalyticalParameters=0;
   ds->beginaccum=0;
 
   return ds;
 }
 
-int DataSpace_SetupPBC ( DataSpace * ds, int pbc, double Ox, double Oy, double Oz, \
-			      double Lx, double Ly, double Lz ) {
-  ds->pbc=pbc;
-  ds->O[0]=Ox;
-  ds->O[1]=Oy;
-  ds->O[2]=Oz;
-  ds->L[0]=Lx;  ds->hL[0]=Lx/2.;
-  ds->L[1]=Ly;  ds->hL[1]=Ly/2.;
-  ds->L[2]=Lz;  ds->hL[2]=Lz/2.;
-  ds->Max[0]=ds->L[0]-ds->O[0]; ds->Min[0]=ds->Max[0]-ds->L[0];
-  ds->Max[1]=ds->L[1]-ds->O[1]; ds->Min[1]=ds->Max[1]-ds->L[1];
-  ds->Max[2]=ds->L[2]-ds->O[2]; ds->Min[2]=ds->Max[2]-ds->L[2];
- 
-  return 0;
-}
-
 chapeau * DataSpace_get_chapeauadress ( DataSpace * ds, int i ) {
   return ds->ch[i];
 }
   
-int DataSpace_Setup1Dchapeau ( DataSpace * ds, int numrep, double min, int nKnots,
-    double max, int beginaccum, int beginsolve, int useTAMDforces, char * outfile, 
+int DataSpace_SetupChapeau ( DataSpace * ds, int numrep, int dm, double*  min, int * nKnots,
+    double * max, int beginaccum, int beginsolve, int useTAMDforces, char * outfile, 
     int outfreq, int outlevel, int nupdate) {
+  // Initialize chapeaus objects in DataSpace. Since Data space might not have
+  // any chapeau allocated, the number of chapeaus is not indicated in the
+  // dataspace constructor.
   int i,j;
-  int N=ds->N; // number of centers
   char buf[80], buf2[80];
 
-  fprintf(stdout,"CFACV/C) DEBUG DataSpace_Setup %i\n",N);fflush(stdout);
+  if (!ds) {fprintf(stderr,"CFACV) null argument\n"); exit(-1);}
+  
   ds->doAnalyticalCalc=1;
   ds->useTAMDforces=useTAMDforces;
   if (ds->useTAMDforces) fprintf(stdout,"CFACV/C) INFO: using TAMD forces instead of analytical forces.\n");
@@ -480,29 +463,11 @@ int DataSpace_Setup1Dchapeau ( DataSpace * ds, int numrep, double min, int nKnot
   ds->beginsolve=beginsolve;
   if (beginaccum < 0) ds->evolveAnalyticalParameters=0;
 
-
-  //FIXME: This code was here to allow compute chapeau functions separatedly
-  //for different pair types of particles. For instance, this allow to
-  //recover SOD SOD, CLA CLA and SOD CLA pair potentials in 1 TAMD
-  //simulation. Each index has a number in ch_id which allow to sort the pair
-  //in the different chapeau objects on the c code.  From the studies with
-  //SOD CLA, this pair potentials will be OK only if the ficticius
-  //temperature is the same that the real one.  On the other hand, a better
-  //way to achive this is needed (without saving a lot of numbers in ch_id).
-  //For understand how this worked, see the previous versions of the code. 
-  //i=N*(N-1)/2; // The upper triangular half of a rectangular matrix
-  //ds->ch_id=(int*)malloc(i*sizeof(int));
-  //ds->ch_num=chnum;
-
   ds->ch_num=numrep;
   ds->ch=(chapeau**)malloc(ds->ch_num*sizeof(chapeau*));
 
   for (i=0;i<ds->ch_num;i++) {
-    ds->ch[i]=chapeau_alloc(nKnots,min,max,N);
-
-    //No needed, calloc in chapeau_alloc
-    //gsl_matrix_set_zero(ds->ch[i]->A);
-    //gsl_vector_set_zero(ds->ch[i]->b);
+    ds->ch[i]=chapeau_alloc(dm,min,max,nKnots);
     sprintf(buf, "%s_ch%d.bsp", outfile,i);
     sprintf(buf2, "%s.ch%d", outfile,i);
     chapeau_setupoutput(ds->ch[i],buf,buf2,outfreq,outlevel);
@@ -520,46 +485,29 @@ int DataSpace_Setup1Dchapeau ( DataSpace * ds, int numrep, double min, int nKnot
 }
 
 int DataSpace_getN ( DataSpace * ds ) {
-  if (ds) return ds->N;
-  else return -1;
+  if (!ds) {fprintf(stderr,"CFACV) null argument\n"); exit(-1);}
+  return ds->N;
 }
-
-//int * DataSpace_chid ( DataSpace * ds ) {
-//FIXME: This code was here to allow compute chapeau functions separatedly
-//for different pair types of particles. For instance, this allow to
-//recover SOD SOD, CLA CLA and SOD CLA pair potentials in 1 TAMD
-//simulation. Each index has a number in ch_id which allow to sort the pair
-//in the different chapeau objects on the c code.  From the studies with
-//SOD CLA, this pair potentials will be OK only if the ficticius
-//temperature is the same that the real one.  On the other hand, a better
-//way to achive this is needed (without saving a lot of numbers in ch_id).
-//For understand how this worked, see the previous versions of the code.
-//  if (ds) {return ds->ch_id;}
-//  return NULL;
-//}
  
 double * DataSpace_centerPos ( DataSpace * ds, int i ) {
-  if (ds) {
-    if (i<ds->N) {
-      return ds->R[i];
-    }
-    return NULL;
-  }
-  return NULL;
+  if (!ds) {fprintf(stderr,"CFACV) null argument\n"); exit(-1);}
+  if (i>=ds->N) {fprintf(stderr,"CFACV) out of size\n"); exit(-1);}
+  return ds->R[i];
 }
 
 int DataSpace_checkdata ( DataSpace * ds ) {
-  if (ds) {
-    int i,j;
-    for (i=0;i<ds->N;i++) {
-      for (j=0;j<3;j++) {
-	if (ds->R[i][j]!=ds->R[i][j]) {
-	  return 1;
-	}
+  int i,j;
+
+  if (!ds) return 1;
+ 
+  for (i=0;i<ds->N;i++) {
+    for (j=0;j<3;j++) {
+      if (ds->R[i][j]!=ds->R[i][j]) {
+        return 1;
       }
     }
-    return 0;
   }
+
   return 0;
 }
 
@@ -577,68 +525,105 @@ int DataSpace_dump ( DataSpace * ds ) {
   return 0;
 }
 
+
+//chapeau * DataSpace_AddCh ( DataSpace * ds, int dm, double * min, 
+//    int * knots, double * max, char * outfile, int outfreq, int outlevel, 
+//    int nupdate) 
+//{
+//  // TODO: control the size of outfile.
+//  // TODO: control the size of min, max, knots (creo no se puede en C).
+//  char buf[80], buf2[80];
+//  int i;
+//
+//  if (!ds) {fprintf(stderr,"CFACV) null argument\n"); exit(-1);}
+//
+//  ds->ch_now++;
+//  if (ds->ch_now>ds->ch_num) {fprintf(stderr,"CFACV) out of size\n"); exit(-1);}
+//  
+//  i=ds->ch_now-1;
+//  ds->ch[i]=chapeau_alloc(dm,min,max,knots);
+//  sprintf(buf, "%s_ch%d.bsp", outfile,i);
+//  sprintf(buf2, "%s.ch%d", outfile,i);
+//  chapeau_setupoutput(ds->ch[i],buf,buf2,outfreq,outlevel);
+//  ds->ch[i]->nupdate=nupdate;
+//
+//  return ds->ch[i];
+//}
+ 
+
 int DataSpace_AddAtomCenter ( DataSpace * ds, int n, int * ind, double * m ) {
-  if (ds) {
-    if (ds->iN<ds->N) {
-      int i,j;
-      ds->ac[ds->iN++]=New_atomCenterStruct(n);
-      i=ds->iN-1;
-      ds->ac[i]->ind=calloc(n,sizeof(int));
-      ds->ac[i]->m=calloc(n,sizeof(double));
-      for (j=0;j<n;j++) {
-	ds->ac[i]->ind[j]=ind[j];
-	ds->ac[i]->m[j]=m[j];
-	ds->ac[i]->M+=m[j];
-      }
-      return (ds->iN-1);
-    }
-    return -1;
+  int i,j;
+  
+  if (!ds) {fprintf(stderr,"CFACV) null argument\n"); exit(-1);}
+
+  ds->iN++;
+  if (ds->iN>ds->N) {fprintf(stderr,"CFACV) out of size\n"); exit(-1);}
+  
+  i=ds->iN-1;
+  ds->ac[i]=New_atomCenterStruct(n);
+  ds->ac[i]->ind=calloc(n,sizeof(int));
+  ds->ac[i]->m=calloc(n,sizeof(double));
+  for (j=0;j<n;j++) {
+    ds->ac[i]->ind[j]=ind[j];
+    ds->ac[i]->m[j]=m[j];
+    ds->ac[i]->M+=m[j];
   }
-  return -1;
+
+  return (i);
 }
 
 int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind ) {
-  int ityp=cv_getityp(typ);
+  int ityp, i;
 
-  if (!ds) return -1;
-  
-  if (ds->iM<ds->M) {
-    ds->cv[ds->iM++]=New_cvStruct(ityp,nind,ind);
-    return (ds->iM-1);
-  }
-  return -1;
-  
+  if (!ds) {fprintf(stderr,"CFACV) null argument\n"); exit(-1);}
+
+  ds->iM++;
+  if (ds->iM>ds->M) {fprintf(stderr,"CFACV) out of size\n"); exit(-1);}
+
+  i=ds->iM-1;
+  ityp=cv_getityp(typ);
+  ds->cv[i]=New_cvStruct(ityp,nind,ind);
+
+  return (i);
 }
 
 restrStruct * DataSpace_AddRestr ( DataSpace * ds, double k, double z, int nCV, double * cvc, char * rftypstr, 
-			 double zmin, double zmax,char * boundf, double boundk ) {
+			 double zmin, double zmax,char * boundf, double boundk ) 
+{
+  // Esta subrrutina parece que hace lo mismo que New_restrStruct, pero tambien
+  // registra la nueva estructura en dataspace, que es el objeto que va a
+  // recordar la dimension de los vectores donde se almacenan los objetos como
+  // restrStruct. Si en C existiera una forma de comprobar la dimension de los
+  // vectores, la estructura dataspace no haria falta.
+  int i;
 
-  if (!ds) return NULL;
-  
-  if (ds->iK<ds->K) {
-    ds->restr[ds->iK]=New_restrStruct(k,z,nCV,cvc,rftypstr,zmin,zmax,boundf,boundk);
-    ds->iK++;
-    return ds->restr[ds->iK-1];
-  }
+  if (!ds) {fprintf(stderr,"CFACV) null argument\n"); exit(-1);}
 
-  return NULL;
+  ds->iK++;
+  if (ds->iK>ds->K) {fprintf(stderr,"CFACV) out of size\n"); exit(-1);}
+ 
+  i=ds->iK-1;
+  ds->restr[i]=New_restrStruct(k,z,nCV,cvc,rftypstr,zmin,zmax,boundf,boundk);
+
+  return ds->restr[i];
 }
 
 int restr_set_rchid ( restrStruct * r, DataSpace * ds, int chid) {
-  if (!r) return -1;
-  if (!ds) return -1;
+  if (!ds) {fprintf(stderr,"CFACV) null argument\n"); exit(-1);}
+  if (!r) {fprintf(stderr,"CFACV) null argument\n"); exit(-1);}
   if (chid>=ds->ch_num) return -1;
   r->chid = chid;
   return 0;
 }
  
-int restr_AddTamdOpt ( restrStruct * r, double g, double kt, double dt, int chid ) {
+int restr_AddTamdOpt ( restrStruct * r, double g, double kt, double dt, int chid, int chdm  ) {
   
   if (!r) return -1;
 
   r->evolveFunc = cbd;
   r->tamdOpt=New_tamdOptStruct(g,kt,dt,r->rfityp);
   r->chid = chid;
+  r->chdm = chdm;
   return 0;
 }
 
@@ -679,7 +664,7 @@ int DataSpace_ComputeCVs ( DataSpace * ds ) {
 
  
   if (!ds) return -1;
-  for (i=0;i<ds->iM;i++){
+  for (i=0;i<ds->M;i++){
     c=ds->cv[i];
     c->calc(c,ds);
   }
@@ -690,7 +675,7 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
   int ii,i,j,jj,k;
   double * cvc,fi;
   int d=0;
-  int N=ds->N,K=ds->iK;
+  int N=ds->N,K=ds->K;
   int ic,aux;
   cvStruct * cv;
   restrStruct * r;
@@ -705,7 +690,7 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
   for (i=0;i<ds->N;i++) for (d=0;d<3;d++) ds->R[i][d]=0.0;
 
   /* Loop over all restraints and compute restraint values from their CV's */
-  for (i=0;i<ds->iK;i++) {
+  for (i=0;i<ds->K;i++) {
     r=ds->restr[i];
     cvc=r->cvc;
     r->val=0.0;
@@ -739,7 +724,7 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
   //printf("CFACV/C) %i restraint %i val %.4f targ %.4f\n",timestep,i,r->val,r->z);
 
   /* compute forces on all restraints */
-  for (i=0;i<ds->iK;i++) {
+  for (i=0;i<ds->K;i++) {
     r=ds->restr[i];
     cvc=r->cvc;
 
@@ -785,72 +770,36 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
     }
   }
 
-
-  // Evolution of the z variables
-  // TODO: Im wondering if the loop over restrain can be saftely
-  // place outside the if
+  // OTFP
   if (ds->doAnalyticalCalc) {
-
-    // Add statistic to b and A matrix (tridiagonal)
-    if (timestep>ds->beginaccum) {
-      for (i=0;i<ds->iK;i++) {
-        r=ds->restr[i];
-        if (r->tamdOpt) fes1D(ds,r);
-      }
-    }
-
-    // Moving the z variables
+ 
     if (!ds->useTAMDforces) {
-
-      // Free energy gradient to evolve auxiliariy variables
-
-      // map the interparticle gradients back into the restraints
-      // compute gradients to be applied to z's from an analytical
-      // function rather than from the atomic forces in this case,
+      // Use the computed free energy gradient to compute the force in the
+      // auxiliary variables, rather than the interatomic forces. In this case,
       // each restraint must have one and only one CV
-
       fprintf(stderr,"The needed code was temporal removed. \n");
       fprintf(stderr,"Please useTAMDforces or see the original version of the code \n");
       exit(1);
-
-      /*for (i=0;i<N;i++) {ds->F[i][0]=ds->F[i][1]=ds->F[i][2]=0.0;}
-        for (i=0;i<K;i++) {
-          r=ds->restr[i];
-          // each restraint must have one and only one CV
-          for (j=0;!r->cvc[j];j++);
-          d=i%3;
-          ii = ds->cv[j]->ind[0]; // index of particle "i"
-          nl=ds->nl[ii];
-          inlc=ds->nlc[ii];
-          for (jj=0;jj<inlc;jj++) {
-            k=nl[jj];
-            if ( ds->rr[ii][k] < ds->squaredPairCutoff ) {
-              fi=ds->gr[ii][k]*ds->RR[ii][k][d];
-              ds->F[ii][d]-=fi;
-              ds->F[k][d]+=fi;
-            }
-          }
-          r->evolveFunc(r,ds->F[ii][d]);
-        }*/
-    } else {
-
-      // TAMD forces to evolve auxilary variables
-      for (i=0;i<K;i++) {
+    }
+ 
+    // Add statistic to b and A matrix
+    if (timestep>ds->beginaccum) {
+      for (i=0;i<ds->K;i++) {
         r=ds->restr[i];
-
-        // Compute the boundary forces not included in the atom forces!!
-        r->boundFunc(r);
-
-        if (r->tamdOpt) r->evolveFunc(r,-r->f);
+        ch=ds->ch[r->chid];
+        ch->r[r->chdm]=r->z;
+        ch->f[r->chdm]=-r->f; // F=k(\theta-z)
+      }
+      for (i=0;i<ds->ch_num;i++) {
+        ds->ch[i]->accumulate(ds->ch[i]);
       }
     }
 
-
-    // Solving the chapeau equations
+    // Solving FES
     if (ds->evolveAnalyticalParameters) {
 
-      for (ic=0;ic<ds->ch_num;ic++) {
-        ch=ds->ch[ic];
+      for (i=0;i<ds->ch_num;i++) {
+        ch=ds->ch[i];
 
         if (timestep>ds->beginsolve && !(timestep % ch->nupdate)) chapeau_update_peaks(ch);
 
@@ -861,38 +810,29 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
           chapeau_output(ch,timestep);
 
           // TODO: separete savestate from outputFreq
-          chapeau_savestate(ch,timestep,ch->filename);
+          chapeau_savestate(ch,ch->filename);
         }
       }
     }
-
-  } else { // update z's using the measured forces
-    for (i=0;i<ds->iK;i++) {
-      r=ds->restr[i];
-
-      // Compute the boundary forces not included in the atom forces!!
-      r->boundFunc(r);
-
-      if (r->tamdOpt) r->evolveFunc(r,-r->f);
-    }
   }
-
-  //Evolve smd restrains (no matter the value of ds->doAnalyticalCalc)
-  for (i=0;i<ds->iK;i++) {
+   
+  // Evolving auxilary variables
+  for (i=0;i<K;i++) {
     r=ds->restr[i];
-  
-    if (r->smdOpt) {
-      
-      // Compute the boundary forces not included in the atom forces!!
-      r->boundFunc(r);
 
+    // Compute the boundary forces not included in the atom forces!!
+    r->boundFunc(r);
+
+    if (r->tamdOpt) r->evolveFunc(r,-r->f);
+ 
+    if (r->smdOpt) {
       r->evolve=(int)(r->smdOpt->t0<=timestep)&&(r->smdOpt->t1>=timestep);
       r->evolveFunc(r,r->smdOpt->increment);
     }
   }
 
   //Save restr trajectory for future restart
-  if (!(timestep % ds->restrsavefreq)) ds_saverestrains(ds,timestep,ds->filename);
+  if (!(timestep % ds->restrsavefreq)) ds_saverestrains(ds,ds->filename);
 
   return 0;
 }
@@ -902,7 +842,7 @@ double DataSpace_RestraintEnergy ( DataSpace * ds ) {
     double u=0.0;
     int i;
     restrStruct * r;
-    for (i=0;i<ds->iK;i++) {
+    for (i=0;i<ds->K;i++) {
       r=ds->restr[i];
       u+=r->u;
     }
@@ -914,7 +854,7 @@ double DataSpace_RestraintEnergy ( DataSpace * ds ) {
 void DataSpace_ReportCV ( DataSpace * ds, int * active, double * res ) {
   if (ds) {
     int i;
-    for (i=0;i<ds->iM;i++) {
+    for (i=0;i<ds->M;i++) {
       if (active[i]) res[i]=ds->cv[i]->val;
       else res[i]=0.0;
     }
@@ -925,12 +865,12 @@ void DataSpace_ReportAll ( DataSpace * ds ) {
   if (ds) {
     int i,j,k;
     printf("CFACV_OTFP/C) DataSpace: %i Centers, %i CV's, %i Restraints\n",
-	   ds->N, ds->iM, ds->iK);
+	   ds->N, ds->M, ds->K);
     for (i=0;i<ds->N;i++) {
       printf("CFACV_OTFP/C)  Center %i : %.5f %.5f %.5f\n",
 	     i,ds->R[i][0],ds->R[i][1],ds->R[i][2]);
     }
-    for (i=0;i<ds->iM;i++) {
+    for (i=0;i<ds->M;i++) {
       printf("CFACV_OTFP/C)      CV %i : typ %s val %.5f ind ",i,cv_getstyp(ds->cv[i]->typ),
 	     ds->cv[i]->val);
       for (j=0;j<ds->cv[i]->nC;j++) printf("%i ",ds->cv[i]->ind[j]);
@@ -939,7 +879,7 @@ void DataSpace_ReportAll ( DataSpace * ds ) {
 	for (k=0;k<3;k++) printf("%.5f ",ds->cv[i]->gr[j][k]);
       printf("\n");
     }
-    for (i=0;i<ds->iK;i++) {
+    for (i=0;i<ds->K;i++) {
       printf("CFACV_OTFP/C)       R %i : k %.3f z %.3f cvc ",i,ds->restr[i]->k,ds->restr[i]->z);
       for (j=0;j<ds->restr[i]->nCV;j++) printf("%.2f ",ds->restr[i]->cvc[j]);
       if (ds->restr[i]->tamdOpt) {
@@ -960,38 +900,38 @@ void DataSpace_ReportRestraints ( DataSpace * ds, int step, int outputlevel, FIL
   
   if (outputlevel & 1) {
     fprintf(fp,"CFACV_OTFP/C) Z  % 10i ",step);
-    for (i=0;i<ds->iK;i++) {
+    for (i=0;i<ds->K;i++) {
       fprintf(fp,"% 11.5f",ds->restr[i]->z);
     }
     fprintf(fp,"\n");
   }
   if (outputlevel & 2) {
     fprintf(fp,"CFACV_OTFP/C) Th % 10i ",step);
-    for (i=0;i<ds->iK;i++) {
+    for (i=0;i<ds->K;i++) {
       fprintf(fp,"% 11.5f",ds->restr[i]->val);
     }
     fprintf(fp,"\n");
   }
   if (outputlevel & 4) {
     fprintf(fp,"CFACV_OTFP/C) FD % 10i ",step);
-    for (i=0;i<ds->iK;i++) {
+    for (i=0;i<ds->K;i++) {
       fprintf(fp,"% 11.5f",ds->restr[i]->tamd_restraint);
     }
     fprintf(fp,"\n");
     fprintf(fp,"CFACV_OTFP/C) ND % 10i ",step);
-    for (i=0;i<ds->iK;i++) {
+    for (i=0;i<ds->K;i++) {
       fprintf(fp,"% 11.5f",ds->restr[i]->tamd_noise);
     } 
   }
   if (outputlevel & 8) {
     fprintf(fp,"\n");
     fprintf(fp,"CFACV_OTFP/C) CHid % 10i ",step);
-    for (i=0;i<ds->iK;i++) {
+    for (i=0;i<ds->K;i++) {
       fprintf(fp,"%d",ds->restr[i]->chid);
     }
     fprintf(fp,"\n"); 
     fprintf(fp,"CFACV_OTFP/C) kT % 10i ",step);
-    for (i=0;i<ds->iK;i++) {
+    for (i=0;i<ds->K;i++) {
       fprintf(fp,"% 11.5f",ds->restr[i]->tamdOpt->kT);
     }
     fprintf(fp,"\n"); 
@@ -999,7 +939,7 @@ void DataSpace_ReportRestraints ( DataSpace * ds, int step, int outputlevel, FIL
   fflush(fp);
 
 /*   printf("CFACV_OTFP/C) INFO %i ",step); */
-/*   for (i=0;i<ds->iK;i++) { */
+/*   for (i=0;i<ds->K;i++) { */
 /*     printf(" | typ %s min %.5lf max %.5lf ",rf_getstyp(ds->restr[i]->rfityp),ds->restr[i]->min,ds->restr[i]->max); */
 /*   } */
 /*   printf("\n"); */
@@ -1009,94 +949,26 @@ void DataSpace_BinaryReportRestraints ( DataSpace * ds, int step, int outputleve
   int i;
   
   if (outputlevel & 1) {
-    for (i=0;i<ds->iK;i++) {
+    for (i=0;i<ds->K;i++) {
       fwrite(&(ds->restr[i]->z),sizeof(double),1,fp);
     }
   }
   if (outputlevel & 2) {
-    for (i=0;i<ds->iK;i++) {
+    for (i=0;i<ds->K;i++) {
       fwrite(&(ds->restr[i]->val),sizeof(double),1,fp);
     }
   }
   if (outputlevel & 4) {
-    for (i=0;i<ds->iK;i++) {
+    for (i=0;i<ds->K;i++) {
       fwrite(&(ds->restr[i]->tamd_restraint),sizeof(double),1,fp);
     }
   }
   if (outputlevel & 8) {
-    for (i=0;i<ds->iK;i++) {
+    for (i=0;i<ds->K;i++) {
       fwrite(&(ds->restr[i]->tamd_noise),sizeof(double),1,fp);
     }
   }
   fflush(fp);
 }
 
-int fes1D( DataSpace * ds, restrStruct * r ) { 
-  int i,j,k,m;
-  double R,F;
-  chapeau * ch;
 
-  R=r->z;
-  F=-r->f; // F=k(\theta-z)
-
-  // Following the paper E definition A and b should be
-  //
-  // A=1./nsteps \sum_{steps} \sum_{i} dphi_m(z)/dz dphi_n(z)/dz
-  // b=-1./nsteps \sum_{steps} \sum_{i} dphi_m(z)/dz F
-  //
-  // But here we compute -b*nsteps and A*nsteps and then A and b are scaled
-  // by the proper factor when equation A\lambda=b is solved (see the
-  // chapeau_update_peaks procedure)
-  
-  // TODO: Repair the support to evolve trough Free Energy Gradient has was
-  // done before
-  
-  /* TODO: This should be generalized by putting and index in the restrain to
-           refer the asociated chapeu*/
-  //ch=ds->ch[ ds->ch_id[m] ];
-  ch=ds->ch[r->chid];
-
-  if ( R > ch->rmax ) return;
-
-  //FIXME: Early return if no chapeau object is asociated with this pair
-  //if ( ds->ch_id[m] == -1 ) continue;
-
-  // Early return to avoid interpolations below rmin
-  if ( R <= ch->rmin ) return;
-
-  //ch->nsample++;
-
-  /* Interpolation R->m
-        m R
-        | |
-    o---o-x-o---o--*/
-  m=(int)((R-ch->rmin)*ch->idr);
-  ch->hits[m]=1;
-  //ch->hits[m+1]=1;
-
-  /* 1/dz  /| 
-          / |n=m+1
-         /  | 
-    o---o-x-o---o--*/ 
-  ch->b->data[m+1]+=ch->idr*F;
-  ch->A->data[(m+1)*ch->A->tda+(m+1)]+=ch->idr*ch->idr;
-
-  /*    |\   -1/dz
-     n=m| \
-        |  \
-    o---o-x-o---o--*/ 
-  ch->b->data[m]-=ch->idr*F;
-  ch->A->data[m*ch->A->tda+m]+=ch->idr*ch->idr;
-
-  /*    |\ /| 
-       m| X |n=m+1
-        |/ \| 
-    o---o-x-o---o--*/ 
-  ch->A->data[(m+1)*ch->A->tda+m]-=ch->idr*ch->idr;
-  ch->A->data[m*ch->A->tda+m+1]-=ch->idr*ch->idr;
-
-            
-
-  return 0;
-}
- 

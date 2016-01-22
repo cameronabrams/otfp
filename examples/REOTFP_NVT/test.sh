@@ -83,7 +83,7 @@ for file in $(ls output/*/*dcd); do
 
 vmd -dispdev text << HERETCL
    
-  mol new ../butane_files/buta.psf type psf first 0 last -1 step 1 filebonds 1 autobonds 0 waitfor all
+  mol new ../systems/buta.psf type psf first 0 last -1 step 1 filebonds 1 autobonds 0 waitfor all
   mol addfile $file type dcd first 0 last -1 step 1 filebonds 1 autobonds 0 waitfor all
 
   proc distance { i1 i2 } {

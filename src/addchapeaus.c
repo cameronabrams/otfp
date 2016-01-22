@@ -22,7 +22,6 @@ int main ( int argc, char * argv[] ) {
     fprintf(stdout,"--- ch rmax %.5f\n",ch[i-1]->rmax); 
     fprintf(stdout,"--- ch dr %.5f\n",ch[i-1]->dr); 
     fprintf(stdout,"--- ch idr %.5f\n",ch[i-1]->idr); 
-    fprintf(stdout,"--- alpha  %.5f\n",ch[i-1]->alpha); 
  
   }
   

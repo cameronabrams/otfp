@@ -12,34 +12,35 @@
 // of coefficients \lambda; these are the single-particle sums
 // and the global accumulators
 typedef struct CHAPEAU {
-  int m; // number of peaks
-  int N; // number of particles
+  // Conjunto de funciones base, sets de chapeaus que
+  // constituyen una base para alguna funcion reconstruida por elementos
+  // finitos. Los coeficientes tambien se almacenana aca.
 
-  double rmin, rmax, dr, idr;  // range and increment or argument of
-			       // pair potential
+  // number of data (not timsteps) to acumulate before update
+  int nupdate;
+ 
+  // Dimension
+  int dm; 
 
-  //int mref;  // reference peak
+  // Discretizacion del dominio por dimension
+  int * N;       // size in mult-dimensional real space 
+  int m;         // size in 1-dimensional wrap space
+  double * rmin;
+  double * rmax;
+  double * dr;
+  double * idr;  
 
-  FILE * ofp; // for output chapeu
+  double * r; // Vector para guardar la posicion actual
+  double * f; // Vector para guardar el gradiente de la funcion
+
+  // Para sacar los coeficientes
+  FILE * ofp; 
   int outputFreq;
   int outputLevel;
 
   // Since restart file is open and closed in the subrroutine, might be better
-  // to store the name and not the unit? Besides, if I want to take advantage
-  // of save state subroutines using another name?
+  // to store the name and not the unit? 
   char filename[255]; 
-
-  // file name is the same of ofp but with a .restart prefix
-
-  //// single-particle-sums; initialize at every step, every particle
-  //double *** s;  // [particle][dimension][peak]
-  
-  // This mask allows to control each interacion.
-  // each mask item have the value 0,-1,1 or 2
-  // Interaction is done when mask[i]+mask[j]=0
-  // Here int because unsigned is not safe with swig
-  int * mask;  // [particle]
-
 
   // Variables that accumulate partial statistics to optimze FEP coeficients.
   // This is used to send between replicas and is a private copy of the
@@ -61,17 +62,18 @@ typedef struct CHAPEAU {
   gsl_vector * bfull;
   gsl_matrix * Afull;
 
-  double alpha;
-
-  // number of data (not timsteps) acumulated
-  int nsample;
-
-  // number of data (not timsteps) to acumulate before update
-  int nupdate;
-
+  //pointer to procedure
+  int (*accumulate)(struct CHAPEAU * self);
+                
 } chapeau;
 
-chapeau * chapeau_alloc ( int m, double rmin, double rmax, int npart );
+chapeau * chapeau_alloc ( int dm, double * rmin, double * rmax, int * N );
+void chapeau_free ( chapeau * ch );
+int chapeau_comparesize ( chapeau * ch1,  chapeau * ch2);
+int chapeau_comparegrid ( chapeau * ch1,  chapeau * ch2);
+
+void chapeau_sum ( chapeau * ch1, chapeau * ch2 );
+
 
 void chapeau_setUpdateInterval ( chapeau * ch, int i );
 
@@ -82,7 +84,7 @@ void chapeau_setupoutput ( chapeau * ch,  char * outfile, char * restartfile, in
 void chapeau_output ( chapeau * ch, int timestep );
 
 // Restart system
-void chapeau_savestate ( chapeau * ch, int timestep, char * filename );
+void chapeau_savestate ( chapeau * ch, char * filename );
 chapeau * chapeau_allocloadstate ( char * filename );
 void chapeau_loadstate ( chapeau * ch, char * filename );
 void chapeau_loadlambda ( chapeau * ch, char * filename );
@@ -94,9 +96,8 @@ void chapeau_init_particle_sums ( chapeau * ch );
 void chapeau_increment_particle_sum ( chapeau * ch, int i, int j, double * Zij, double zij );
 void chapeau_increment_global_accumulators ( chapeau * ch, int i, double * F );
 void chapeau_update_peaks ( chapeau * ch );
-void chapeau_sum ( chapeau * ch1, chapeau * ch2 );
 
-double chapeau_evalf ( chapeau * ch, double z );
+double chapeau_evalf_1simplex ( chapeau * ch, double z );
 char * chapeau_serialize ( chapeau * ch );
 void chapeau_addserialized ( chapeau * ch, char * str );
 void chapeau_setserialized ( chapeau *ch, char * str );
@@ -104,3 +105,7 @@ void chapeau_setserialized ( chapeau *ch, char * str );
 void chapeau_set_peaks ( chapeau * ch, char * filename );
 //void chapeau_baselinehits ( chapeau * ch );
 //void chapeau_setmref ( chapeau * ch, double z );
+
+
+int accumulate_1D ( chapeau * ch );
+int accumulate_2D ( chapeau * ch );

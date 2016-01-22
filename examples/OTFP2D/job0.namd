@@ -4,55 +4,53 @@
 # set restart_otfp cfacv_loadstate
 # set restart_chapeau chapeau_loadlambda
                         
-set oname           job1
+set oname           job0
 set temperature     298
 set seed            923458
 seed                $seed
  
 
 # The molecules
-structure           ../systems/buta.psf
-coordinates         ../systems/buta.pdb
-binCoordinates      job0.restart.coor
-binVelocities       job0.restart.vel
-# extendedsystem      job0.restart.xsc
-firsttimestep       2000000
+structure           ../systems/ala2.psf
+coordinates         ../systems/ala2.pdb
 
+firsttimestep       0
 timestep            2.0
 rigidBonds          all  
 
 # Periodic Boundary Conditions
-# cellBasisVector1    54.0    0    0.0
-# cellBasisVector2     0.0 54.0    0.0
-# cellBasisVector3     0.0    0   54.0
+cellBasisVector1    24.4    0    0.0
+cellBasisVector2     0.0 24.4    0.0
+cellBasisVector3     0.0    0   24.4
 # cellOrigin           0.0    0.0  0.0
-# wrapall             on   ;# wrap all the atoms
+wrapall             on   ;# wrap all the atoms
  
 # Potentials and parameters
 paraTypeCharmm      on
-parameters          ../systems/par_all36_cgenff.prm
+parameters          ../systems/par_all22_prot.prm
+parameters          ../systems/toppar_water_ions_namd.str
 exclude             scaled1-4
-1-4scaling          1.0
+1-4scaling          1.0 
 
 # Non-bonding cutoff
-cutoff              11.0  ;#12.0 
+cutoff              10.0  ;#12.0 
 switching           on    ;# suavisado
-switchdist          10.0  ;#10.0 # Desde donde comienza el suavizado
+switchdist           9.0  ;#10.0 # Desde donde comienza el suavizado
 
 # Verlet List
-pairlistdist        12.0  ;#14.0 #Radio externo de Verlet
-stepspercycle       10    ;#Pasos para el calculo de la lista de Verlet
+pairlistdist        11.5  ;#14.0 #Radio externo de Verlet
+# stepspercycle       10    ;#Pasos para el calculo de la lista de Verlet
 
 # Particle Mesh Ewald algorithm
-# PME                 on    ; # 3D grid representing the system charge.
-# PMEgridspacing      1     ; # Maximum distance between grid points in each direction.
+PME                 on    ; # 3D grid representing the system charge.
+PMEgridspacing      1     ; # Maximum distance between grid points in each direction.
 
 # Multiple time steps
 nonbondedFreq       1
 fullElectFrequency  2
 
 # Ensemble NVT
-# temperature         $temperature
+temperature         $temperature
 langevin            on;             # do langevin dynamics
 langevinTemp        $temperature;   # bath temperature
 langevinHydrogen    no
@@ -73,20 +71,12 @@ langevinDamping     50.
  
 # Output
 outputName          ${oname}
+outputEnergies      10000
 restartfreq         10000
-dcdfreq             5000
-xstfreq             5000
-outputEnergies      5000
-outputpressure      5000
-outputTiming        5000
+dcdfreq             10000
+outputTiming        50000
 
 source OTFP.namd
 
-# Restart restraints
-ds_loadrestrains $ds job0.rstr 
-
-# Restart chapeaus
-chapeau_loadstate $chape(0.address) job0.ch0
-          
 # variables needed for the tclforcesscript
-run  4000000 ;# 4ns
+run  100000000 ;# 20ns

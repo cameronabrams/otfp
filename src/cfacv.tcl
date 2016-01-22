@@ -76,8 +76,6 @@ proc Tcl_UpdateDataSpace { ds lC groups first timestep } {
     DataSpace_RestrainingForces $ds $first $timestep    
     MyParanoiaCheck $ds "tripped after computing restraining forces"
 
-    #  fprintf(stderr,"AAAAAAAAAAAS");
-
     # Transmit forces back to groups
     set i 0
     foreach g $groups {
@@ -184,12 +182,13 @@ if {[info exists CFACV_doAnalyticalCalc]} {
 
     # Replica exechange mode: 
     if {![info exists NUMREP]} {set NUMREP 1}
+    if {![info exists DIMEN]} {set DIMEN 1}
     # TODO: NUMREP podria ser un numero de chapeaus distintos (estilo el
     # problema sodio cloro) a obtener en una simulacion. En ese caso
     # corregir.
 
     # Saving for allocate chapeau functions
-    chapeau_setup $NUMREP $ds $XSCFILE $SPLINEMIN $NKNOTS $CUTOFF $BEGINEVOLVEPARAMETERS  $BEGINSOLVELAM $USETAMDFORCES $BINREPORTPARAMFILE $BINREPORTPARAMFREQ $BINOUTPUTLEVEL $LAMUPDATEINTERVAL
+    chapeau_setup $NUMREP $ds $DIMEN $SPLINEMIN $NKNOTS $CUTOFF $BEGINEVOLVEPARAMETERS  $BEGINSOLVELAM $USETAMDFORCES $BINREPORTPARAMFILE $BINREPORTPARAMFREQ $BINOUTPUTLEVEL $LAMUPDATEINTERVAL
   }
 }
 
