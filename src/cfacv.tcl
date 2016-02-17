@@ -157,26 +157,16 @@ set nCntr [read_centersPDB $labelPDB serArray masses pdbline]
 #ch_id holds the chapeau object for the ij pair type
 print "CFACV) nCenters $nCntr  masses $masses"
 
- 
-# Set up list of CV's
-#cvList is some like {CARTESIAN_X 0} {CARTESIAN_Y 0} ....
-set cvList {}
-set nCV [read_cvs $cvINP cvList pdbline]
-if {!$nCV} {error "CFACV) ERROR: wrong cv.inp file. See mk_tPDB.tcl"}
-print "CFACV) nCV $nCV"
-if {[info exists TAMDverbose]} {print "CFACV) cvList: $cvList"}
-
-
 # Allocate dataspace in C code
-set ds [NewDataSpace $nCntr $nCV $restr(num) $seed]
+set ds [NewDataSpace $nCntr $cv(num) $restr(num) $seed]
+ 
+# Add CVs to the datapsace structure
+cvs_setup $nCntr pdbline
+ 
+# Add restraints to the dataspace structure
+rlist_setup $cv(num)
 
-# Add restraints to the dataspace structure and setup restraint global variable
-rlist_setup $nCV
-
-# Add CVs to the dataspace structure
-cvs_setup
-
-# Add chapeau to the dataspace structure and setup chapeau global variable
+# Add chapeau to the dataspace structure 
 # TODO: improve chapeau global variable
 if {[info exists CFACV_doAnalyticalCalc]} {
   if {$CFACV_doAnalyticalCalc == 1} {

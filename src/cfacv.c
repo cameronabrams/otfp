@@ -82,10 +82,6 @@ restrStruct * New_restrStruct (
   if (cvc) for (i=0;i<nCV;i++) newr->cvc[i]=cvc[i];
   else for (i=0;i<nCV;i++) newr->cvc[i]=0;
 
-  newr->min=zmin;
-  newr->max=zmax;
-  newr->half_domain=0.5*(zmax-zmin);
-  
   // evolve function
   newr->tamd_noise=0.0;
   newr->tamd_restraint=0.0;
@@ -95,6 +91,9 @@ restrStruct * New_restrStruct (
   newr->evolveFunc = NULL;
 
   // boundary function
+  newr->min=zmin;
+  newr->max=zmax;
+  newr->half_domain=0.5*(zmax-zmin);
   newr->boundk=boundk;
   if     (!strcmp(boundstr,"SOFTUPPER")) {newr->boundFunc = SoftUpperWall      ;}
   else if(!strcmp(boundstr,"SOFTLOWER")) {newr->boundFunc = SoftLowerWall      ;} 
@@ -313,6 +312,7 @@ int HarmonicCart_cutoff_pbc ( restrStruct * r ) {
 //BOUNDARIES
  
 int nada ( restrStruct * r ) {
+  return 0;
 }
 
 int SoftWalls ( restrStruct * r ) {
@@ -597,13 +597,14 @@ int DataSpace_AddAtomCenter ( DataSpace * ds, int n, int * ind, double * m ) {
   return -1;
 }
 
-int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind ) {
+int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind,
+		      double zmin, double zmax,char * boundf, double boundk ) {
   int ityp=cv_getityp(typ);
 
   if (!ds) return -1;
   
   if (ds->iM<ds->M) {
-    ds->cv[ds->iM++]=New_cvStruct(ityp,nind,ind);
+    ds->cv[ds->iM++]=New_cvStruct(ityp,nind,ind,zmin,zmax,boundf,boundk);
     return (ds->iM-1);
   }
   return -1;
@@ -676,7 +677,6 @@ double restr_getu ( restrStruct * r ) {
 int DataSpace_ComputeCVs ( DataSpace * ds ) {
   int i;
   cvStruct * c;
-
  
   if (!ds) return -1;
   for (i=0;i<ds->iM;i++){
@@ -738,7 +738,7 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 
   //printf("CFACV/C) %i restraint %i val %.4f targ %.4f\n",timestep,i,r->val,r->z);
 
-  /* compute forces on all restraints */
+  // compute forces on all restraints
   for (i=0;i<ds->iK;i++) {
     r=ds->restr[i];
     cvc=r->cvc;
@@ -755,26 +755,23 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 
     /* accumulate force increments in ds->R for each real particle*/
     /* cv->gr[jj][kk] = \partial CV / \partial (kk-coord of center jj of CV) */
+
+    // For each CV in this restraint
     for (j=0;j<r->nCV;j++) {
       cv=ds->cv[j];
-      /* if the j'th cv referenced by this restraint contributes to this restraint: */
       if (r->cvc[j]) {
-        /* ... for each center in this CV ... */
+        
+        // For each center in this CV
         for (jj=0;jj<cv->nC;jj++) {
-          /* increment the forces of the jj'th cartesian center on the j'th cv of this restraint */
+
+          /* Increment the forces of the jj'th cartesian center on the j'th cv of this restraint */
           for (d=0;d<3;d++) ds->R[ cv->ind[jj] ][d]+=r->cvc[j]*cv->gr[jj][d]*r->f;
 #ifdef _PARANOIA_
           if (_PARANOIA_) {
             if ((ds->R[cv->ind[jj]][0]!=ds->R[cv->ind[jj]][0])
       	  ||(ds->R[cv->ind[jj]][1]!=ds->R[cv->ind[jj]][1])
       	  ||(ds->R[cv->ind[jj]][2]!=ds->R[cv->ind[jj]][2])) {
-      	fprintf(stderr,"CFACV/C/PARANOIA) Tripped.\n");
-      	fprintf(stderr,"CFACV/C/PARANOIA) r->cvc[%i] %.5lf\n",j,r->cvc[j]);
-      	fprintf(stderr,"CFACV/C/PARANOIA) cv->gr[%i][0] %.5lf\n",jj,cv->gr[jj][0]);
-      	fprintf(stderr,"CFACV/C/PARANOIA) cv->gr[%i][1] %.5lf\n",jj,cv->gr[jj][1]);
-      	fprintf(stderr,"CFACV/C/PARANOIA) cv->gr[%i][2] %.5lf\n",jj,cv->gr[jj][2]);
-      	fprintf(stderr,"CFACV/C/PARANOIA) r->f %.5lf\n",r->f);
-      	fprintf(stderr,"Program exits\n");
+      	fprintf(stderr,"CFACV/C/PARANOIA) Tripped when computing forces.\n");
       	fflush(stderr);
       	exit(-1);
             }
@@ -785,70 +782,57 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
     }
   }
 
+  // For each CV in dataspace
+  for (j=0;j<ds->M;j++) {
+    cv=ds->cv[j];
+    
+    // For each center in this CV
+    for (jj=0;jj<cv->nC;jj++) {
 
-  // Evolution of the z variables
-  // TODO: Im wondering if the loop over restrain can be saftely
-  // place outside the if
+      // Compute the boundary forces
+      cv->boundFunc(cv);
+
+      // Add boundary forces
+      for (d=0;d<3;d++) ds->R[ cv->ind[jj] ][d]+=cv->gr[jj][d]*cv->f;
+    }
+  }
+
+  // Add statistic to b and A matrix (tridiagonal)
   if (ds->doAnalyticalCalc) {
-
-    // Add statistic to b and A matrix (tridiagonal)
     if (timestep>ds->beginaccum) {
       for (i=0;i<ds->iK;i++) {
         r=ds->restr[i];
         if (r->tamdOpt) fes1D(ds,r);
       }
     }
+  }
 
-    // Moving the z variables
-    if (!ds->useTAMDforces) {
+  // Using free energy gradient to evolve auxiliariy variables
+  if (!ds->useTAMDforces) {
+    fprintf(stderr,"The needed code was temporal removed. \n");
+    fprintf(stderr,"Please to useTAMDforces see the original version of the code \n");
+    exit(1);
+  }
+ 
+  for (i=0;i<K;i++) {
+    r=ds->restr[i];
 
-      // Free energy gradient to evolve auxiliariy variables
+    // Compute the boundary forces not included in the atom forces!!
+    r->boundFunc(r);
 
-      // map the interparticle gradients back into the restraints
-      // compute gradients to be applied to z's from an analytical
-      // function rather than from the atomic forces in this case,
-      // each restraint must have one and only one CV
-
-      fprintf(stderr,"The needed code was temporal removed. \n");
-      fprintf(stderr,"Please useTAMDforces or see the original version of the code \n");
-      exit(1);
-
-      /*for (i=0;i<N;i++) {ds->F[i][0]=ds->F[i][1]=ds->F[i][2]=0.0;}
-        for (i=0;i<K;i++) {
-          r=ds->restr[i];
-          // each restraint must have one and only one CV
-          for (j=0;!r->cvc[j];j++);
-          d=i%3;
-          ii = ds->cv[j]->ind[0]; // index of particle "i"
-          nl=ds->nl[ii];
-          inlc=ds->nlc[ii];
-          for (jj=0;jj<inlc;jj++) {
-            k=nl[jj];
-            if ( ds->rr[ii][k] < ds->squaredPairCutoff ) {
-              fi=ds->gr[ii][k]*ds->RR[ii][k][d];
-              ds->F[ii][d]-=fi;
-              ds->F[k][d]+=fi;
-            }
-          }
-          r->evolveFunc(r,ds->F[ii][d]);
-        }*/
-    } else {
-
-      // TAMD forces to evolve auxilary variables
-      for (i=0;i<K;i++) {
-        r=ds->restr[i];
-
-        // Compute the boundary forces not included in the atom forces!!
-        r->boundFunc(r);
-
-        if (r->tamdOpt) r->evolveFunc(r,-r->f);
-      }
+    // Evolution of TAMD restraints
+    if (r->tamdOpt) r->evolveFunc(r,-r->f);
+  
+    // Evolution of SMD restraints
+    if (r->smdOpt) {
+      r->evolve=(int)(r->smdOpt->t0<=timestep)&&(r->smdOpt->t1>=timestep);
+      r->evolveFunc(r,r->smdOpt->increment);
     }
+  }
 
-
-    // Solving the chapeau equations
+  // Solving the chapeau equations
+  if (ds->doAnalyticalCalc) {
     if (ds->evolveAnalyticalParameters) {
-
       for (ic=0;ic<ds->ch_num;ic++) {
         ch=ds->ch[ic];
 
@@ -865,31 +849,8 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
         }
       }
     }
-
-  } else { // update z's using the measured forces
-    for (i=0;i<ds->iK;i++) {
-      r=ds->restr[i];
-
-      // Compute the boundary forces not included in the atom forces!!
-      r->boundFunc(r);
-
-      if (r->tamdOpt) r->evolveFunc(r,-r->f);
-    }
   }
 
-  //Evolve smd restrains (no matter the value of ds->doAnalyticalCalc)
-  for (i=0;i<ds->iK;i++) {
-    r=ds->restr[i];
-  
-    if (r->smdOpt) {
-      
-      // Compute the boundary forces not included in the atom forces!!
-      r->boundFunc(r);
-
-      r->evolve=(int)(r->smdOpt->t0<=timestep)&&(r->smdOpt->t1>=timestep);
-      r->evolveFunc(r,r->smdOpt->increment);
-    }
-  }
 
   //Save restr trajectory for future restart
   if (!(timestep % ds->restrsavefreq)) ds_saverestrains(ds,timestep,ds->filename);

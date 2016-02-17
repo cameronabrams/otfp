@@ -24,8 +24,18 @@ typedef struct CVSTRUCT {
   double val;    // value of the CV
   double ** gr;  // cartesian gradients of this CV wrt contributing
                  // atom/atom-groups: gr[atom/atom-group][x|y|z]
-                
-                
+   
+  // Use to apply a force to the CV
+  double f;
+  double u;
+  
+  // boundaries
+  double min;
+  double max;
+  double half_domain;
+  double boundk;
+  int (*boundFunc)(struct CVSTRUCT * self);
+
   //pointer to function that calculate the value of the cv
   int (*calc)(struct CVSTRUCT * self,  DataSpace * ds);
                 
@@ -35,7 +45,9 @@ typedef struct CVSTRUCT {
 int cv_getityp ( char * typ );
 int cv_dimension ( cvStruct * c );
 char * cv_getstyp ( int ityp );
-cvStruct * New_cvStruct ( int typ, int nC, int * ind );
+cvStruct * New_cvStruct ( int typ, int nC, int * ind, 
+    double zmin, double zmax,
+    char * boundstr, double boundk);
  
 int calccv_cogx  ( cvStruct * c, DataSpace * ds );
 int calccv_cogy  ( cvStruct * c, DataSpace * ds );
@@ -56,4 +68,10 @@ double fcut(double r,double r1,double r2,double dfcut);
            
 double cdf(double x);
 
+// Boundaries Functions
+int cv_SoftUpperWall ( cvStruct * c );
+int cv_SoftLowerWall ( cvStruct * c );
+int cv_SoftWalls ( cvStruct * c );
+int cv_nada ( cvStruct * c );
+         
 #endif

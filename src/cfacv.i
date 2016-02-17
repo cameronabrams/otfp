@@ -20,7 +20,8 @@ extern int DataSpace_SetupPBC ( DataSpace * ds, int pbc, double Ox, double Oy, d
 extern int DataSpace_Setup1Dchapeau ( DataSpace * ds, int numrep, double min, int nKnots, double max, int beginaccum, int beginsolve, int useTAMDforces, char * outfile, int outfreq, int outlevel, int nupdate);
 extern chapeau * DataSpace_get_chapeauadress ( DataSpace * ds, int i );
 extern int DataSpace_AddAtomCenter ( DataSpace * ds, int n, int * ind, double * m );
-extern int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind ) ;
+extern int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind, double zmin, double zmax,char * boundf, double boundk );
+
 restrStruct * DataSpace_AddRestr  ( DataSpace * ds, double k, double targ, int nCV, double * cvc, char * rftypstr, double zmin, double zmax,char * boundf, double boundk );
 extern int restr_UpdateTamdOpt ( restrStruct * r, double g, double kt, double dt );
 extern int restr_AddTamdOpt ( restrStruct * r, double g, double kt, double dt, int chid );

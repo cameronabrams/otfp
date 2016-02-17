@@ -139,10 +139,6 @@ typedef struct RESTRSTRUCT {
                                 // (Harmonic or Periodic)
 
   
-  double min;          // min, max, half_domain for periodic boundaries
-  double max;
-  double half_domain;  // half-domain size of periodic CV
-
   // pointer to the evolution type 
   int (*evolveFunc)(struct RESTRSTRUCT * self, double f);
    
@@ -150,7 +146,10 @@ typedef struct RESTRSTRUCT {
   //restrEnergyFunc energyFunc;   
   int (*energyFunc)(struct RESTRSTRUCT * self);
 
-  // pointer to boundary energy and force function
+  // boundaries
+  double min;        
+  double max;
+  double half_domain;
   double boundk;
   int (*boundFunc)(struct RESTRSTRUCT * self);
    
@@ -162,8 +161,6 @@ typedef struct RESTRSTRUCT {
 
 
 void cfacvBanner ( void );
-
-cvStruct * New_cvStruct ( int typ, int nC, int * ind );
 
 tamdOptStruct * New_tamdOptStruct ( double g, double kt, double dt, int riftyp);
 
@@ -257,7 +254,8 @@ chapeau * DataSpace_get_chapeauadress ( DataSpace * ds, int i );
 int DataSpace_getN ( DataSpace * ds );
 double * DataSpace_centerPos ( DataSpace * ds, int i );
 int DataSpace_AddAtomCenter ( DataSpace * ds, int n, int * ind, double * m );
-int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind ) ;
+int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind,
+		      double zmin, double zmax,char * boundf, double boundk );
 restrStruct * DataSpace_AddRestr  ( DataSpace * ds, double k, double targ, int nCV, double * cvc, char * rftypstr, double zmin, double zmax,char * boundf, double boundk );
 int restr_UpdateTamdOpt ( restrStruct * r, double g, double kt, double dt );
 int restr_AddTamdOpt ( restrStruct * r, double g, double kt, double dt, int chid );

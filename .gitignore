@@ -1,6 +1,14 @@
 src/*.o
 src/version
 src/*_wrap.c
-examples/*/output
-examples/*/*log
+src/tags
+src/catbinsp
+src/cfacv.so
+src/chapadd
+examples/*/*
+!examples/*/reference
+!examples/*/*namd
+!examples/*/*plt
+!examples/*/*sh
+!examples/*/*.pdb
 message
