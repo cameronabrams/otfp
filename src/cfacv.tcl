@@ -142,13 +142,6 @@ if {![info exists seed]} {
 }
 print "CFACV) random seed $seed"
 
-
-# Search for missing key
-set tripped 0
-foreach key {labelPDB cvINP} {
-  if {![info exists $key]} {error "CFACV) ERROR: you must set $key in the NAMD config. file."}
-}
-
 # Read the template PDB file that identifies subdomain memberships
 set nCntr [read_centersPDB $labelPDB serArray masses pdbline]
 #nCntr is the number of centers

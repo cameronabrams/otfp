@@ -3,11 +3,8 @@ set -o nounset
 set -o errexit
 set -o pipefail
 
-# # Run simulation
-# namd2 job0.namd > job0.log
-# 
-# # Run simulation
-# namd2 job1.namd > job1.log
+# Run simulation
+namd2 job0.namd > job0.log
 
 # Computing free energy
 for file in $(ls *bsp); do
@@ -72,24 +69,16 @@ gnuplot << 'HEREGNUPLOT'
 
   set title "CV trace job0"
   set output "job0_".j.".png"; j=j+1
-  plot 'job0.s' u (($0+1)):1 w l t 'test',\
-       'reference/job0.s' u (($0+1)):1 w l t 'reference'
+  plot 'job0.s' u ($0+1):1 w l t 'test',\
+       'reference/job0.s' u (($0+1)):1 w l t 'reference',\
+       '../OTFP/reference/job0.s' u ($0*+1):1 w l t 'without boundaries'  
 
   set title "Free energy job0"
   set output "job0_".j.".png"; j=j+1
   plot 'job0_ch0.fes' u ($0*dr+min):1 w l t 'test',\
-       'reference/job0_ch0.fes' u ($0*dr+min):1 w l t 'reference' 
+       'reference/job0_ch0.fes' u ($0*dr+min):1 w l t 'reference',\
+       '../OTFP/reference/job0_ch0.fes' u ($0*dr+min):1 w l t 'without boundaries' 
 
-  set title "CV trace job1"
-  set output "job1_".j.".png"; j=j+1
-  plot 'job1.s' u (($0+1)):1 w l t 'test',\
-       'reference/job0.s' u (($0+1)):1 w l t 'reference' 
-
-  set title "Free energy job1"
-  set output "job1_".j.".png"; j=j+1
-  plot 'job1_ch0.fes' u ($0*dr+min):1 w l t 'test',\
-       'reference/job0_ch0.fes' u ($0*dr+min):1 w l t 'reference' 
-   
 HEREGNUPLOT
 
 #Final message

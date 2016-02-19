@@ -789,11 +789,17 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
     // For each center in this CV
     for (jj=0;jj<cv->nC;jj++) {
 
+      // Restart forces in CVs
+      cv->f=0;
+      cv->u=0;
+
       // Compute the boundary forces
       cv->boundFunc(cv);
 
       // Add boundary forces
       for (d=0;d<3;d++) ds->R[ cv->ind[jj] ][d]+=cv->gr[jj][d]*cv->f;
+
+
     }
   }
 

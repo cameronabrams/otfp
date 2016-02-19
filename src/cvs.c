@@ -613,8 +613,7 @@ int cv_SoftLowerWall ( cvStruct * c ) {
   double aux;
   aux=c->val-c->min;
   if (aux>0.) return 0;
-  // c->f is minus the force on z!
-  c->f+=c->boundk*aux;
+  c->f-=c->boundk*aux;
   c->u+=.5*c->boundk*aux*aux;
   return 0;
 }
@@ -623,8 +622,7 @@ int cv_SoftUpperWall ( cvStruct * c ) {
   double aux;
   aux=c->val-c->max;
   if (aux<0.) return 0;
-  // c->f is minus the force on z!
-  c->f+=c->boundk*aux;
+  c->f-=c->boundk*aux;
   c->u+=.5*c->boundk*aux*aux;
   return 0;
 }

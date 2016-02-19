@@ -79,7 +79,8 @@ proc cvs_setup { nCntr pdb } {
           default {error "ERROR: $ctr is not a valid keyword for center selection."}
         }  
       } else {
-        if {$ctr > $nCntr} {error "index number to high"}
+        if {$ctr > $nCntr} {error "index number higher than the number of centers ($nCntr)"}
+        if {$ctr < 1} {error "index number should be grater than 0"}
         lappend ind [expr $ctr-1]
       }
     }

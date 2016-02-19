@@ -87,7 +87,15 @@ proc rlist_setup { ncv } {
         if {![info exists restr($i.min)]}    {error "CFACV) ERROR: restraint need max value"}
         if {![info exists restr($i.max)]}    {error "CFACV) ERROR: restraint need min value"}
       }
-      SOFTUPPER - SOFTLOWER - SOFT {
+      SOFTUPPER {
+        if {![info exists restr($i.max)]}    {error "CFACV) ERROR: restraint need min value"}
+        if {![info exists restr($i.boundk)]} {error "CFACV) ERROR: restraint need boundk value"}
+      }
+      SOFTLOWER {
+        if {![info exists restr($i.min)]}    {error "CFACV) ERROR: restraint need max value"}
+        if {![info exists restr($i.boundk)]} {error "CFACV) ERROR: restraint need boundk value"}
+      }
+      SOFT {
         if {![info exists restr($i.min)]}    {error "CFACV) ERROR: restraint need max value"}
         if {![info exists restr($i.max)]}    {error "CFACV) ERROR: restraint need min value"}
         if {![info exists restr($i.boundk)]} {error "CFACV) ERROR: restraint need boundk value"}
@@ -95,6 +103,9 @@ proc rlist_setup { ncv } {
       default {error "ERROR: $restr($i.bound) is not a valid boundary type."} 
     }
 
+    if {![info exists restr($i.boundk)]} {set restr($i.boundk) 0.}
+    if {![info exists restr($i.min)]}    {set restr($i.min) 0.}
+    if {![info exists restr($i.max)]}    {set restr($i.max) 0.}
         
 
     # Allocating ds->restr[i] in the C code.
