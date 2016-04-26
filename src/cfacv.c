@@ -65,7 +65,8 @@ restrStruct * New_restrStruct (
     double k, double z, int nCV, 
     double * cvc, char * rftypstr, 
     double zmin, double zmax,
-    char * boundstr, double boundk
+    char * boundstr, double boundk,
+    char * outfile, int outputFreq
     ) {
 
   restrStruct * newr=malloc(sizeof(restrStruct));
@@ -122,6 +123,14 @@ restrStruct * New_restrStruct (
     else if (newr->rfityp==HARMCUTO) {newr->energyFunc = HarmonicCart_cutoff;}
   }
 
+
+  // output
+  newr->boutput=(outputFreq>0);
+  if (newr->boutput) {
+    newr->boutput=1;
+    newr->outputFreq=outputFreq;
+    newr->ofp=fopen(outfile,"w");
+  }
 
   return newr;
 }
@@ -197,7 +206,7 @@ void ds_loadrestrains ( DataSpace * ds, char * filename ) {
   fread(&i,sizeof(int),1,ofs);
   fprintf(stdout,"CFACV) Recovering restraint state of step %i of some previous simulation\n",i);
   if ( i!=ds->K ) {
-    fprintf(stderr,"CFACV) ERROR restraint restart because holding object has not the proper size\n",i);
+    fprintf(stderr,"CFACV) ERROR restraint restart because holding object has not the proper size\n");
     exit(-1);
   }
 
@@ -443,12 +452,12 @@ chapeau * DataSpace_get_chapeauadress ( DataSpace * ds, int i ) {
 }
   
 int DataSpace_SetupChapeau ( DataSpace * ds, int numrep, int dm, double*  min, int * nKnots,
-    double * max, int beginaccum, int beginsolve, int useTAMDforces, char * outfile, 
+    double * max, int periodic, int beginaccum, int beginsolve, int useTAMDforces, char * outfile, 
     int outfreq, int outlevel, int nupdate) {
   // Initialize chapeaus objects in DataSpace. Since Data space might not have
   // any chapeau allocated, the number of chapeaus is not indicated in the
   // dataspace constructor.
-  int i,j;
+  int i;
   char buf[80], buf2[80];
 
   if (!ds) {fprintf(stderr,"CFACV) null argument\n"); exit(-1);}
@@ -467,7 +476,7 @@ int DataSpace_SetupChapeau ( DataSpace * ds, int numrep, int dm, double*  min, i
   ds->ch=(chapeau**)malloc(ds->ch_num*sizeof(chapeau*));
 
   for (i=0;i<ds->ch_num;i++) {
-    ds->ch[i]=chapeau_alloc(dm,min,max,nKnots);
+    ds->ch[i]=chapeau_alloc(dm,min,max,nKnots,periodic);
     sprintf(buf, "%s_ch%d.bsp", outfile,i);
     sprintf(buf2, "%s.ch%d", outfile,i);
     chapeau_setupoutput(ds->ch[i],buf,buf2,outfreq,outlevel);
@@ -588,7 +597,7 @@ int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind ) {
 }
 
 restrStruct * DataSpace_AddRestr ( DataSpace * ds, double k, double z, int nCV, double * cvc, char * rftypstr, 
-			 double zmin, double zmax,char * boundf, double boundk ) 
+			 double zmin, double zmax,char * boundf, double boundk, char * outfile, int outputFreq ) 
 {
   // Esta subrrutina parece que hace lo mismo que New_restrStruct, pero tambien
   // registra la nueva estructura en dataspace, que es el objeto que va a
@@ -603,7 +612,8 @@ restrStruct * DataSpace_AddRestr ( DataSpace * ds, double k, double z, int nCV, 
   if (ds->iK>ds->K) {fprintf(stderr,"CFACV) out of size\n"); exit(-1);}
  
   i=ds->iK-1;
-  ds->restr[i]=New_restrStruct(k,z,nCV,cvc,rftypstr,zmin,zmax,boundf,boundk);
+  ds->restr[i]=New_restrStruct(k,z,nCV,cvc,rftypstr,zmin,zmax,boundf,boundk,outfile, outputFreq);
+    
 
   return ds->restr[i];
 }
@@ -658,6 +668,13 @@ double restr_getu ( restrStruct * r ) {
   return r->u;
 }
 
+void restr_output ( restrStruct * r ) {
+  fprintf(r->ofp,"%11.5f",r->z);
+  fprintf(r->ofp,"%11.5f",r->val);
+  fprintf(r->ofp,"%d\n",r->chid);
+  fflush(r->ofp);
+}
+
 int DataSpace_ComputeCVs ( DataSpace * ds ) {
   int i;
   cvStruct * c;
@@ -671,12 +688,12 @@ int DataSpace_ComputeCVs ( DataSpace * ds ) {
   return 0;
 }
 
+
 int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
-  int ii,i,j,jj,k;
-  double * cvc,fi;
+  int i,j,jj;
+  double * cvc;
   int d=0;
-  int N=ds->N,K=ds->K;
-  int ic,aux;
+  int K=ds->K;
   cvStruct * cv;
   restrStruct * r;
   chapeau * ch;
@@ -737,6 +754,11 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 
     // Compute the energy and the force of the restrain
     r->energyFunc(r);
+
+    // restraint output
+    if (r->boutput) {
+      if (!(timestep % r->outputFreq)) restr_output(r);
+    }
 
     /* accumulate force increments in ds->R for each real particle*/
     /* cv->gr[jj][kk] = \partial CV / \partial (kk-coord of center jj of CV) */
@@ -801,7 +823,15 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
       for (i=0;i<ds->ch_num;i++) {
         ch=ds->ch[i];
 
-        if (timestep>ds->beginsolve && !(timestep % ch->nupdate)) chapeau_update_peaks(ch);
+        if (timestep>ds->beginsolve && !(timestep % ch->nupdate)) {
+          // chapeau_savestate(ch,"after.ch0\0");
+          chapeau_update_peaks(ch);
+          //for (j=0;j<K;j++) {
+          //  r=ds->restr[j];
+          //  r->ofp=freopen(NULL, "w", r->ofp);
+          //}
+          // chapeau_savestate(ch,"before.ch0\0");
+        }
 
         //aux=ch->nsample/ch->nupdate
         //if(!(aux%ch->outputFreq)) chapeau_output(ch);
@@ -893,56 +923,6 @@ void DataSpace_ReportAll ( DataSpace * ds ) {
     }
     
   }
-}
-
-void DataSpace_ReportRestraints ( DataSpace * ds, int step, int outputlevel, FILE * fp ) {
-  int i;
-  
-  if (outputlevel & 1) {
-    fprintf(fp,"CFACV_OTFP/C) Z  % 10i ",step);
-    for (i=0;i<ds->K;i++) {
-      fprintf(fp,"% 11.5f",ds->restr[i]->z);
-    }
-    fprintf(fp,"\n");
-  }
-  if (outputlevel & 2) {
-    fprintf(fp,"CFACV_OTFP/C) Th % 10i ",step);
-    for (i=0;i<ds->K;i++) {
-      fprintf(fp,"% 11.5f",ds->restr[i]->val);
-    }
-    fprintf(fp,"\n");
-  }
-  if (outputlevel & 4) {
-    fprintf(fp,"CFACV_OTFP/C) FD % 10i ",step);
-    for (i=0;i<ds->K;i++) {
-      fprintf(fp,"% 11.5f",ds->restr[i]->tamd_restraint);
-    }
-    fprintf(fp,"\n");
-    fprintf(fp,"CFACV_OTFP/C) ND % 10i ",step);
-    for (i=0;i<ds->K;i++) {
-      fprintf(fp,"% 11.5f",ds->restr[i]->tamd_noise);
-    } 
-  }
-  if (outputlevel & 8) {
-    fprintf(fp,"\n");
-    fprintf(fp,"CFACV_OTFP/C) CHid % 10i ",step);
-    for (i=0;i<ds->K;i++) {
-      fprintf(fp,"%d",ds->restr[i]->chid);
-    }
-    fprintf(fp,"\n"); 
-    fprintf(fp,"CFACV_OTFP/C) kT % 10i ",step);
-    for (i=0;i<ds->K;i++) {
-      fprintf(fp,"% 11.5f",ds->restr[i]->tamdOpt->kT);
-    }
-    fprintf(fp,"\n"); 
-  }
-  fflush(fp);
-
-/*   printf("CFACV_OTFP/C) INFO %i ",step); */
-/*   for (i=0;i<ds->K;i++) { */
-/*     printf(" | typ %s min %.5lf max %.5lf ",rf_getstyp(ds->restr[i]->rfityp),ds->restr[i]->min,ds->restr[i]->max); */
-/*   } */
-/*   printf("\n"); */
 }
 
 void DataSpace_BinaryReportRestraints ( DataSpace * ds, int step, int outputlevel, FILE * fp ) {

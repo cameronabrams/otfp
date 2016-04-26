@@ -64,7 +64,7 @@ proc rlist_setup { ncv } {
       set restr($i.cvc) [lreplace $restr($i.cvc) $j $j 1]
     }
 
-
+   
     # Defaults and consistency in function
     if {![info exists restr($i.func)]} {set restr($i.func) HARMONIC}
     set restr($i.func) [string toupper $restr($i.func)]
@@ -95,12 +95,20 @@ proc rlist_setup { ncv } {
       default {error "ERROR: $restr($i.bound) is not a valid boundary type."} 
     }
 
-        
+   
+    # Output
+    if {[info exists restr($i.outfile)]} {
+      if {![info exists restr($i.outfreq)]}  {error "CFACV) ERROR: restraint need output frequency"}
+    } else {
+      if {[info exists restr($i.outfile)]}  {error "CFACV) ERROR: restraint need output file"}
+      set restr($i.outfile) ""
+      set restr($i.outfreq) -1
+    }
 
     # Allocating ds->restr[i] in the C code.
     set pcvc [ListToArray $restr($i.cvc)]
     set inicial 0 ; # obsolet when r->z=r->val is placed at first iteration (see cfacv.c)
-    set restr($i.address) [DataSpace_AddRestr $ds $restr($i.k) $inicial $ncv $pcvc $restr($i.func) $restr($i.min) $restr($i.max) $restr($i.bound) $restr($i.boundk)]
+    set restr($i.address) [DataSpace_AddRestr $ds $restr($i.k) $inicial $ncv $pcvc $restr($i.func) $restr($i.min) $restr($i.max) $restr($i.bound) $restr($i.boundk) $restr($i.outfile) $restr($i.outfreq)]
      
     # Default and consistency in type. Allocating ds->restr[i]->tamdOpt in the C code.
     if {![info exists restr($i.type)]} {error "CFACV) ERROR: restraint need a type"}

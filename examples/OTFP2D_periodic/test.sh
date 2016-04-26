@@ -3,50 +3,53 @@ set -o nounset
 set -o errexit
 set -o pipefail
 
-# Run simulations
-namd2 job0.namd 2>&1 | tee job0.log
-namd2 job1.namd 2>&1 | tee job1.log
+getnamdset () {
+  sed -n 's/^ *set  *'$1' .*/\0\nputs $'$1'/p' $2 | tclsh
+}
+ 
+# # Run simulation
+# namd2 job0.namd 2>&1 | tee job0.log
 
+# Run simulation
+# namd2 job1.namd 2>&1 | tee job1.log
+
+# Computing free energy.
 for file in $(ls *bsp); do
 
   f=${file%.*}
 
-  # Decoding the FES
   ../../src/catbinsp -f $file -ol 1 \
     | awk 'BEGIN{a=""} (NR>1&&$2!=a){a=$2;$1="";$2="";print $0}'\
     > ${f}.LAMBDA
 
-  # Adding x-range
-  awk -v N=201 -v min=2.5 -v max=5.3 \
-      'END{
-        for (i=0;i<N;i++){
-          a=i+j*N+1
-          print min+(max-min)/(N-1)*i,$a
+  awk  -v line=$(wc -l < ${f}.LAMBDA) -v j=0 \
+     -v Nx=151 -v Ny=151 \
+     -v dx=0.0418879020478639 -v dy=0.0418879020478639 \
+     -v xmin=-3.14159265358979 -v ymin=-3.14159265358979 \
+     '(line==NR){
+        for (j=0;j<Ny;j++){
+          for (i=0;i<Nx;i++){
+            a=i+j*Nx+1
+            print ymin+dy*j,xmin+dx*i,$a
+          }
+          print ""
         }
       }' ${f}.LAMBDA > ${f}.fes
- 
-  # Plotting
-  gnuplot << HEREGNUPLOT
-
-  set terminal png;
-
-  set title "Free energy"
-  set output "${f}.png"; j=j+1
-  plot '${f}.fes' w l notit
-
-HEREGNUPLOT
-    
 done
 
+# #Computing the begining of job1
+# sed -n '1s/\(.\)\s\s*\(.\)/\1\n\2/g;1p' job1_ch0.LAMBDA \
+#   | awk '{print (NR-1)*'$dr'+'$rmin',$1}' \
+#   > job1_ch0.fes1
 
+#Computing traces
 for file in $(ls *dcd); do
 
   f=${file%.*}
 
-  #Computing traces
-  vmd -dispdev text << HERETCL
+vmd -dispdev text << HERETCL
    
-  mol new ../systems/buta.psf type psf first 0 last -1 step 1 filebonds 1 autobonds 0 waitfor all
+  mol new ../systems/ala2.psf type psf first 0 last -1 step 1 filebonds 1 autobonds 0 waitfor all
   mol addfile $file type dcd first 0 last -1 step 1 filebonds 1 autobonds 0 waitfor all
 
   proc distance { i1 i2 } {
@@ -64,26 +67,18 @@ for file in $(ls *dcd); do
   puts \$nframes
   for {set frame 0} {\$frame < \$nframes} {incr frame} {
       animate goto \$frame
-      puts \$fil [distance 0 10] 
+      puts \$fil "[measure dihed {2 0 16 14}] [measure dihed {0 16 14 13}]"
   }
   close \$fil
 
   exit            
 
 HERETCL
- 
-  # Plotting the trace
-  gnuplot << HEREGNUPLOT
-
-  set terminal png;
-
-  set title "CV trace"
-  set output "${f}.png"; j=j+1
-  plot '${f}.s' u (\$0+1):1 w l notit
-
-HEREGNUPLOT
 
 done 
+
+# Compute the plots
+gnuplot test.plt
 
 #Final message
 echo "Test completed sucesfully, compare the plots obtained with the reference"

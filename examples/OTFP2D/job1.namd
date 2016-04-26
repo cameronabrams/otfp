@@ -1,7 +1,7 @@
 #!/bin/tclsh
  
 # Restart OTFP: There is two modes to restart otfp, chose one:
-# set restart_otfp cfacv_loadstate
+set restart_otfp cfacv_loadstate
 # set restart_chapeau chapeau_loadlambda
                         
 set oname           job1
@@ -11,26 +11,19 @@ seed                $seed
  
 
 # The molecules
-structure           ../butane_files/buta.psf
-coordinates         ../butane_files/buta.pdb
+structure           ../systems/buta.psf
+coordinates         ../systems/buta.pdb
 binCoordinates      job0.restart.coor
 binVelocities       job0.restart.vel
 # extendedsystem      job0.restart.xsc
-firsttimestep       2000000
 
-timestep            2.0
-rigidBonds          all  
+firsttimestep       20000000 ;# 20ns
+timestep            1.0
+rigidBonds          none
 
-# Periodic Boundary Conditions
-# cellBasisVector1    54.0    0    0.0
-# cellBasisVector2     0.0 54.0    0.0
-# cellBasisVector3     0.0    0   54.0
-# cellOrigin           0.0    0.0  0.0
-# wrapall             on   ;# wrap all the atoms
- 
 # Potentials and parameters
 paraTypeCharmm      on
-parameters          ../butane_files/par_all36_cgenff.prm
+parameters          ../systems/par_all36_cgenff.prm
 exclude             scaled1-4
 1-4scaling          1.0
 
@@ -43,9 +36,6 @@ switchdist          10.0  ;#10.0 # Desde donde comienza el suavizado
 pairlistdist        12.0  ;#14.0 #Radio externo de Verlet
 stepspercycle       10    ;#Pasos para el calculo de la lista de Verlet
 
-# Particle Mesh Ewald algorithm
-# PME                 on    ; # 3D grid representing the system charge.
-# PMEgridspacing      1     ; # Maximum distance between grid points in each direction.
 
 # Multiple time steps
 nonbondedFreq       1
@@ -58,27 +48,12 @@ langevinTemp        $temperature;   # bath temperature
 langevinHydrogen    no
 langevinDamping     50.
 
-# # Ensamble NPT
-# langevinPiston      off
-#
-# set pressure          1.01325
-# langevinPistonTarget  $pressure ;# in bar
-# set pressure          [expr $pressure*1.43933857e-10] ;#  in kcalmol/A3 
-#
-# langevinPistonPeriod  100.0 ;# oscillation time constant in fs
-# langevinPistonDecay   50.0 ;# damping time constant in fs
-# useGroupPresyysure    yes ;# needed for rigidBonds
-# useFlexibleCell       no  ;# three directions are independent
-# useConstantArea       no  ;# xy area constant.
- 
 # Output
 outputName          ${oname}
-restartfreq         10000
-dcdfreq             5000
-xstfreq             5000
-outputEnergies      5000
-outputpressure      5000
-outputTiming        5000
+outputEnergies      200000
+restartfreq         200000
+dcdfreq             200000
+outputTiming        200000
 
 source OTFP.namd
 
@@ -88,5 +63,4 @@ ds_loadrestrains $ds job0.rstr
 # Restart chapeaus
 chapeau_loadstate $chape(0.address) job0.ch0
           
-# variables needed for the tclforcesscript
 run  4000000 ;# 4ns

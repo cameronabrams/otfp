@@ -1,2 +1,2 @@
-DIHED    0 1 2 3
-DIHED    4 0 1 2
+BOND    0 1
+BOND    2 3

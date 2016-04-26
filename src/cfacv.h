@@ -159,6 +159,10 @@ typedef struct RESTRSTRUCT {
   int chid;
   int chdm;
 
+  FILE * ofp;
+  int outputFreq;
+  int boutput;
+
 } restrStruct;
 
 
@@ -170,7 +174,8 @@ tamdOptStruct * New_tamdOptStruct ( double g, double kt, double dt, int riftyp);
 
 smdOptStruct * New_smdOptStruct ( double target, int t0, int t1);
 
-restrStruct * New_restrStruct ( double k, double z, int nCV, double * cvc, char * rftypstr, double zmin, double zmax, char * boundstr, double boundk );
+restrStruct * New_restrStruct ( double k, double z, int nCV, double * cvc, char * rftypstr, double zmin, double zmax, char * boundstr, double boundk, char * outfile, int outputFreq);
+    
 
 #ifndef MAXNBOR
 #define MAXNBOR 250
@@ -226,22 +231,24 @@ unsigned short * Xi;
 // Other subroutines
 FILE * my_fopen ( char * name, char * code ) ;
 DataSpace * NewDataSpace ( int N, int M, int K, long int seed );
-int DataSpace_Setupchapeau ( DataSpace * ds, int numrep, int dm, double * min, int * nKnots, double * max, int beginaccum, int beginsolve, int useTAMDforces, char * outfile, int outfreq, int outlevel, int nupdate);
+int DataSpace_Setupchapeau ( DataSpace * ds, int numrep, int dm, double * min,
+    int * nKnots, double * max, int periodic, int beginaccum, int beginsolve, 
+    int useTAMDforces, char * outfile, int outfreq, int outlevel, int nupdate);
 chapeau * DataSpace_get_chapeauadress ( DataSpace * ds, int i );
 int DataSpace_getN ( DataSpace * ds );
 double * DataSpace_centerPos ( DataSpace * ds, int i );
 int DataSpace_AddAtomCenter ( DataSpace * ds, int n, int * ind, double * m );
 int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind ) ;
-restrStruct * DataSpace_AddRestr  ( DataSpace * ds, double k, double targ, int nCV, double * cvc, char * rftypstr, double zmin, double zmax,char * boundf, double boundk );
+restrStruct * DataSpace_AddRestr  ( DataSpace * ds, double k, double targ, int nCV, double * cvc, char * rftypstr, double zmin, double zmax,char * boundf, double boundk,char * outfile, int outputFreq);
 int restr_UpdateTamdOpt ( restrStruct * r, double g, double kt, double dt );
 int restr_AddTamdOpt ( restrStruct * r, double g, double kt, double dt, int chid  , int chdm );
 int restr_AddSmdOpt  ( restrStruct * r, double target, int t0, int t1 );
+void restr_output  ( restrStruct * r );
 int DataSpace_ComputeCVs ( DataSpace * ds );
 int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep );
 double DataSpace_RestraintEnergy ( DataSpace * ds );
 void DataSpace_ReportAll ( DataSpace * ds );
 void DataSpace_ReportCV ( DataSpace * ds, int * active, double * res );
-void DataSpace_ReportRestraints ( DataSpace * ds, int step, int outputlevel, FILE * fp );
 int DataSpace_checkdata ( DataSpace * ds );
 int DataSpace_dump ( DataSpace * ds ); 
 FILE * my_binfopen ( char * name, char * code, unsigned int outputLevel, DataSpace * ds );

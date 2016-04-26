@@ -1,8 +1,8 @@
 #include "chapeau.h"
 
-chapeau * chapeau_alloc ( int dm, double * rmin, double * rmax, int * N ) {
+chapeau * chapeau_alloc ( int dm, double * rmin, double * rmax, int * N, int periodic ) {
   chapeau * ch;
-  int j,i;
+  int i;
 
   //TODO: check size of argument vectors and write the errors
   
@@ -12,6 +12,7 @@ chapeau * chapeau_alloc ( int dm, double * rmin, double * rmax, int * N ) {
 
   // Allocating the dimension
   ch->dm=dm;
+  ch->periodic=periodic;
   ch->rmin=(double*)malloc(dm*sizeof(double));
   ch->rmax=(double*)malloc(dm*sizeof(double));
   ch->dr=(double*)malloc(dm*sizeof(double));
@@ -36,22 +37,41 @@ chapeau * chapeau_alloc ( int dm, double * rmin, double * rmax, int * N ) {
     ch->m=ch->m*N[i];
   }
 
+  // chapeau 1D => 1 uperdiagonals
+  // chapeau 2D => ch->N[0] uperdiagonals
+  if (dm==1) {
+    ch->ku=1;
+  } else{
+    ch->ku=ch->N[0];
+  }  
+  ch->ldad=3*ch->ku+1;
+
   // Allocating the size
-  ch->lam=gsl_vector_calloc(ch->m);
+  ch->lam=(double*)calloc(ch->m,sizeof(double));
   ch->hits=(int*)calloc(ch->m,sizeof(int));
-  ch->b=gsl_vector_calloc(ch->m);
-  ch->A=gsl_matrix_calloc(ch->m,ch->m);
-  ch->bfull=gsl_vector_calloc(ch->m);
-  ch->Afull=gsl_matrix_calloc(ch->m,ch->m);
+  ch->b=(double*)calloc(ch->m,sizeof(double));
+  ch->bfull=(double*)calloc(ch->m,sizeof(double));
+
+  ch->A=(double**)calloc(ch->ldad,sizeof(double*));
+  ch->Afull=(double**)calloc(ch->ldad,sizeof(double*));
+  for (i=0;i<ch->ldad;i++) {
+    ch->A[i]=(double*)calloc(ch->m,sizeof(double));
+    ch->Afull[i]=(double*)calloc(ch->m,sizeof(double));
+  }
 
   return ch;
 }
 
 void chapeau_free ( chapeau * ch ) {
-  gsl_matrix_free(ch->A);
-  gsl_vector_free(ch->b);
-  gsl_matrix_free(ch->Afull);
-  gsl_vector_free(ch->bfull);
+  int i;
+  for (i = 0; i < ch->ldad; i++) { 
+      free(ch->A[i]);
+      free(ch->Afull[i]);
+  }
+  free(ch->A);
+  free(ch->Afull);
+  free(ch->b);
+  free(ch->bfull);
   free(ch->hits);
   free(ch->rmin);
   free(ch->rmax);
@@ -62,9 +82,9 @@ void chapeau_free ( chapeau * ch ) {
 }
              
 int chapeau_comparesize ( chapeau * ch1,  chapeau * ch2) {
-  int i;
   if (ch1->dm          != ch2->dm         ) return 0;
-  if (ch1->m           != ch2->m          ) return 0;
+  if (ch1->m        != ch2->m       ) return 0;
+  if (ch1->ldad        != ch2->ldad       ) return 0;
   return 1;
 }
  
@@ -87,7 +107,7 @@ int chapeau_comparegrid ( chapeau * ch1,  chapeau * ch2) {
 
 void chapeau_sum ( chapeau * ch1, chapeau * ch2 ) {
   //Overwrite ch1 with ch1+ch2
-  int i,j,k;
+  int i,j;
 
   if (!chapeau_comparesize(ch1,ch2)) {
     fprintf(stderr,"CFACV/C) ERROR: you can not sum chapeau objects with different sizes\n");
@@ -99,14 +119,14 @@ void chapeau_sum ( chapeau * ch1, chapeau * ch2 ) {
   //  fprintf(stderr,"CFACV/C) ERROR: you can not sum chapeau objects with different domains\n");
   //  exit(-1);
   //}
-
-  gsl_vector_add(ch1->b   ,ch2->b);
-  gsl_matrix_add(ch1->A   ,ch2->A);
-  gsl_vector_add(ch1->bfull,ch2->bfull);
-  gsl_matrix_add(ch1->Afull,ch2->Afull);
-
   for (i=0;i<ch1->m;i++) {
+    ch1->b[i] += ch2->b[i];
+    ch1->bfull[i] += ch2->bfull[i];
     ch1->hits[i] = (ch1->hits[i]||ch2->hits[i]);
+    for (j=0;j<ch1->ldad;j++) {
+      ch1->A[j][i] += ch2->A[j][i];
+      ch1->Afull[j][i] += ch2->Afull[j][i];
+    }
   }
 
   //gsl_vector_add(ch1->lam ,ch2->lam); // irrelevant?
@@ -141,8 +161,7 @@ void chapeau_output ( chapeau * ch, int timestep ) {
 
   if (outputlevel & 1) { // 0th bit = output knots as y
     for (i=0;i<ch->m;i++) {
-      fwrite(gsl_vector_ptr(ch->lam,i),sizeof(double),1,ch->ofp);
-      //fprintf(stderr,"### %i %g\n",i,*gsl_vector_ptr(ch->lam,i));
+      fwrite(&(ch->lam[i]),sizeof(double),1,ch->ofp);
     }
   }
 
@@ -157,6 +176,7 @@ void chapeau_output ( chapeau * ch, int timestep ) {
 
 void chapeau_savestate ( chapeau * ch, char * filename ) {
   FILE *ofs;
+  int i;
 
   ofs=fopen(filename,"w");
 
@@ -166,12 +186,18 @@ void chapeau_savestate ( chapeau * ch, char * filename ) {
   fwrite(ch->rmax,sizeof(*(ch->rmax)),ch->dm,ofs);
   fwrite(ch->N,sizeof(*(ch->N)),ch->dm,ofs);
    
-  gsl_vector_fwrite(ofs,ch->lam);
+  fwrite(ch->lam,sizeof(*(ch->lam)),ch->m,ofs);
   fwrite(ch->hits,sizeof(*(ch->hits)),ch->m,ofs);
-  gsl_matrix_fwrite(ofs,ch->A);
-  gsl_vector_fwrite(ofs,ch->b);
-  gsl_matrix_fwrite(ofs,ch->Afull);
-  gsl_vector_fwrite(ofs,ch->bfull);
+
+  for (i=0;i<ch->ldad;i++) {
+    fwrite(ch->A[i],sizeof(*(ch->A[i])),ch->m,ofs);
+  }
+  fwrite(ch->b,sizeof(*(ch->b)),ch->m,ofs);
+
+  for (i=0;i<ch->ldad;i++) {
+    fwrite(ch->Afull[i],sizeof(*(ch->Afull[i])),ch->m,ofs);
+  }
+  fwrite(ch->bfull,sizeof(*(ch->bfull)),ch->m,ofs);
 
   fclose(ofs);
   
@@ -193,7 +219,7 @@ void chapeau_loadstate ( chapeau * ch, char * filename ) {
     // reading integers (N,M,et), that is only what we want... better way to do
     // this?
     chaux = (chapeau*)malloc(sizeof(chapeau));
-    fread(chaux, sizeof(*chaux), 1, ofs);
+    fread(chaux, sizeof(*chaux), 1,ofs);
     if (!chapeau_comparesize(ch,chaux)) {
       fprintf(stdout,"CFACV) ERROR, the chapeau object from the file is diferent\n");
     }
@@ -201,7 +227,8 @@ void chapeau_loadstate ( chapeau * ch, char * filename ) {
     // This variables are alredy set during allocation, might be better to
     // compare them instead
     ch->dm      = chaux->dm;
-    ch->m       = chaux->m;
+    ch->m    = chaux->m;
+    ch->ldad    = chaux->ldad;
     
     // This variables might be not set
     ch->nupdate     = chaux->nupdate    ;
@@ -213,20 +240,31 @@ void chapeau_loadstate ( chapeau * ch, char * filename ) {
     fread(ch->rmin,sizeof(*(ch->rmin)),ch->dm,ofs);
     fread(ch->rmax,sizeof(*(ch->rmax)),ch->dm,ofs);
     fread(ch->N,sizeof(*(ch->N)),ch->dm,ofs);
-
-    gsl_vector_fread(ofs,ch->lam);
+     
+    for (i=0;i<ch->dm;i++) {
+      ch->dr[i]  =(ch->rmax[i]-ch->rmin[i])/(ch->N[i]-1);
+      ch->idr[i] =1./ch->dr[i];
+    }
+                     
+    fread(ch->lam,sizeof(*(ch->lam)),ch->m,ofs);
     fread(ch->hits,sizeof(*(ch->hits)),ch->m,ofs);
-    gsl_matrix_fread(ofs,ch->A);
-    gsl_vector_fread(ofs,ch->b);
-    gsl_matrix_fread(ofs,ch->Afull);
-    gsl_vector_fread(ofs,ch->bfull);
 
+    for (i=0;i<ch->ldad;i++) {
+      fread(ch->A[i],sizeof(*(ch->A[i])),ch->m,ofs);
+    }
+    fread(ch->b,sizeof(*(ch->b)),ch->m,ofs);
+
+    for (i=0;i<ch->ldad;i++) {
+      fread(ch->Afull[i],sizeof(*(ch->Afull[i])),ch->m,ofs);
+    }
+    fread(ch->bfull,sizeof(*(ch->bfull)),ch->m,ofs);
+             
     fclose(ofs);
     free(chaux);
 }
     
 chapeau * chapeau_allocloadstate ( char * filename ) {
-    int i,m,N;
+    int i;
     FILE * ofs;
     chapeau * ch;
    
@@ -236,7 +274,6 @@ chapeau * chapeau_allocloadstate ( char * filename ) {
   
     // Reading only the sizes
     ofs=fopen(filename,"r");
-    fread(&i,sizeof(int),1,ofs);
     fread(ch, sizeof(*ch), 1, ofs);
     fclose(ofs);
  
@@ -246,15 +283,22 @@ chapeau * chapeau_allocloadstate ( char * filename ) {
     ch->dr=(double*)malloc(ch->dm*sizeof(double));
     ch->idr=(double*)malloc(ch->dm*sizeof(double));
     ch->N=(int*)malloc(ch->dm*sizeof(int));
+    ch->r=(double*)malloc(ch->dm*sizeof(double));
+    ch->f=(double*)malloc(ch->dm*sizeof(double));
 
-    // Allocating the size
-    ch->lam=gsl_vector_calloc(ch->m);
+    // Allocating the size. TODO: En este bloque me parece que con malloc basta.
+    ch->lam=(double*)malloc(ch->m*sizeof(double));
     ch->hits=(int*)calloc(ch->m,sizeof(int));
-    ch->b=gsl_vector_calloc(ch->m);
-    ch->A=gsl_matrix_calloc(ch->m,ch->m);
-    ch->bfull=gsl_vector_calloc(ch->m);
-    ch->Afull=gsl_matrix_calloc(ch->m,ch->m);
- 
+    ch->b=(double*)calloc(ch->m,sizeof(double));
+    ch->bfull=(double*)calloc(ch->m,sizeof(double));
+
+    ch->A=(double**)calloc(ch->ldad,sizeof(double*));
+    ch->Afull=(double**)calloc(ch->ldad,sizeof(double*));
+    for (i=0;i<ch->ldad;i++) {
+      ch->A[i]=(double*)calloc(ch->m,sizeof(double));
+      ch->Afull[i]=(double*)calloc(ch->m,sizeof(double));
+    }
+                     
     // Now reading the state
     chapeau_loadstate(ch,filename);
 
@@ -262,9 +306,8 @@ chapeau * chapeau_allocloadstate ( char * filename ) {
 }
 
 void chapeau_loadlambda ( chapeau * ch, char * filename ) {
-    int i,m,N;
+    int i;
     chapeau * chaux;
-    FILE * ofs;
  
     if (!ch) {
       fprintf(stderr,"CFACV) ERROR in load chapeau file because holding object was not allocated\n");
@@ -283,7 +326,8 @@ void chapeau_loadlambda ( chapeau * ch, char * filename ) {
     // This variables are alredy set during allocation, might be better to
     // compare them instead
     ch->dm      = chaux->dm;
-    ch->m       = chaux->m;
+    ch->m    = chaux->m;
+    ch->ldad    = chaux->ldad;
                                                  
     for (i=0;i<ch->dm;i++) {
       ch->rmin[i] = chaux->rmin[i];
@@ -299,65 +343,168 @@ void chapeau_loadlambda ( chapeau * ch, char * filename ) {
     ch->outputFreq  = chaux->outputFreq ;
     ch->outputLevel = chaux->outputLevel;
     
-    // Discarding all this readings by using chaux
-    gsl_vector_memcpy(ch->lam,chaux->lam);
+    for (i=0;i<ch->m;i++) {
+      ch->lam[i]=chaux->lam[i];
+    }
+
     chapeau_free(chaux);
 }
 
 void chapeau_update_peaks ( chapeau * ch ) {
-  int i,j,J,I;
-  int s;
-  double ninv;
-  double lo,lb;
-  gsl_matrix * Abar;
-  gsl_vector * bbar;
-  gsl_vector * lambar;
-  gsl_permutation * p;
+  int i,j,J,I,s,k,l;
+  double lb;
+  double * Abar;
+  double * bbar;
+  int * pivot;
   int nred;
+  char aux; 
 
   //DB//for (i=0;i<ch->m;i++) fprintf(stderr,"AAA %i %i\n",i,ch->hits[i]); exit(1);
 
   //// parameters that are allowed to evolve lie between indices for which
   //// ch->hits[] is non-zero so extract the proper subspace
   nred=0;
-  for (i=0;i<ch->m;i++) if (ch->hits[i]) nred++;
-
+  for (i=0;i<ch->m;i++)  if (ch->hits[i]) nred++;
+      
   // If the nred is small, singular matrix can occur
-  //fprintf(stderr,"Warning: No chapeau update: only %i non cero elements\n",nred);
-  if (nred<10) return;
+  if (nred<ch->ku+1) {
+   fprintf(stderr,"Warning: No chapeau update: 0 columns (%d) > diagonals (%d)\n",nred,ch->ku+1);
+   return;
+  }
 
-  Abar=gsl_matrix_alloc(nred,nred);
-  bbar=gsl_vector_alloc(nred);
-  lambar=gsl_vector_alloc(nred);
-  p=gsl_permutation_alloc(nred);
+  // Allocating the size. TODO: En este bloque me parece que con malloc basta.
+  bbar=(double*)malloc(nred*sizeof(double));
+  pivot=(int*)malloc(nred*sizeof(int));
+  Abar=(double*)calloc(nred*ch->ldad,sizeof(double));
+
+  // the band storage scheme for a 
+  // m = n = 6, kl = 2, ku = 2 example:
+  //
+  //   *    *    *    *    +    +      
+  //   *    *    *    +    +    +      
+  //   *    *   a02  a13  a24  a35
+  //   *   a01  a12  a23  a34  a45 (uperdiagonal)
+  //  a00  a11  a22  a33  a44  a55 (diagonal)
+  //  a10  a21  a32  a43  a54   * 
+  //  a20  a31  a42  a53   *    * 
+  //
+  // storate[(kl+ku+(i-j))][j]=a[i][j]; 
+  // note that columns index are the same
+  
+  // Now, what happens if column 2 is always cero. Since 
+  // matrix A is symetric row 2 is also cero. 
+  //
+  //   *    *    *    *    +    +      
+  //   *    *    *    +    +    +      
+  //   *    *    0   a13   0   a35
+  //   *   a01   0    0   a34  a45 (uperdiagonal)
+  //  a00  a11   0   a33  a44  a55 (diagonal)
+  //  a10    0   0   a43  a54   * 
+  //    0  a31   0   a53   *    * 
+  //
+  // The reduced matrix does not have neither the row not the column. So the
+  // relabel is 1->1, 2 disapear, 3->2 and go on in all columns and rows.
+  //
+  //   *    *        *        *        +        +                 
+  //   *    *        *        +        +        +                 
+  //   *    *        0 ( - )  0 ( 0 ) A24(a35)  -                 
+  //   *   a01      A12(a13) A23(a34) A34(a45)  -  (uperdiagonal) 
+  //  a00  a11      A22(a33) A33(a44) A44(a55)  -  (diagonal)     
+  //  a10  A21(a31) A32(a43) A43(a54) A54(a65)  *                 
+  //    0   *       A42(a53) A53(a64)  * (a75)  *                 
+  //
+  //   The net flux is:
+  //
+  //   *    *    *    *    +    +      
+  //   *    *    *    +    +    +      
+  //   *    *        L         <-
+  //   *   a01            <-   <-
+  //  a00  a11       <-   <-   <-
+  //  a10            <-   <-   <-
+  //        ^        <-   <-   <-
+  //                       
+  // So it is better to loop in the other space!
   
   // Add the new and old statistic to the reduced matrix
-  I=0;
-  for (i=0;i<ch->m;i++) {
-    if (!ch->hits[i]) continue;
-    lb=gsl_vector_get(ch->b,i)+gsl_vector_get(ch->bfull,i);
-    gsl_vector_set(bbar,I,-lb); //TODO: Trace back the origin of the minus. See fes1D procedure. 
-    J=0;
-    for (j=0;j<ch->m;j++) {
-      if (!ch->hits[j]) continue;
-      lb=gsl_matrix_get(ch->A,i,j)+gsl_matrix_get(ch->Afull,i,j);
-      gsl_matrix_set(Abar,I,J,lb);
-      J++;
+  J=0;
+  s=2*ch->ku;
+  for (j=0;j<ch->m;j++) {
+
+    if (!ch->hits[j]) continue;
+    bbar[J]=-(ch->b[j]+ch->bfull[j]); //TODO: Trace back the origin of the minus. See accumulate procedures. 
+    
+    // Upper diagonals (and main diagonal) in the row
+    I=J;
+    for (i=j;i<=j+ch->ku;i++) {
+      if (i>=ch->m) break;
+      if (!ch->hits[i]) continue;
+
+      Abar[s+I-J+ch->ldad*J]=ch->A[s+i-j][j]+ch->Afull[s+i-j][j];
+      I++;
+    }  
+
+    // Lower diagonals in the row
+    I=J-1;
+    for (k=1;k<=ch->ku;k++) {
+      i=j-k;
+      if (i<0) break;
+      if (!ch->hits[i]) continue;
+
+      Abar[s+I-J+ch->ldad*J]=ch->A[s+i-j][j]+ch->Afull[s+i-j][j];
+      I--;
     }
-    I++;
+    J++;
   } 
 
-  gsl_linalg_LU_decomp(Abar,p,&s);
-  gsl_linalg_LU_solve(Abar,p,bbar,lambar);
+  if (nred!=J) {fprintf(stderr,"Bad matrix nred size: %d != %d\n",nred,J);exit(-1);}
+
+  //// TODO: Tto call a Fortran routine from C we have to transpose the matrix.
+  //// However, this is is no needed if Abar is symmetric, but I should change
+  //// Abar to 1 dimension array in the rest of the code
+  //for (i=0; i<nred; i++){
+  //  for(j=0; j<ch->ldad; j++) AT[j+nred*i]=Abar[j][i];           
+  //}                                               
+
+  // find solution using LAPACK routine SGESV.
+  J=1;                       
+  aux='N';
+
+  // LU factorization of A.
+  dgbtrf_(&nred, &nred, &ch->ku, &ch->ku, Abar, &ch->ldad, pivot, &s); 
+              
+  fprintf(stderr,"AAAAA\n");
+  for (j=0;j<nred*ch->ldad;j++) {
+     fprintf(stderr,"%6d ",(int)Abar[j]);
+  }
+  if (s!=0) {fprintf(stderr,"dgbtrf: Matrix singular with flag: %d\n",s);exit(-1);}
+ 
+
+  // Find solution using LAPACK, all the arguments have to be pointers and you
+  // have to add an underscore to the routine name
+  dgbtrs_(&aux,&nred, &ch->ku, &ch->ku, &J, Abar, &ch->ldad, pivot, bbar, &nred, &s);
+  if (s!=0) {fprintf(stderr,"dgbtrs: Matrix singular with flag: %d\n",s);exit(-1);}
+ 
+  /*parameters in the order as they appear in the function call
+    order of matrix A, number of right hand sides (b), matrix A,
+    leading dimension of A, array that records pivoting, 
+    result vector b on entry, x on exit, leading dimension of b
+    return value */ 
+                                                
+
+  // gsl_linalg_LU_solve(Abar,p,bbar,lambar);
+  // gsl_linalg_solve_symm_tridiag; This shuld work for the 1D case
+  // gsl_linalg_solve_symm_cyc_tridiag; This should work for the periodic 1D case
   
   // update the vector of coefficients
   I=0;
   for (i=0;i<ch->m;i++) {
     if (!ch->hits[i]) continue;
 
-    lb=gsl_vector_get(lambar,I);
-    if (lb!=lb) {fprintf(stderr,"PARANOIA) Tripped at 3333. Too many chapeau additions?\n");exit(-1);}
-    gsl_vector_set(ch->lam,i,lb);
+    // Insted of solving Ax=b, I rather solve (dr[0]*dr[0]*A)x/dr[0]=(dr[0]*b).
+    // So, I have to remember multiply the solution by dr[0].
+    lb=bbar[I]*ch->dr[0];
+    if (lb!=lb) {fprintf(stderr,"PARANOIA) Tripped at I=%d i=%d: %.5f?\n",I,i,lb);exit(-1);}
+    ch->lam[i]=lb;
     
     //lo=gsl_vector_get(ch->lam,i);
     //gsl_vector_set(ch->lam,i,alpha*lo+(1-alpha)*lb);
@@ -365,10 +512,9 @@ void chapeau_update_peaks ( chapeau * ch ) {
     I++;
   } 
    
-  gsl_matrix_free(Abar);
-  gsl_vector_free(bbar);
-  gsl_vector_free(lambar);
-  gsl_permutation_free(p);
+  free(Abar);
+  free(bbar);
+  free(pivot);   
 
   //chapeau_baselinehits(ch); 
 }
@@ -384,8 +530,8 @@ void chapeau_set_peaks ( chapeau * ch, char * filename ) {
   for (i=0;i<ch->m;i++) {
     fgets(ln,255,fp);
     sscanf(ln,"%lf",&knots);
-    fprintf(stdout,"INFO) %i,%s\n",i++,knots);
-    gsl_vector_set(ch->lam,i,knots);
+    fprintf(stdout,"INFO) %i,%.5f\n",i++,knots);
+    ch->lam[i]=knots;
   }
 
   fflush(stdout);
@@ -424,16 +570,15 @@ double chapeau_evalf_1simplex ( chapeau * ch, double z ) {
   m=(int) dm;
   dm=dm-m;
 
-  la=gsl_vector_get(ch->lam,m);
-  lb=gsl_vector_get(ch->lam,m+1);
+  la=ch->lam[m];
+  lb=ch->lam[m+1];
   return la+(lb-la)*dm; 
 
 } 
     
 double chapeau_evalf_2simplex ( chapeau * ch, double z1, double z2 ) {
-  int m;
-  int i,j,k,ni,nj,nk;
-  double f,dx,dy,lb;
+  int i,j,ni,nj,nk;
+  double f,dx,dy;
 
   // Early return to avoid interpolations beyond the boundaries
   if ( z1 > ch->rmax[0] ) return 0.;
@@ -483,9 +628,8 @@ double chapeau_evalf_2simplex ( chapeau * ch, double z1, double z2 ) {
        |        -\| 
       nk---------ni */
 
-    lb=gsl_vector_get(ch->lam,nk);
-    f-=(dx*ch->idr[0]+1)*lb;
-    f-=(dy*ch->idr[1]+1)*lb;
+    f-=(dx*ch->idr[0]+1)*ch->lam[nk];
+    f-=(dy*ch->idr[1]+1)*ch->lam[nk];
 
   } else {
     nk=(j+1)*(ch->N[0]-1)+(i+1);
@@ -497,17 +641,14 @@ double chapeau_evalf_2simplex ( chapeau * ch, double z1, double z2 ) {
        |        -\|  
        *---------ni */
 
-    lb=gsl_vector_get(ch->lam,nk);
-    f+=(dx*ch->idr[0]+1)*lb;
-    f+=(dy*ch->idr[1]+1)*lb;
+    f+=(dx*ch->idr[0]+1)*ch->lam[nk];
+    f+=(dy*ch->idr[1]+1)*ch->lam[nk];
 
   }
     
   // Sumando contribucion de ni y nj
-  lb=gsl_vector_get(ch->lam,ni);
-  f+=(dx*ch->idr[0]+1)*lb;
-  lb=gsl_vector_get(ch->lam,ni);
-  f+=(dy*ch->idr[1]+1)*lb;
+  f+=(dx*ch->idr[0]+1)*ch->lam[ni];
+  f+=(dy*ch->idr[1]+1)*ch->lam[nj];
 
   return f;
 }  
@@ -532,17 +673,18 @@ char * chapeau_serialize ( chapeau * ch ) {
   for (i=0;i<ch->m;i++) {
 
     // Writing the partial b
-    sprintf(buf+size, "%13.5e", gsl_vector_get(ch->b,i)); size+=13;
+    sprintf(buf+size, "%13.5e", ch->b[i]); size+=13;
 
     // Writing hits
     sprintf(buf+size, "%1i", ch->hits[i]); size+=1;
   }
 
+  // TODO: Esto no anda en 2D!!!
   // Writing the partial A (simetric and tridiagonal)
-  sprintf(buf+size, "%13.5e",gsl_matrix_get(ch->A,0,0)); size+=13;
+  sprintf(buf+size, "%13.5e",ch->A[0][0]); size+=13;
   for (i=1;i<ch->m;i++) {
-    sprintf(buf+size, "%13.5e",gsl_matrix_get(ch->A,i,i)); size+=13;
-    sprintf(buf+size, "%13.5e",gsl_matrix_get(ch->A,i,i-1)); size+=13; 
+    sprintf(buf+size, "%13.5e",ch->A[i][i]); size+=13;
+    sprintf(buf+size, "%13.5e",ch->A[i][i-1]); size+=13; 
   }
 
   return buf; 
@@ -582,8 +724,7 @@ void chapeau_addserialized ( chapeau *ch, char * str ) {
     // Reading the partial b
     memcpy(word1, &str[size1], 13 ); size1+=13;
     err=sscanf(word1,"%13le",&aux); if(!err) {fprintf(stderr,"CFACV/C) Error 1112 on read %s\n",word1);}
-    aux+=gsl_vector_get(ch->b,i);
-    gsl_vector_set(ch->b,i,aux);
+    ch->b[i]+=aux;
 
     // Reading hits
     memcpy(word2, &str[size1], 1 ); size1+=1;
@@ -594,23 +735,20 @@ void chapeau_addserialized ( chapeau *ch, char * str ) {
   // Reading the partial A (simetric and tridiagonal)
   memcpy(word1, &str[size1], 13 ); size1+=13;
   err=sscanf(word1,"%13le",&aux); if(!err) {fprintf(stderr,"CFACV/C) Error 1112 on read %s\n",word1);}
-  aux+=gsl_matrix_get(ch->A,0,0);
-  gsl_matrix_set(ch->A,0,0,aux);
+  ch->A[0][0]+=aux;
 
   for (i=1;i<ch->m;i++) {
 
     //diagonal
     memcpy(word1, &str[size1], 13 ); size1+=13;
     err=sscanf(word1,"%13le",&aux); if(!err) {fprintf(stderr,"CFACV/C) Error 1113 on read %s\n",word1);}
-    aux+=gsl_matrix_get(ch->A,i,i);
-    gsl_matrix_set(ch->A,i,i,aux);              
+    ch->A[i][i]+=aux;              
 
     //offdiagonal
     memcpy(word1, &str[size1], 13 ); size1+=13;
     err=sscanf(word1,"%13le",&aux); if(!err) {fprintf(stderr,"CFACV/C) Error 1114 on read %s\n",word1);}
-    aux+=gsl_matrix_get(ch->A,i,i-1);
-    gsl_matrix_set(ch->A,i,i-1,aux);
-    gsl_matrix_set(ch->A,i-1,i,aux);
+    ch->A[i][i-1]+=aux;              
+    ch->A[i-1][i]+=aux;              
   }
    
 
@@ -622,7 +760,7 @@ void chapeau_setserialized ( chapeau *ch, char * str ) {
   // str contains the full statistics information that comes from all the
   // replicas contributions. Therefore, this should be stored in Afull and
   // bfull and the partial A and b should be reset to cero.
-  int i,err;
+  int i,j,err;
   int size1;
   int size2;
   double aux;
@@ -652,7 +790,7 @@ void chapeau_setserialized ( chapeau *ch, char * str ) {
     // Read b
     memcpy(word1, &str[size1], 13 ); size1+=13;
     err=sscanf(word1,"%13le",&aux); if(!err) {fprintf(stderr,"CFACV/C) Error 2111 on read %s\n",word1);}
-    gsl_vector_set(ch->bfull,i,aux);
+    ch->bfull[i]=aux;
 
     // Read hits
     memcpy(word2, &str[size1], 1 ); size1+=1;
@@ -663,32 +801,36 @@ void chapeau_setserialized ( chapeau *ch, char * str ) {
   // Read A (simetric and tridiagonal)
   memcpy(word1, &str[size1], 13 ); size1+=13; 
   err=sscanf(word1,"%13le",&aux); if(!err) {fprintf(stderr,"CFACV/C) Error 2113 on read %s\n",word1);}
-  gsl_matrix_set(ch->Afull,0,0,aux);
+  ch->Afull[0][0]=aux;
 
   for (i=1;i<ch->m;i++) {
 
     //diagonal
     memcpy(word1, &str[size1], 13 ); size1+=13;
     err=sscanf(word1,"%13le",&aux); if(!err) {fprintf(stderr,"CFACV/C) Error 2114 on read %s\n",word1);}
-    gsl_matrix_set(ch->Afull,i,i,aux);
+    ch->Afull[i][i]=aux;
 
     //off diagonal
     memcpy(word1, &str[size1], 13 ); size1+=13;
     err=sscanf(word1,"%13le",&aux); if(!err) {fprintf(stderr,"CFACV/C) Error 2115 on read %s\n",word1);}
-    gsl_matrix_set(ch->Afull,i,i-1,aux);
-    gsl_matrix_set(ch->Afull,i-1,i,aux);
+    ch->Afull[i][i-1]=aux;
+    ch->Afull[i-1][i]=aux;
   }
   
   // Reset the variables to hold the partial statistic information
-  gsl_vector_set_zero(ch->b);
-  gsl_matrix_set_zero(ch->A);
+  for (j=0;j<ch->m;j++) {
+    ch->b[j]=0.;
+    for (i=0;i<ch->ldad;i++) {
+      ch->A[i][j]=0.;
+    }
+  }
+
 
   //TODO, give error if rmin and rmax are different
 }
 
  int accumulate_1D( chapeau * ch ) { 
-  int i,j,k,m;
-  double F;
+  int m,i;
   
   // Following the paper E definition A and b should be
   //
@@ -700,10 +842,17 @@ void chapeau_setserialized ( chapeau *ch, char * str ) {
   // chapeau_update_peaks procedure)
   
   // Early return to avoid interpolations out of the domain
-  if ( ch->r[0] > ch->rmax[0] ) return;
-  if ( ch->r[0] <= ch->rmin[0] ) return;
-
+  if ( ch->r[0] > ch->rmax[0] ) return 0;
+  if ( ch->r[0] <= ch->rmin[0] ) return 0;
+ 
+  // Insted of solve Ax=b, I rather solve (dr[0]*dr[0]*A)x/dr[0]=(dr[0]*b).
+  // Then, I have to remember multiply the solution by dr[0]. The factor idr[0]
+  // in the terms of A and b are now factor 1. 
+                       
   //ch->nsample++;
+
+  i=2*ch->ku; //kl+ku
+
 
   /* Interpolation R->m
         m R
@@ -717,30 +866,29 @@ void chapeau_setserialized ( chapeau *ch, char * str ) {
           / |n=m+1
          /  | 
     o---o-x-o---o--*/ 
-  ch->b->data[m+1]+=ch->idr[0]*ch->f[0];
-  ch->A->data[(m+1)*ch->A->tda+(m+1)]+=ch->idr[0]*ch->idr[0];
+  ch->b[m+1]+=ch->f[0];
+  ch->A[i][m+1]+=1.0;
 
   /*    |\   -1/dz
      n=m| \
         |  \
     o---o-x-o---o--*/ 
-  ch->b->data[m]-=ch->idr[0]*ch->f[0];
-  ch->A->data[m*ch->A->tda+m]+=ch->idr[0]*ch->idr[0];
+  ch->b[m]-=ch->f[0];
+  ch->A[i][m]+=1.0;
 
   /*    |\ /| 
        m| X |n=m+1
         |/ \| 
     o---o-x-o---o--*/ 
-  ch->A->data[(m+1)*ch->A->tda+m]-=ch->idr[0]*ch->idr[0];
-  ch->A->data[m*ch->A->tda+m+1]-=ch->idr[0]*ch->idr[0];
+  ch->A[i+1][m]-=1.0;
+  ch->A[i-1][m+1]-=1.0;
 
   return 0;
 }
  
 int accumulate_2D( chapeau * ch ) { 
-  int m;
-  int i,j,k,ni,nj,nk;
-  double dx,dy;
+  int i,j,ni,nj,nk,ndiag;
+  double dx,dy,ratio,ratio2;
   
   // Following the paper E definition A and b should be
   //
@@ -752,10 +900,10 @@ int accumulate_2D( chapeau * ch ) {
   // chapeau_update_peaks procedure)
  
   // Early return to avoid interpolations out of the domain
-  if ( ch->r[0] > ch->rmax[0] ) return;
-  if ( ch->r[1] > ch->rmax[1] ) return;
-  if ( ch->r[0] <= ch->rmin[0] ) return;
-  if ( ch->r[1] <= ch->rmin[1] ) return;
+  if ( ch->r[0] > ch->rmax[0] ) return 0;
+  if ( ch->r[1] > ch->rmax[1] ) return 0;
+  if ( ch->r[0] <= ch->rmin[0] ) return 0;
+  if ( ch->r[1] <= ch->rmin[1] ) return 0;
 
   /* LA BASE
     
@@ -784,6 +932,14 @@ int accumulate_2D( chapeau * ch ) {
   
   */
 
+  // The ratio allow me to transform the matrix A and vector b to make them
+  // indpendent of the space. So, insted of solve Ax=b, I rather solve
+  // (dr[0]*dr[0]*A)x/dr[0]=(dr[0]*b). Then, I have to remember multiply the
+  // solution by dr[0]. The factor idr[0] in the terms of A and b are now
+  // factor 1 and the terms with idr[1] are now the factor ratio. 
+  ratio=ch->dr[0]*ch->idr[1];
+  ratio2=ratio*ratio;
+
   // Identifico el cuadrado, esto define dos nodos
   /*nj----------*
      |          |  
@@ -800,7 +956,26 @@ int accumulate_2D( chapeau * ch ) {
   ni=j*ch->N[0]+i+1;
   //nj=(j+1)*ch->N[0]+i;
   nj=ni+ch->N[0]-1;
-   
+
+
+  // The band storage scheme for a 
+  // M = N = 6, KL = 2, KU = 1 example:
+  //
+  //   *    *    *    +    +    +      
+  //   *    *    +    +    +    + 
+  //   *   a01  a12  a23  a34  a45 (uperdiagonal)
+  //  a00  a11  a22  a33  a44  a55 (diagonal)
+  //  a10  a21  a32  a43  a54   * 
+  //  a20  a31  a42  a53   *    * 
+  //
+  // storate[(kl+ku+(i-j))][j]=a[i][j]; 
+  //
+  // Note that columns index are the same
+ 
+  //kl+ku
+  ndiag=2*ch->ku;
+
+           
   // ahora el triangulo, define el tercer nodo
   if(dy<(j+1)-(dx-i)) {
 
@@ -815,25 +990,44 @@ int accumulate_2D( chapeau * ch ) {
        |        -\| 
       nk---------ni */
     
-    ch->b->data[ni]               +=ch->idr[0]*ch->f[0];
-    ch->A->data[ni*ch->A->tda+ni] +=ch->idr[0]*ch->idr[0];
+    ch->b[ni]     += ch->f[0];
+    ch->A[ndiag][ni]+= 1.0;         
 
-    ch->b->data[nj]               += ch->idr[1]*ch->f[1];
-    ch->A->data[nj*ch->A->tda+nj] += ch->idr[1]*ch->idr[1];
+    ch->b[nj]     += ratio*ch->f[1];
+    ch->A[ndiag][nj] += ratio2;     
      
-    ch->b->data[nk]               -= ch->idr[0]*ch->f[0];
-    ch->b->data[nk]               -= ch->idr[1]*ch->f[1];
-    ch->A->data[nk*ch->A->tda+nk] += ch->idr[0]*ch->idr[0];
-    ch->A->data[nk*ch->A->tda+nk] += ch->idr[1]*ch->idr[1];
+    ch->b[nk]     -= ch->f[0];
+    ch->b[nk]     -= ratio*ch->f[1];
+    ch->A[ndiag][nk]+= 1.0;         
+    ch->A[ndiag][nk]+= ratio2;      
     
     // Aca podria evitar 2 operaciones si eligiera el triangulo superior
-    ch->A->data[nj*ch->A->tda+nk] -= ch->idr[1]*ch->idr[1];
-    ch->A->data[nk*ch->A->tda+nj] -= ch->idr[1]*ch->idr[1];
-    ch->A->data[ni*ch->A->tda+nk] -= ch->idr[0]*ch->idr[0];
-    ch->A->data[nk*ch->A->tda+ni] -= ch->idr[0]*ch->idr[0];
+    ch->A[ndiag+(ni-nk)][nk]-= 1.0;   
+    ch->A[ndiag+(nk-ni)][ni]-= 1.0;   
+    ch->A[ndiag+(nj-nk)][nk]-= ratio2;
+    ch->A[ndiag+(nk-nj)][nj]-= ratio2;
+
+    ch->hits[ni]=1;
+    ch->hits[nj]=1;
+    ch->hits[nk]=1;
+ 
+    if(ch->periodic){
+      if(i==ch->N[0]){
+        ni=ni-ch->N[0];
+        ch->b[ni]     += ch->f[0];
+        ch->A[ndiag][ni]+= 1.0;
+        ch->hits[ni]=1;
+      }
+      if(j==ch->N[1]){
+        nj=i;
+        ch->b[nj]     += ratio*ch->f[1];
+        ch->A[ndiag][nj] += ratio2;     
+        ch->hits[nj]=1;
+      }
+    }
 
   } else {
-    //nk=(j+1)*ch->N[0]+i+1;
+    //nk=(j+1)*ch->N[0]+ndiag+1;
     nk=nj+1;
  
     /*nj---------nk
@@ -844,29 +1038,64 @@ int accumulate_2D( chapeau * ch ) {
        |        -\|  
        *---------ni */
 
-    ch->b->data[ni]               -=ch->idr[1]*ch->f[1];
-    ch->A->data[ni*ch->A->tda+ni] +=ch->idr[1]*ch->idr[1];
+    ch->b[ni]        -= ratio*ch->f[1];
+    ch->A[ndiag][ni] += ratio2;
+                     
+    ch->b[nj]        -= ch->f[0];
+    ch->A[ndiag][nj] += 1.0;
+                     
+    ch->b[nk]        += ch->f[0];
+    ch->b[nk]        += ratio*ch->f[1];
+    ch->A[ndiag][nk] += 1.0;
+    ch->A[ndiag][nk] += ratio2;
 
-    ch->b->data[nj]               -= ch->idr[0]*ch->f[0];
-    ch->A->data[nj*ch->A->tda+nj] += ch->idr[0]*ch->idr[0];
-     
-    ch->b->data[nk]               += ch->idr[0]*ch->f[0];
-    ch->b->data[nk]               += ch->idr[1]*ch->f[1];
-    ch->A->data[nk*ch->A->tda+nk] += ch->idr[0]*ch->idr[0];
-    ch->A->data[nk*ch->A->tda+nk] += ch->idr[1]*ch->idr[1];
-       
     // Aca podria evitar 2 operaciones si eligiera el triangulo superior
-    ch->A->data[nk*ch->A->tda+nj] -= ch->idr[0]*ch->idr[0];
-    ch->A->data[nj*ch->A->tda+nk] -= ch->idr[0]*ch->idr[0];
-    ch->A->data[nk*ch->A->tda+ni] -= ch->idr[1]*ch->idr[1];
-    ch->A->data[ni*ch->A->tda+nk] -= ch->idr[1]*ch->idr[1];
-        
+    ch->A[ndiag+(nk-nj)][nj] -= 1.0;
+    ch->A[ndiag+(nj-nk)][nk] -= 1.0;
+    ch->A[ndiag+(nk-ni)][ni] -= ratio2;
+    ch->A[ndiag+(ni-nk)][nk] -= ratio2;
+ 
+    ch->hits[ni]=1;
+    ch->hits[nj]=1;
+    ch->hits[nk]=1;
+
+    if(ch->periodic){
+      if(i==ch->N[0]){
+        ni=ni-ch->N[0];
+        ch->b[ni]        -= ratio*ch->f[1];
+        ch->A[ndiag][ni] += ratio2;
+        nk=nk-ch->N[0];
+        ch->b[nk]        += ch->f[0];
+        ch->b[nk]        += ratio*ch->f[1];
+        ch->A[ndiag][nk] += 1.0;
+        ch->A[ndiag][nk] += ratio2;
+        ch->hits[ni]=1;
+        ch->hits[nk]=1;
+      }
+      if(j==ch->N[1]){
+        nj=i;
+        ch->b[nj]        -= ch->f[0];
+        ch->A[ndiag][nj] += 1.0;
+        nk=i+1;
+        ch->b[nk]        += ch->f[0];
+        ch->b[nk]        += ratio*ch->f[1];
+        ch->A[ndiag][nk] += 1.0;
+        ch->A[ndiag][nk] += ratio2;
+        ch->hits[nj]=1;
+        ch->hits[nk]=1;
+      }
+      if (nk==ch->N[0]){
+        nk=0;
+        ch->b[nk]        += ch->f[0];
+        ch->b[nk]        += ratio*ch->f[1];
+        ch->A[ndiag][nk] += 1.0;
+        ch->A[ndiag][nk] += ratio2;
+        ch->hits[nk]=1;
+      }
+    }
+     
   }
  
-  ch->hits[ni]=1;
-  ch->hits[nj]=1;
-  ch->hits[nk]=1;
-
   return 0;
 }
  

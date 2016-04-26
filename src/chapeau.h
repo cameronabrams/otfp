@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <gsl/gsl_linalg.h>
 
 // Chapeau type definition:  This defines the pair potential as 
 // a linear expansion of chapeau functions ("peaks").  It also
@@ -24,7 +23,14 @@ typedef struct CHAPEAU {
 
   // Discretizacion del dominio por dimension
   int * N;       // size in mult-dimensional real space 
-  int m;         // size in 1-dimensional wrap space
+
+  int m;       // m[0] size in 1-dimensional wrap space 
+
+  int ku;      // number of uperdiagonals 
+  int ldad;    // dimension of the packed matrix
+                 
+               
+  int periodic; 
   double * rmin;
   double * rmax;
   double * dr;
@@ -49,25 +55,27 @@ typedef struct CHAPEAU {
   // other contributions, this variables are set to cero. If this is the
   // central replica, or non replica scheme is used, this variables contains
   // the full statistics of the sampling.
-  gsl_vector * b;
-  gsl_matrix * A;
-  gsl_vector * lam;   
+  double * b;
+  double * lam;
   int * hits; 
+
+  //matrix A will have dimensions (dm-1)*3*(ch->N[0]-1)+1 x m
+  double ** A;
 
   // If this replica is not the center replica that add all the other
   // contributions, this variables accumulates the full statistics (including
   // all other replicas) infromation needed to optimze FEP coeficients. It this
   // replica is the center replica, ot non replica scheme is used, this
   // variables are always empty.
-  gsl_vector * bfull;
-  gsl_matrix * Afull;
+  double * bfull;
+  double ** Afull;
 
   //pointer to procedure
   int (*accumulate)(struct CHAPEAU * self);
                 
 } chapeau;
 
-chapeau * chapeau_alloc ( int dm, double * rmin, double * rmax, int * N );
+chapeau * chapeau_alloc ( int dm, double * rmin, double * rmax, int * N, int periodic );
 void chapeau_free ( chapeau * ch );
 int chapeau_comparesize ( chapeau * ch1,  chapeau * ch2);
 int chapeau_comparegrid ( chapeau * ch1,  chapeau * ch2);

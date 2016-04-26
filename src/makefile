@@ -10,9 +10,12 @@ LIBS += -L/usr/lib64
 endif
 
 ifeq ($(CC),gcc)
+# CCFLAGS+=-g
+# CCFLAGS+=-O0 
 # CCFLAGS+=-O3 
 # CCFLAGS+=-static
-# CCFLAGS=-g -Wall -Wpedantic
+# CCFLAGS+=-Wall
+# CCFLAGS+=-Wpedantic
 #
 # Profile
 # CCFLAGS+=-Wall -g -rdynamic
@@ -22,7 +25,8 @@ endif
 # LIBS += -I$(TACC_GSL_INC) -L$(TACC_GSL_LIB)
 
 
-LIBS += -lgsl -lgslcblas
+# LIBS += -lgsl -lgslcblas
+LIBS += -llapack
 LIBS += -lm
 
 

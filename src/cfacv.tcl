@@ -182,13 +182,16 @@ if {[info exists CFACV_doAnalyticalCalc]} {
 
     # Replica exechange mode: 
     if {![info exists NUMREP]} {set NUMREP 1}
-    if {![info exists DIMEN]} {set DIMEN 1}
     # TODO: NUMREP podria ser un numero de chapeaus distintos (estilo el
     # problema sodio cloro) a obtener en una simulacion. En ese caso
     # corregir.
 
+    # Default modes
+    if {![info exists DIMEN]} {set DIMEN 1}
+    if {![info exists PERIODIC]} {set PERIODIC 0}
+
     # Saving for allocate chapeau functions
-    chapeau_setup $NUMREP $ds $DIMEN $SPLINEMIN $NKNOTS $CUTOFF $BEGINEVOLVEPARAMETERS  $BEGINSOLVELAM $USETAMDFORCES $BINREPORTPARAMFILE $BINREPORTPARAMFREQ $BINOUTPUTLEVEL $LAMUPDATEINTERVAL
+    chapeau_setup $NUMREP $ds $DIMEN $SPLINEMIN $NKNOTS $CUTOFF $PERIODIC $BEGINEVOLVEPARAMETERS  $BEGINSOLVELAM $USETAMDFORCES $BINREPORTPARAMFILE $BINREPORTPARAMFREQ $BINOUTPUTLEVEL $LAMUPDATEINTERVAL
   }
 }
 
@@ -196,15 +199,6 @@ if {[info exists CFACV_doAnalyticalCalc]} {
 if {![info exists TAMDof]}          {set TAMDof 1 }
 if {![info exists TAMDbinof]}       {set TAMDbinof 1 }
 if {![info exists TAMDoutputlevel]} {set TAMDoutputlevel 3}
-
-set TAMDoutputFileFP 0
-if {[info exists TAMDoutputFile]} {
-    set TAMDoutputFileFP [my_fopen $TAMDoutputFile "w"]
-    print "CFACV) Opened TAMD output file $TAMDoutputFile"
-} else {
-    set TAMDoutputFileFP [my_fopen stdout "w"]
-    print "CFACV) TAMD output to stdout"
-}
 
 set TAMDbinOutputFileFP 0
 if {[info exists TAMDbinOutputFile]} {

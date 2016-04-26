@@ -8,7 +8,7 @@
 
 int main ( int argc, char * argv[] ) {
   chapeau ** ch;
-  int i;
+  int i,j;
   
   
   ch=(chapeau**)malloc((argc-1)*sizeof(chapeau*));
@@ -17,12 +17,14 @@ int main ( int argc, char * argv[] ) {
     fprintf(stdout,"reading %s\n",argv[i]); 
     ch[i-1]=chapeau_allocloadstate(argv[i]);
   
-    fprintf(stdout,"ch %i info:\n",i-1); 
-    fprintf(stdout,"--- ch rmin %.5f\n",ch[i-1]->rmin); 
-    fprintf(stdout,"--- ch rmax %.5f\n",ch[i-1]->rmax); 
-    fprintf(stdout,"--- ch dr %.5f\n",ch[i-1]->dr); 
-    fprintf(stdout,"--- ch idr %.5f\n",ch[i-1]->idr); 
- 
+
+    for (j=0;j<ch[i-1]->dm;j++) {
+      fprintf(stderr,"--- ch rmin %.5f\n",ch[i-1]->rmin[j]); 
+      fprintf(stderr,"--- ch rmax %.5f\n",ch[i-1]->rmax[j]); 
+      fprintf(stderr,"--- ch dr %.5f\n",ch[i-1]->dr[j]); 
+      fprintf(stderr,"--- ch idr %.5f\n",ch[i-1]->idr[j]); 
+    }
+     
   }
   
   // Output of the first chapeau before add in it
