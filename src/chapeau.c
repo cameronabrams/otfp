@@ -44,7 +44,7 @@ chapeau * chapeau_alloc ( int dm, double * rmin, double * rmax, int * N, int per
   } else{
     ch->ku=ch->N[0];
   }  
-  ch->ldad=3*ch->ku+1;
+  ch->ldad=2*ch->ku+1;
 
   // Allocating the size
   ch->lam=(double*)calloc(ch->m,sizeof(double));
@@ -310,7 +310,7 @@ void chapeau_loadlambda ( chapeau * ch, char * filename ) {
     chapeau * chaux;
  
     if (!ch) {
-      fprintf(stderr,"CFACV) ERROR in load chapeau file because holding object was not allocated\n");
+      fprintf(stderr,"OTFP) ERROR in load chapeau file because holding object was not allocated\n");
       exit(-1);
     }
                                            
@@ -320,7 +320,7 @@ void chapeau_loadlambda ( chapeau * ch, char * filename ) {
     // reading integers (N,M,et), that is only what we want... better way to do
     // this?
     if (!chapeau_comparesize(ch,chaux)) {
-      fprintf(stdout,"CFACV) ERROR, the chapeau object from the file is diferent\n");
+      fprintf(stdout,"OTFP) ERROR, the chapeau object from the file is diferent\n");
     }
             
     // This variables are alredy set during allocation, might be better to
@@ -350,32 +350,36 @@ void chapeau_loadlambda ( chapeau * ch, char * filename ) {
     chapeau_free(chaux);
 }
 
-void chapeau_update_peaks ( chapeau * ch ) {
+void chapeau_solve ( chapeau * ch ) {
   int i,j,J,I,s,k,l;
   double lb;
   double * Abar;
   double * bbar;
   int * pivot;
   int nred;
+  int ldad;
   char aux; 
-
-  //DB//for (i=0;i<ch->m;i++) fprintf(stderr,"AAA %i %i\n",i,ch->hits[i]); exit(1);
 
   //// parameters that are allowed to evolve lie between indices for which
   //// ch->hits[] is non-zero so extract the proper subspace
   nred=0;
   for (i=0;i<ch->m;i++)  if (ch->hits[i]) nred++;
       
-  // If the nred is small, singular matrix can occur
+  // If the nred is small, singular matrix can occur easily
   if (nred<ch->ku+1) {
-   fprintf(stderr,"Warning: No chapeau update: 0 columns (%d) > diagonals (%d)\n",nred,ch->ku+1);
+   // Avoiding to print this for REOTFP simulations
+   // fprintf(stderr,"Warning: No chapeau update, nred (%d) < nro diagonals (%d)\n",nred,ch->ku);
    return;
   }
 
+  fprintf(stdout,"OTFP) Inverting matrix A (%dx%d)\n",nred,nred);
+  fflush(stdout);
+
   // Allocating the size. TODO: En este bloque me parece que con malloc basta.
+  ldad=ch->ldad+ch->ku;
   bbar=(double*)malloc(nred*sizeof(double));
+  Abar=(double*)calloc(nred*ldad,sizeof(double));
   pivot=(int*)malloc(nred*sizeof(int));
-  Abar=(double*)calloc(nred*ch->ldad,sizeof(double));
 
   // the band storage scheme for a 
   // m = n = 6, kl = 2, ku = 2 example:
@@ -427,7 +431,6 @@ void chapeau_update_peaks ( chapeau * ch ) {
   
   // Add the new and old statistic to the reduced matrix
   J=0;
-  s=2*ch->ku;
   for (j=0;j<ch->m;j++) {
 
     if (!ch->hits[j]) continue;
@@ -439,7 +442,7 @@ void chapeau_update_peaks ( chapeau * ch ) {
       if (i>=ch->m) break;
       if (!ch->hits[i]) continue;
 
-      Abar[s+I-J+ch->ldad*J]=ch->A[s+i-j][j]+ch->Afull[s+i-j][j];
+      Abar[2*ch->ku+I-J+ldad*J]=ch->A[ch->ku+i-j][j]+ch->Afull[ch->ku+i-j][j];
       I++;
     }  
 
@@ -450,7 +453,7 @@ void chapeau_update_peaks ( chapeau * ch ) {
       if (i<0) break;
       if (!ch->hits[i]) continue;
 
-      Abar[s+I-J+ch->ldad*J]=ch->A[s+i-j][j]+ch->Afull[s+i-j][j];
+      Abar[2*ch->ku+I-J+ldad*J]=ch->A[ch->ku+i-j][j]+ch->Afull[ch->ku+i-j][j];
       I--;
     }
     J++;
@@ -458,11 +461,11 @@ void chapeau_update_peaks ( chapeau * ch ) {
 
   if (nred!=J) {fprintf(stderr,"Bad matrix nred size: %d != %d\n",nred,J);exit(-1);}
 
-  //// TODO: Tto call a Fortran routine from C we have to transpose the matrix.
+  //// TODO: To call a Fortran routine from C we have to transpose the matrix.
   //// However, this is is no needed if Abar is symmetric, but I should change
   //// Abar to 1 dimension array in the rest of the code
   //for (i=0; i<nred; i++){
-  //  for(j=0; j<ch->ldad; j++) AT[j+nred*i]=Abar[j][i];           
+  //  for(j=0; j<ldad; j++) AT[j+nred*i]=Abar[j][i];           
   //}                                               
 
   // find solution using LAPACK routine SGESV.
@@ -470,30 +473,37 @@ void chapeau_update_peaks ( chapeau * ch ) {
   aux='N';
 
   // LU factorization of A.
-  dgbtrf_(&nred, &nred, &ch->ku, &ch->ku, Abar, &ch->ldad, pivot, &s); 
+  dgbtrf_(&nred, &nred, &ch->ku, &ch->ku, Abar, &ldad, pivot, &s); 
               
-  fprintf(stderr,"AAAAA\n");
-  for (j=0;j<nred*ch->ldad;j++) {
-     fprintf(stderr,"%6d ",(int)Abar[j]);
+  if (s!=0) {
+    fprintf(stdout,"Matrix nearly singular with flag: %d\n",s);
+
+    free(Abar);
+    free(bbar);
+    free(pivot);   
+    
+    // chapeau_solve_secure(ch);
+    s=s-1;
+    I=0;
+    for (i=0;i<ch->m;i++) {
+      if (!ch->hits[i]) continue;
+      if (I==s) {
+        fprintf(stdout,"Removing row %d\n",I);
+        ch->hits[i]=0;
+        break;
+      }
+      I++;
+    }    
+    fflush(stdout);
+
+    // chapeau_solve_secure(ch);
+    chapeau_solve(ch);
+
+    return;
   }
-  if (s!=0) {fprintf(stderr,"dgbtrf: Matrix singular with flag: %d\n",s);exit(-1);}
  
-
-  // Find solution using LAPACK, all the arguments have to be pointers and you
-  // have to add an underscore to the routine name
-  dgbtrs_(&aux,&nred, &ch->ku, &ch->ku, &J, Abar, &ch->ldad, pivot, bbar, &nred, &s);
-  if (s!=0) {fprintf(stderr,"dgbtrs: Matrix singular with flag: %d\n",s);exit(-1);}
- 
-  /*parameters in the order as they appear in the function call
-    order of matrix A, number of right hand sides (b), matrix A,
-    leading dimension of A, array that records pivoting, 
-    result vector b on entry, x on exit, leading dimension of b
-    return value */ 
-                                                
-
-  // gsl_linalg_LU_solve(Abar,p,bbar,lambar);
-  // gsl_linalg_solve_symm_tridiag; This shuld work for the 1D case
-  // gsl_linalg_solve_symm_cyc_tridiag; This should work for the periodic 1D case
+  // Find solution
+  dgbtrs_(&aux,&nred, &ch->ku, &ch->ku, &J, Abar, &ldad, pivot, bbar, &nred, &s);
   
   // update the vector of coefficients
   I=0;
@@ -515,6 +525,178 @@ void chapeau_update_peaks ( chapeau * ch ) {
   free(Abar);
   free(bbar);
   free(pivot);   
+
+  //chapeau_baselinehits(ch); 
+}
+
+void chapeau_solve_secure ( chapeau * ch ) {
+  int i,j,J,I,k,s;
+  double lb;
+  double * Abar;
+  double * Ebar;
+  double * Dbar;
+  double * nullbar;
+  double * U;
+  double * VT;
+  double * bbar;
+  double * work;
+  int nred;
+  char aux; 
+
+  //DB//for (i=0;i<ch->m;i++) fprintf(stderr,"AAA %i %i\n",i,ch->hits[i]); exit(1);
+
+  //// parameters that are allowed to evolve lie between indices for which
+  //// ch->hits[] is non-zero so extract the proper subspace
+  nred=0;
+  for (i=0;i<ch->m;i++)  if (ch->hits[i]) nred++;
+      
+  // If the nred is small, singular matrix can occur
+  if (nred<ch->ku+1) {
+   fprintf(stderr,"Warning: No chapeau update: 0 columns (%d) > diagonals (%d)\n",nred,ch->ku+1);
+   return;
+  }
+
+  // Allocating the size. TODO: En este bloque me parece que con malloc basta.
+  bbar=(double*)malloc(nred*sizeof(double));
+  work=(double*)malloc(4*nred*sizeof(double));
+  Abar=(double*)calloc(nred*ch->ldad,sizeof(double));
+  Dbar=(double*)calloc(nred,sizeof(double));
+  Ebar=(double*)calloc(nred-1,sizeof(double));
+  U=(double*)calloc(nred*nred,sizeof(double));
+  VT=(double*)calloc(nred*nred,sizeof(double));
+
+  // the band storage scheme for a 
+  // m = n = 6, kl = 2, ku = 2 example:
+  //
+  //   *    *   a02  a13  a24  a35
+  //   *   a01  a12  a23  a34  a45 (uperdiagonal)
+  //  a00  a11  a22  a33  a44  a55 (diagonal)
+  //  a10  a21  a32  a43  a54   * 
+  //  a20  a31  a42  a53   *    * 
+  //
+  // storate[(ku+(i-j))][j]=a[i][j]; 
+  // note that columns index are the same
+  
+  // Now, what happens if column 2 is always cero. Since 
+  // matrix A is symetric row 2 is also cero. 
+  //
+  //   *    *    0   a13   0   a35
+  //   *   a01   0    0   a34  a45 (uperdiagonal)
+  //  a00  a11   0   a33  a44  a55 (diagonal)
+  //  a10    0   0   a43  a54   * 
+  //    0  a31   0   a53   *    * 
+  //
+  // The reduced matrix does not have neither the row not the column. So the
+  // relabel is 1->1, 2 disapear, 3->2 and go on in all columns and rows.
+  //
+  //   *    *        0 ( - )  0 ( 0 ) A24(a35)  -                 
+  //   *   a01      A12(a13) A23(a34) A34(a45)  -  (uperdiagonal) 
+  //  a00  a11      A22(a33) A33(a44) A44(a55)  -  (diagonal)     
+  //  a10  A21(a31) A32(a43) A43(a54) A54(a65)  *                 
+  //    0   *       A42(a53) A53(a64)  * (a75)  *                 
+  //
+  //   The net flux is:
+  //
+  //   *    *        L         <-
+  //   *   a01            <-   <-
+  //  a00  a11       <-   <-   <-
+  //  a10            <-   <-   <-
+  //        ^        <-   <-   <-
+  //                       
+  // So it is better to loop in the other space!
+  
+  // Add the new and old statistic to the reduced matrix
+  J=0;
+  for (j=0;j<ch->m;j++) {
+
+    if (!ch->hits[j]) continue;
+    bbar[J]=-(ch->b[j]+ch->bfull[j]); //TODO: Trace back the origin of the minus. See accumulate procedures. 
+    
+    // Upper diagonals (and main diagonal) in the row
+    I=J;
+    for (i=j;i<=j+ch->ku;i++) {
+      if (i>=ch->m) break;
+      if (!ch->hits[i]) continue;
+
+      Abar[ch->ku+I-J+ch->ldad*J]=ch->A[ch->ku+i-j][j]+ch->Afull[ch->ku+i-j][j];
+      I++;
+    }  
+
+    // Lower diagonals in the row
+    I=J-1;
+    for (k=1;k<=ch->ku;k++) {
+      i=j-k;
+      if (i<0) break;
+      if (!ch->hits[i]) continue;
+
+      Abar[ch->ku+I-J+ch->ldad*J]=ch->A[ch->ku+i-j][j]+ch->Afull[ch->ku+i-j][j];
+      I--;
+    }
+    J++;
+  } 
+     
+  //if (J!=I) {fprintf(stderr,"Matrix not square!!");exit(-1);}
+  if (nred!=J) {fprintf(stderr,"Bad matrix nred size: %d != %d\n",nred,J);exit(-1);}
+
+  //// TODO: To call a Fortran routine from C we have to transpose the matrix.
+  //// However, this is is no needed if Abar is symmetric, but I should change
+  //// Abar to 1 dimension array in the rest of the code
+  //for (i=0; i<nred; i++){
+  //  for(j=0; j<ch->ldad; j++) AT[j+nred*i]=Abar[j][i];           
+  //}                                               
+
+  // Reduction to bidiagonal form by orthogonal transformation A=U B VT.
+  I=0;                       
+  J=1;                       
+  aux='B';
+  dgbbrd_(&aux, &nred, &nred, &I, &ch->ku, &ch->ku, Abar, &ch->ldad, Dbar, Ebar, 
+          U, &nred, VT, &nred, nullbar, &J, work, &s); 
+              
+  if (s!=0) {fprintf(stderr,"dgbbrd: %d argument had illegal value\n",s);exit(-1);}
+
+  // SVD of the bidiagonal form
+  aux='U';
+  dbdsqr_(&aux,&nred, &nred, &nred, &I, Dbar, Ebar, VT, &nred, U, &nred, nullbar, &J, work, &s);
+  if (s!=0) {fprintf(stderr,"dbdsqr: error with flag %d\n",s);exit(-1);}
+
+
+  // update the vector of coefficients
+  I=0;
+  for (i=0;i<ch->m;i++) {
+
+    if (!ch->hits[i]) continue;
+    lb=0;
+
+    // TODO: exchange i and j loops
+
+    for (j=0;j<nred;j++) {
+      // Filtro valor singular cercano a cero
+      if (Dbar[j]<1.e-10) {
+        lb+=0.;
+      } else {
+
+        // El elemento Ik de V D^I U^T es
+        //   V[i][j]*1./Dbar[j]*UT[j][k] 
+
+        for (k=0;k<nred;k++)  lb+=VT[j+nred*I]*U[k+nred*j]*bbar[k]/Dbar[j];
+        // for (k=0;k<nred;k++)  lb+=VT[I+nred*j]*U[j+nred*k]*bbar[k]/Dbar[j];
+
+      }
+    }
+
+    if (lb!=lb) {fprintf(stderr,"PARANOIA) Tripped at I=%d i=%d: %.5f?\n",I,i,lb);exit(-1);}
+    ch->lam[i]=lb*ch->dr[0];
+    I++;
+
+  } 
+
+  free(Abar);
+  free(Dbar);
+  free(Ebar);
+  free(VT);
+  free(U);
+  free(bbar);
+  free(work);   
 
   //chapeau_baselinehits(ch); 
 }
@@ -830,7 +1012,7 @@ void chapeau_setserialized ( chapeau *ch, char * str ) {
 }
 
  int accumulate_1D( chapeau * ch ) { 
-  int m,i;
+  int m;
   
   // Following the paper E definition A and b should be
   //
@@ -839,7 +1021,7 @@ void chapeau_setserialized ( chapeau *ch, char * str ) {
   //
   // But here we compute -b*nsteps and A*nsteps and then A and b are scaled
   // by the proper factor when equation A\lambda=b is solved (see the
-  // chapeau_update_peaks procedure)
+  // chapeau_solve procedure)
   
   // Early return to avoid interpolations out of the domain
   if ( ch->r[0] > ch->rmax[0] ) return 0;
@@ -850,8 +1032,6 @@ void chapeau_setserialized ( chapeau *ch, char * str ) {
   // in the terms of A and b are now factor 1. 
                        
   //ch->nsample++;
-
-  i=2*ch->ku; //kl+ku
 
 
   /* Interpolation R->m
@@ -867,27 +1047,27 @@ void chapeau_setserialized ( chapeau *ch, char * str ) {
          /  | 
     o---o-x-o---o--*/ 
   ch->b[m+1]+=ch->f[0];
-  ch->A[i][m+1]+=1.0;
+  ch->A[ch->ku][m+1]+=1.0;
 
   /*    |\   -1/dz
      n=m| \
         |  \
     o---o-x-o---o--*/ 
   ch->b[m]-=ch->f[0];
-  ch->A[i][m]+=1.0;
+  ch->A[ch->ku][m]+=1.0;
 
   /*    |\ /| 
        m| X |n=m+1
         |/ \| 
     o---o-x-o---o--*/ 
-  ch->A[i+1][m]-=1.0;
-  ch->A[i-1][m+1]-=1.0;
+  ch->A[ch->ku+1][m]-=1.0;
+  ch->A[ch->ku-1][m+1]-=1.0;
 
   return 0;
 }
  
 int accumulate_2D( chapeau * ch ) { 
-  int i,j,ni,nj,nk,ndiag;
+  int i,j,ni,nj,nk;
   double dx,dy,ratio,ratio2;
   
   // Following the paper E definition A and b should be
@@ -897,7 +1077,7 @@ int accumulate_2D( chapeau * ch ) {
   //
   // But here we compute -b*nsteps and A*nsteps and then A and b are scaled
   // by the proper factor when equation A\lambda=b is solved (see the
-  // chapeau_update_peaks procedure)
+  // chapeau_solve procedure)
  
   // Early return to avoid interpolations out of the domain
   if ( ch->r[0] > ch->rmax[0] ) return 0;
@@ -972,9 +1152,6 @@ int accumulate_2D( chapeau * ch ) {
   //
   // Note that columns index are the same
  
-  //kl+ku
-  ndiag=2*ch->ku;
-
            
   // ahora el triangulo, define el tercer nodo
   if(dy<(j+1)-(dx-i)) {
@@ -991,21 +1168,21 @@ int accumulate_2D( chapeau * ch ) {
       nk---------ni */
     
     ch->b[ni]     += ch->f[0];
-    ch->A[ndiag][ni]+= 1.0;         
+    ch->A[ch->ku][ni]+= 1.0;         
 
     ch->b[nj]     += ratio*ch->f[1];
-    ch->A[ndiag][nj] += ratio2;     
+    ch->A[ch->ku][nj] += ratio2;     
      
     ch->b[nk]     -= ch->f[0];
     ch->b[nk]     -= ratio*ch->f[1];
-    ch->A[ndiag][nk]+= 1.0;         
-    ch->A[ndiag][nk]+= ratio2;      
+    ch->A[ch->ku][nk]+= 1.0;         
+    ch->A[ch->ku][nk]+= ratio2;      
     
     // Aca podria evitar 2 operaciones si eligiera el triangulo superior
-    ch->A[ndiag+(ni-nk)][nk]-= 1.0;   
-    ch->A[ndiag+(nk-ni)][ni]-= 1.0;   
-    ch->A[ndiag+(nj-nk)][nk]-= ratio2;
-    ch->A[ndiag+(nk-nj)][nj]-= ratio2;
+    ch->A[ch->ku+(ni-nk)][nk]-= 1.0;   
+    ch->A[ch->ku+(nk-ni)][ni]-= 1.0;   
+    ch->A[ch->ku+(nj-nk)][nk]-= ratio2;
+    ch->A[ch->ku+(nk-nj)][nj]-= ratio2;
 
     ch->hits[ni]=1;
     ch->hits[nj]=1;
@@ -1015,19 +1192,19 @@ int accumulate_2D( chapeau * ch ) {
       if(i==ch->N[0]){
         ni=ni-ch->N[0];
         ch->b[ni]     += ch->f[0];
-        ch->A[ndiag][ni]+= 1.0;
+        ch->A[ch->ku][ni]+= 1.0;
         ch->hits[ni]=1;
       }
       if(j==ch->N[1]){
         nj=i;
         ch->b[nj]     += ratio*ch->f[1];
-        ch->A[ndiag][nj] += ratio2;     
+        ch->A[ch->ku][nj] += ratio2;     
         ch->hits[nj]=1;
       }
     }
 
   } else {
-    //nk=(j+1)*ch->N[0]+ndiag+1;
+    //nk=(j+1)*ch->N[0]+ch->ku+1;
     nk=nj+1;
  
     /*nj---------nk
@@ -1039,21 +1216,21 @@ int accumulate_2D( chapeau * ch ) {
        *---------ni */
 
     ch->b[ni]        -= ratio*ch->f[1];
-    ch->A[ndiag][ni] += ratio2;
+    ch->A[ch->ku][ni] += ratio2;
                      
     ch->b[nj]        -= ch->f[0];
-    ch->A[ndiag][nj] += 1.0;
+    ch->A[ch->ku][nj] += 1.0;
                      
     ch->b[nk]        += ch->f[0];
     ch->b[nk]        += ratio*ch->f[1];
-    ch->A[ndiag][nk] += 1.0;
-    ch->A[ndiag][nk] += ratio2;
+    ch->A[ch->ku][nk] += 1.0;
+    ch->A[ch->ku][nk] += ratio2;
 
     // Aca podria evitar 2 operaciones si eligiera el triangulo superior
-    ch->A[ndiag+(nk-nj)][nj] -= 1.0;
-    ch->A[ndiag+(nj-nk)][nk] -= 1.0;
-    ch->A[ndiag+(nk-ni)][ni] -= ratio2;
-    ch->A[ndiag+(ni-nk)][nk] -= ratio2;
+    ch->A[ch->ku+(nk-nj)][nj] -= 1.0;
+    ch->A[ch->ku+(nj-nk)][nk] -= 1.0;
+    ch->A[ch->ku+(nk-ni)][ni] -= ratio2;
+    ch->A[ch->ku+(ni-nk)][nk] -= ratio2;
  
     ch->hits[ni]=1;
     ch->hits[nj]=1;
@@ -1063,24 +1240,24 @@ int accumulate_2D( chapeau * ch ) {
       if(i==ch->N[0]){
         ni=ni-ch->N[0];
         ch->b[ni]        -= ratio*ch->f[1];
-        ch->A[ndiag][ni] += ratio2;
+        ch->A[ch->ku][ni] += ratio2;
         nk=nk-ch->N[0];
         ch->b[nk]        += ch->f[0];
         ch->b[nk]        += ratio*ch->f[1];
-        ch->A[ndiag][nk] += 1.0;
-        ch->A[ndiag][nk] += ratio2;
+        ch->A[ch->ku][nk] += 1.0;
+        ch->A[ch->ku][nk] += ratio2;
         ch->hits[ni]=1;
         ch->hits[nk]=1;
       }
       if(j==ch->N[1]){
         nj=i;
         ch->b[nj]        -= ch->f[0];
-        ch->A[ndiag][nj] += 1.0;
+        ch->A[ch->ku][nj] += 1.0;
         nk=i+1;
         ch->b[nk]        += ch->f[0];
         ch->b[nk]        += ratio*ch->f[1];
-        ch->A[ndiag][nk] += 1.0;
-        ch->A[ndiag][nk] += ratio2;
+        ch->A[ch->ku][nk] += 1.0;
+        ch->A[ch->ku][nk] += ratio2;
         ch->hits[nj]=1;
         ch->hits[nk]=1;
       }
@@ -1088,8 +1265,8 @@ int accumulate_2D( chapeau * ch ) {
         nk=0;
         ch->b[nk]        += ch->f[0];
         ch->b[nk]        += ratio*ch->f[1];
-        ch->A[ndiag][nk] += 1.0;
-        ch->A[ndiag][nk] += ratio2;
+        ch->A[ch->ku][nk] += 1.0;
+        ch->A[ch->ku][nk] += ratio2;
         ch->hits[nk]=1;
       }
     }

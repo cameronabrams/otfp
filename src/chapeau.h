@@ -103,7 +103,8 @@ void chapeau_init_particle_sums ( chapeau * ch );
 
 void chapeau_increment_particle_sum ( chapeau * ch, int i, int j, double * Zij, double zij );
 void chapeau_increment_global_accumulators ( chapeau * ch, int i, double * F );
-void chapeau_update_peaks ( chapeau * ch );
+void chapeau_solve ( chapeau * ch );
+void chapeau_solve_secure ( chapeau * ch );
 
 double chapeau_evalf_1simplex ( chapeau * ch, double z );
 char * chapeau_serialize ( chapeau * ch );

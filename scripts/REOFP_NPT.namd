@@ -310,13 +310,13 @@ while {$i_run < $runs_noexchange} {
   set r  1 ;# FIXME
   set chapeau $chape($replica(index).address)
   set z  [ restr_getz $restr($r.address)  ]
-  set f  [ chapeau_evalf $chapeau $z  ]
+  set f  [ chapeau_evalf_1simplex $chapeau $z  ]
   set u  [ restr_getu $restr($r.address)  ]
   
   # This should be set for each particular system taking in account a high
   # probability configuration
   # set zprob 3.2
-  set fref  [ chapeau_evalf $chapeau $zprob ]
+  set fref  [ chapeau_evalf_1simplex $chapeau $zprob ]
 
   puts $history_file "$i_step $replica(index) $NEWTEMP $TEMP $POTENTIAL $z $f $fref $u"
   
@@ -328,11 +328,11 @@ while {$i_run < $runs_noexchange} {
     set restart_root "$job_output_root.restart$i_run"
  
     # All the processors should dump restraint state
-    ds_saverestrains $ds $i_step [format $restart_root.rstr $replica_id]
+    ds_saverestrains $ds [format $restart_root.rstr $replica_id]
      
     # All the processors should dump their chapeau states
     for {set i 0} {$i < $NUMREP} {incr i} {
-      chapeau_savestate $chape($i.address) $i_step [format $restart_root.ch$i $replica_id]
+      chapeau_savestate $chape($i.address) [format $restart_root.ch$i $replica_id]
     }
       
     # All the processor should dump namd local state
@@ -452,13 +452,13 @@ while {$i_run < $num_runs} {
   set r  1 ;# FIXME
   set chapeau $chape($replica(index).address)
   set z  [ restr_getz $restr($r.address)  ]
-  set f  [ chapeau_evalf $chapeau $z  ]
+  set f  [ chapeau_evalf_1simplex $chapeau $z  ]
   set u  [ restr_getu $restr($r.address)  ]
   
   # This should be set for each particular system taking in account a high
   # probability configuration
   # set zprob 3.2
-  set fref  [ chapeau_evalf $chapeau $zprob ]
+  set fref  [ chapeau_evalf_1simplex $chapeau $zprob ]
 
   puts $history_file "$i_step $replica(index) $NEWTEMP $TEMP $POTENTIAL $VOLUME $z $f $fref $u"
   
@@ -492,7 +492,7 @@ while {$i_run < $num_runs} {
      
     # Compute Delta Free Energy of this replica
     set z2    [replicaSendrecv $z $replica(loc.$swap) $replica(loc.$swap)]
-    set dfre  [chapeau_evalf $chapeau $z2 ]
+    set dfre  [chapeau_evalf_1simplex $chapeau $z2 ]
     set dfre  [expr $replica(dbeta)*($dfre-$f)]
     set delta [expr $replica(dbeta.$swap)*$delta - $dfre]
       
@@ -527,7 +527,7 @@ while {$i_run < $num_runs} {
     replicaSend $VOLUME    $replica(loc.$swap)
     #replicaSend $u         $replica(loc.$swap)
     set z2 [replicaSendrecv $z $replica(loc.$swap) $replica(loc.$swap)]
-    set f2  [ chapeau_evalf $chapeau $z2 ]
+    set f2  [ chapeau_evalf_1simplex $chapeau $z2 ]
 
     set delta [expr $replica(dbeta) * ($f-$f2)]
     replicaSend $delta $replica(loc.$swap)
@@ -593,11 +593,11 @@ while {$i_run < $num_runs} {
     set restart_root "$job_output_root.restart$i_run"
       
     # All the processors should dump restraint state
-    ds_saverestrains $ds  $i_step [format $restart_root.rstr $replica_id]
+    ds_saverestrains $ds [format $restart_root.rstr $replica_id]
      
     # All the processors should dump their chapeau states
     for {set i 0} {$i < $NUMREP} {incr i} {
-      chapeau_savestate $chape($i.address) $i_step [format $restart_root.ch$i $replica_id]
+      chapeau_savestate $chape($i.address) [format $restart_root.ch$i $replica_id]
     }
     
     # All the processor should dump namd local state

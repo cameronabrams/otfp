@@ -79,4 +79,4 @@ outputTiming        50000
 source OTFP.namd
 
 # variables needed for the tclforcesscript
-run  100000000 ;# 20ns
+run   5000000 ;#  5ns

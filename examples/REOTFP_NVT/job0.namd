@@ -9,11 +9,11 @@
 
 # Restart REMD: uncomment and correct the name of the restart file to match the
 # existing file. Then run again.
-#   source output/job0.restart5000.tcl
+# source output/job0.restart5000.tcl
 
 # Restart OTFP: There is two modes to restart otfp, chose one:
-#   set restart_otfp cfacv_loadstate
-set restart_chapeau chapeau_loadlambda
+# set restart_otfp cfacv_loadstate
+# set restart_chapeau chapeau_loadlambda
 
 # sort into single-temperature trajectories:
 #   $bindir/sortreplicas output/%s/fold_alanin.job0 8 10
@@ -34,7 +34,7 @@ set runs_noevolvech        0
 set runs_nosolvech         0
 set runs_per_addchapeaus   5  
 
-set data_each        [expr $steps_per_run*1]
+set data_each        10
 
 set output_root      "output/%s/" ; # directories must exist
 

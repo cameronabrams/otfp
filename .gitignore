@@ -1,6 +1,9 @@
 src/*.o
 src/version
 src/*_wrap.c
+src/cfacv.so
+src/catbinsp
+src/chapadd
 examples/*/output
 examples/*/*log
 message

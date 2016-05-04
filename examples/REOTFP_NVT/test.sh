@@ -3,10 +3,7 @@ set -o nounset
 set -o errexit
 set -o pipefail
 
-getnamdset () {
-  sed -n 's/^ *set  *'$1' .*/\0\nputs $'$1'/p' $2 | tclsh
-}
- 
+# Preparing folders
 rm -fr output
 mkdir output
 cd output
@@ -15,8 +12,6 @@ cd ..
 
 # Run simulation
 mpiexec -n 6 namd2 +replicas 6 job0.namd +stdout output/%d/job0.log 2>&1 | tee job0.log
-
-# Run restart
 mpiexec -n 6 namd2 +replicas 6 job1.namd +stdout output/%d/job1.log 2>&1 | tee job1.log
 
 # Sorting replicas. For the sort of the replicas, I use sortreplicas code that
@@ -29,31 +24,30 @@ for j in job1 job0; do
     ln -sf ${j}.dcd output/$i/${j}.${i}.dcd
     ln -sf ${j}.history output/$i/${j}.${i}.history
   done
-  /home/alexis/usr/share/NAMD_2.10_Source_MPI/Linux-x86_64-g++/sortreplicas output/%s/${j} 6 1
+  ./sortreplicas output/%s/${j} 6 1
   for i in $(seq 0 5); do
     ln -sf ${j}.${i}.sort.dcd output/${i}/${j}_sort.dcd
     ln -sf ${j}.${i}.sort.history output/${i}/${j}_sort.history
   done
 done
 
-# Computing free energy.
 for file in $(ls output/*/*bsp); do
 
   f=${file%.*}
 
+  # Decoding the FES
   ../../src/catbinsp -f $file -ol 1 \
     | awk 'BEGIN{a=""} (NR>1&&$2!=a){a=$2;$1="";$2="";print $0}'\
     > ${f}.LAMBDA
-
-  rmin=$(getnamdset SPLINEMIN OTFP.namd)
-  rmax=$(getnamdset CUTOFF OTFP.namd)
-  knots=$(getnamdset NKNOTS OTFP.namd)
-  dr=$(perl -E "(($rmax)-($rmin))/($knots-1)") 
-   
-  sed -n '$s/\(.\)\s\s*\(.\)/\1\n\2/g;$p' ${f}.LAMBDA \
-    | awk '{print (NR-1)*'$dr'+'$rmin',$1}' \
-    > ${f}.fes
-   
+  
+  # Adding x-range
+  awk -v N=301 -v min=2.0 -v max=5.0 \
+      'END{
+        for (i=1;i<=N;i++){
+          print min+(max-min)/(N-1)*i,$i
+        }
+      }' ${f}.LAMBDA > ${f}.fes
+       
 done
 
 #Computing free energy in equilibrium process of job1
@@ -61,27 +55,28 @@ for file in $(ls output/*/job1_ch*.LAMBDA); do
 
   f=${file%.*}
 
-  rmin=$(getnamdset SPLINEMIN OTFP.namd)
-  rmax=$(getnamdset CUTOFF OTFP.namd)
-  knots=$(getnamdset NKNOTS OTFP.namd)
-  dr=$(perl -E "(($rmax)-($rmin))/($knots-1)") 
+  awk -v N=301 -v min=2.0 -v max=5.0 \
+      '(NR==500){
+        for (i=1;i<=N;i++){
+          print min+(max-min)/(N-1)*i,$i
+        }
+      }' $file > ${f}.fes500 
 
-  sed -n '500s/\(.\)\s\s*\(.\)/\1\n\2/g;500p' $file \
-    | awk '{print (NR-1)*'$dr'+'$rmin',$1}' \
-    > ${f}.fes500
-
-  sed -n '505s/\(.\)\s\s*\(.\)/\1\n\2/g;505p' $file \
-    | awk '{print (NR-1)*'$dr'+'$rmin',$1}' \
-    > ${f}.fes504
+  awk -v N=301 -v min=2.0 -v max=5.0 \
+      '(NR==505){
+        for (i=1;i<=N;i++){
+          print min+(max-min)/(N-1)*i,$i
+        }
+      }' $file > ${f}.fes505
 
 done
  
-#Computing traces
 for file in $(ls output/*/*dcd); do
 
   f=${file%.*}
 
-vmd -dispdev text << HERETCL
+  #Computing traces
+  vmd -dispdev text << HERETCL
    
   mol new ../systems/buta.psf type psf first 0 last -1 step 1 filebonds 1 autobonds 0 waitfor all
   mol addfile $file type dcd first 0 last -1 step 1 filebonds 1 autobonds 0 waitfor all

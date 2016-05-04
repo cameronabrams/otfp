@@ -10,9 +10,9 @@ LIBS += -L/usr/lib64
 endif
 
 ifeq ($(CC),gcc)
-# CCFLAGS+=-g
-# CCFLAGS+=-O0 
-# CCFLAGS+=-O3 
+ CCFLAGS+=-g
+ CCFLAGS+=-O0 
+ CCFLAGS+=-O3 
 # CCFLAGS+=-static
 # CCFLAGS+=-Wall
 # CCFLAGS+=-Wpedantic

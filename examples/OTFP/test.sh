@@ -19,9 +19,8 @@ for file in $(ls *bsp); do
   # Adding x-range
   awk -v N=201 -v min=2.5 -v max=5.3 \
       'END{
-        for (i=0;i<N;i++){
-          a=i+j*N+1
-          print min+(max-min)/(N-1)*i,$a
+        for (i=1;i<=N;i++){
+          print min+(max-min)/(N-1)*i,$i
         }
       }' ${f}.LAMBDA > ${f}.fes
  
@@ -31,7 +30,7 @@ for file in $(ls *bsp); do
   set terminal png;
 
   set title "Free energy"
-  set output "${f}.png"; j=j+1
+  set output "${f}.png"
   plot '${f}.fes' w l notit
 
 HEREGNUPLOT
@@ -78,7 +77,7 @@ HERETCL
   set terminal png;
 
   set title "CV trace"
-  set output "${f}.png"; j=j+1
+  set output "${f}.png"
   plot '${f}.s' u (\$0+1):1 w l notit
 
 HEREGNUPLOT

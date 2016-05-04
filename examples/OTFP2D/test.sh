@@ -21,10 +21,12 @@ for file in $(ls *bsp); do
       -v xmin=2.5 -v ymin=2 \
       -v xmax=5.3 -v ymax=10 \
       'END{
+        aux=(xmax-xmin)/(Nx-1)
+        auy=(ymax-ymin)/(Ny-1)
         for (j=0;j<Ny;j++){
           for (i=0;i<Nx;i++){
             a=i+j*Nx+1
-            print ymin+(ymax-ymin)/(Ny-1)*j,xmin+(xmax-xmin)/(Nx-1)*i,$a
+            print xmin+aux*i,ymin+auy*j,$a
           }
           print ""
         }
@@ -44,11 +46,11 @@ for file in $(ls *bsp); do
 
   set cbrange [0:25]
   set output "${f}_fes.png"
-  set ylabel 'φ' norotate
-  set xlabel 'ψ' offset 1,0
+  set ylabel 'H' norotate
+  set xlabel 'C' offset 1,0
   set pm3d map
-  splot [2.5:4.5][2.5:7]\
-      '${f}.fes' u 2:1:(Is0(\$3)-fesmin) notit
+  splot [2.5:4.5][2.5:6]\
+      '${f}.fes' u 1:2:(Is0(\$3)-fesmin) notit
 
 HEREGNUPLOT
 

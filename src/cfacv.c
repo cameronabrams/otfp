@@ -319,11 +319,13 @@ int HarmonicCart_cutoff_pbc ( restrStruct * r ) {
 //BOUNDARIES
  
 int nada ( restrStruct * r ) {
+  return 0;
 }
 
 int SoftWalls ( restrStruct * r ) {
   SoftUpperWall(r);
   SoftLowerWall(r);
+  return 0;
 }
  
 int SoftLowerWall ( restrStruct * r ) {
@@ -671,6 +673,7 @@ double restr_getu ( restrStruct * r ) {
 void restr_output ( restrStruct * r ) {
   fprintf(r->ofp,"%11.5f",r->z);
   fprintf(r->ofp,"%11.5f",r->val);
+  fprintf(r->ofp,"%11.5f",r->f);
   fprintf(r->ofp,"%d\n",r->chid);
   fflush(r->ofp);
 }
@@ -820,12 +823,15 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
     // Solving FES
     if (ds->evolveAnalyticalParameters) {
 
+      fprintf(stdout,"Solving... \n");
+      fflush(stdout);
       for (i=0;i<ds->ch_num;i++) {
         ch=ds->ch[i];
 
         if (timestep>ds->beginsolve && !(timestep % ch->nupdate)) {
           // chapeau_savestate(ch,"after.ch0\0");
-          chapeau_update_peaks(ch);
+          chapeau_solve(ch);
+
           //for (j=0;j<K;j++) {
           //  r=ds->restr[j];
           //  r->ofp=freopen(NULL, "w", r->ofp);
@@ -843,6 +849,8 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
           chapeau_savestate(ch,ch->filename);
         }
       }
+      fprintf(stdout,"Solved... \n");
+      fflush(stdout);
     }
   }
    

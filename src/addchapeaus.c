@@ -30,7 +30,7 @@ int main ( int argc, char * argv[] ) {
   // Output of the first chapeau before add in it
   chapeau_setupoutput(ch[0],"chaps.bsp","chaps",1,1);
   ch[0]->nupdate=1;
-  chapeau_update_peaks(ch[0]);
+  chapeau_solve(ch[0]);
   chapeau_output(ch[0],1);
 
   //Prepare the output of the rest to the same file
@@ -43,13 +43,13 @@ int main ( int argc, char * argv[] ) {
 
   // start adding and output of each chapeau
   for (i=1;i<argc-1;i++) {
-    chapeau_update_peaks(ch[i]);
+    chapeau_solve(ch[i]);
     chapeau_output(ch[i],1);
     chapeau_sum(ch[0],ch[i]);
   }
 
   // Output of the sum
-  chapeau_update_peaks(ch[0]);
+  chapeau_solve(ch[0]);
   chapeau_output(ch[0],1);
                    
   fflush(ch[0]->ofp);

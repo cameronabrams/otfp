@@ -50,4 +50,4 @@ outputTiming        200000
 
 source OTFP.namd
 
-run  20000000 ;# 20ns
+run  10000000 ;# 10ns

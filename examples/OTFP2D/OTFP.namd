@@ -1,3 +1,16 @@
+#!/bin/tclsh
+
+tclforces             on
+set CFACV_BASEDIR     ../../src
+tclforcesscript       $CFACV_BASEDIR/calcforces.tcl
+
+# Periodic Boundary Conditions
+set XSCFILE         off
+
+# CVs and group definition
+set labelPDB          label.pdb ;# PDB file with group ID (1-based) in beta position
+set cvINP             cv.inp ;# list of CVs types togeter with it's parameters
+
 # Verbosidad
 # set DEBUG                0
 # set PARANOIA             0
@@ -19,16 +32,15 @@ set DIMEN               2
 set CUTOFF              {5.3 10}
 set SPLINEMIN           {2.5 2}
 set NKNOTS              {151 151}
-set PERIODIC            0
 #dr=$CUTOFF-$SPLINEMIN/(NKNOTS-1)
 
 # Offset and interval for improve lambda parameters
 set CFACV_doAnalyticalCalc  1  ;# 1 optmize the analytical parameterization
 set USETAMDFORCES           1  ;# 1 use TAMD forces, 0 use gradient of G
 
-set BEGINEVOLVEPARAMETERS   200000  ;# Number of steps without evolution at the start
+set BEGINEVOLVEPARAMETERS        0  ;# Number of steps without evolution at the start
 set LAMUPDATEINTERVAL       200000
-set BEGINSOLVELAM           200000  ;# Number of steps without evolution at the start
+set BEGINSOLVELAM                0 
 
 # Restraints
 set restr(num)        2
