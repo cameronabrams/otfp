@@ -823,8 +823,6 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
     // Solving FES
     if (ds->evolveAnalyticalParameters) {
 
-      fprintf(stdout,"Solving... \n");
-      fflush(stdout);
       for (i=0;i<ds->ch_num;i++) {
         ch=ds->ch[i];
 
@@ -849,8 +847,6 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
           chapeau_savestate(ch,ch->filename);
         }
       }
-      fprintf(stdout,"Solved... \n");
-      fflush(stdout);
     }
   }
    

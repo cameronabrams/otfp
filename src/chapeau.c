@@ -839,11 +839,15 @@ char * chapeau_serialize ( chapeau * ch ) {
   // return a str containing the serialized chapeau with partial statistics. If
   // this is the central replica, or non replica scheme is used, this serialize
   // the full statistic.
-  int i;
+  int i, j;
   int size;
   char* buf;
 
-  size = (3*ch->m-1)*13+ch->m+1;
+  // size = (3*ch->m-1)*13+ch->m+1;
+  size  = ch->m*13;           // space for ch->b
+  size += ch->m*ch->ldad*13;; // space for ch->A
+  size += ch->m;;             // space for ch->hits
+  size += 1;;                 // null character?
   buf  = (char*) malloc(size*sizeof(char));
 
   // Seems that if I do this:
@@ -861,12 +865,12 @@ char * chapeau_serialize ( chapeau * ch ) {
     sprintf(buf+size, "%1i", ch->hits[i]); size+=1;
   }
 
-  // TODO: Esto no anda en 2D!!!
-  // Writing the partial A (simetric and tridiagonal)
-  sprintf(buf+size, "%13.5e",ch->A[0][0]); size+=13;
-  for (i=1;i<ch->m;i++) {
-    sprintf(buf+size, "%13.5e",ch->A[i][i]); size+=13;
-    sprintf(buf+size, "%13.5e",ch->A[i][i-1]); size+=13; 
+  // TODO take advantage of the simetric property to reduce half of the numbers
+  // Writing the partial A (banded)
+  for (i=0;i<ch->ldad;i++) {
+    for (j=0;j<ch->m;j++) {
+      sprintf(buf+size, "%13.5e",ch->A[i][j]); size+=13;
+    }
   }
 
   return buf; 
@@ -876,7 +880,7 @@ void chapeau_addserialized ( chapeau *ch, char * str ) {
   // str contains the serialized chapeau that comes from the partial sampling
   // of other replica partial statistic information. This is added to the
   // partial sampling ot the principal replica computing the sum.
-  int i,err;
+  int i,j,err;
   int size1;
   int size2;
   double aux;
@@ -887,7 +891,9 @@ void chapeau_addserialized ( chapeau *ch, char * str ) {
   word1[13]='\0';
   word2[1]='\0';
 
-  size1 = (3*ch->m-1)*13+ch->m;
+  size1  = ch->m*13;           // space for ch->b
+  size1 += ch->m*ch->ldad*13;; // space for ch->A
+  size1 += ch->m;;             // space for ch->hits
   size2 = strlen(str);
   if (size1!=size2) {
     fprintf(stderr,"CFACV/C) ERROR: you can not sum chapeaus with different sizes %d %d\n",size1,size2);
@@ -915,24 +921,13 @@ void chapeau_addserialized ( chapeau *ch, char * str ) {
   }
  
   // Reading the partial A (simetric and tridiagonal)
-  memcpy(word1, &str[size1], 13 ); size1+=13;
-  err=sscanf(word1,"%13le",&aux); if(!err) {fprintf(stderr,"CFACV/C) Error 1112 on read %s\n",word1);}
-  ch->A[0][0]+=aux;
-
-  for (i=1;i<ch->m;i++) {
-
-    //diagonal
-    memcpy(word1, &str[size1], 13 ); size1+=13;
-    err=sscanf(word1,"%13le",&aux); if(!err) {fprintf(stderr,"CFACV/C) Error 1113 on read %s\n",word1);}
-    ch->A[i][i]+=aux;              
-
-    //offdiagonal
-    memcpy(word1, &str[size1], 13 ); size1+=13;
-    err=sscanf(word1,"%13le",&aux); if(!err) {fprintf(stderr,"CFACV/C) Error 1114 on read %s\n",word1);}
-    ch->A[i][i-1]+=aux;              
-    ch->A[i-1][i]+=aux;              
+  for (i=0;i<ch->ldad;i++) {
+    for (j=0;j<ch->m;j++) {
+      memcpy(word1, &str[size1], 13 ); size1+=13;
+      err=sscanf(word1,"%13le",&aux); if(!err) {fprintf(stderr,"CFACV/C) Error 1112 on read %s\n",word1);}
+      ch->A[i][j]+=aux;
+    }
   }
-   
 
   //TODO, give error if rmin and rmax are different
   
@@ -953,7 +948,9 @@ void chapeau_setserialized ( chapeau *ch, char * str ) {
   word1[13]='\0';
   word2[1]='\0';
   
-  size1 = (3*ch->m-1)*13+ch->m;
+  size1  = ch->m*13;           // space for ch->b
+  size1 += ch->m*ch->ldad*13;; // space for ch->A
+  size1 += ch->m;;             // space for ch->hits
   size2 = strlen(str);
   if (size1!=size2) {
     fprintf(stderr,"CFACV/C) ERROR: you can not set chapeaus with different sizes %d %d\n",size1,size2);
@@ -980,33 +977,21 @@ void chapeau_setserialized ( chapeau *ch, char * str ) {
     ch->hits[i]=iaux;
   }
      
-  // Read A (simetric and tridiagonal)
-  memcpy(word1, &str[size1], 13 ); size1+=13; 
-  err=sscanf(word1,"%13le",&aux); if(!err) {fprintf(stderr,"CFACV/C) Error 2113 on read %s\n",word1);}
-  ch->Afull[0][0]=aux;
-
-  for (i=1;i<ch->m;i++) {
-
-    //diagonal
-    memcpy(word1, &str[size1], 13 ); size1+=13;
-    err=sscanf(word1,"%13le",&aux); if(!err) {fprintf(stderr,"CFACV/C) Error 2114 on read %s\n",word1);}
-    ch->Afull[i][i]=aux;
-
-    //off diagonal
-    memcpy(word1, &str[size1], 13 ); size1+=13;
-    err=sscanf(word1,"%13le",&aux); if(!err) {fprintf(stderr,"CFACV/C) Error 2115 on read %s\n",word1);}
-    ch->Afull[i][i-1]=aux;
-    ch->Afull[i-1][i]=aux;
-  }
-  
-  // Reset the variables to hold the partial statistic information
-  for (j=0;j<ch->m;j++) {
-    ch->b[j]=0.;
-    for (i=0;i<ch->ldad;i++) {
-      ch->A[i][j]=0.;
+  // Reading the partial A (simetric and tridiagonal)
+  for (i=0;i<ch->ldad;i++) {
+    for (j=0;j<ch->m;j++) {
+      memcpy(word1, &str[size1], 13 ); size1+=13;
+      err=sscanf(word1,"%13le",&aux); if(!err) {fprintf(stderr,"CFACV/C) Error 1112 on read %s\n",word1);}
+      ch->Afull[i][j]+=aux;
     }
   }
 
+  // Reset the variables to hold the partial statistic information
+  for (j=0;j<ch->m;j++) ch->b[j]=0.;
+
+  for (i=0;i<ch->ldad;i++) {
+    for (j=0;j<ch->m;j++) ch->A[i][j]=0.;
+  }
 
   //TODO, give error if rmin and rmax are different
 }

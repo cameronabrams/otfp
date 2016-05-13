@@ -150,6 +150,14 @@ if {[info exists restart_root]} {
 # Set initial (or restart) temperature 
 proc replica_temp { i } {
   global num_replicas min_temp nmin_temp max_temp
+
+  # For debug 1 replica simulation is alowed
+  if {$num_replicas==1} {
+    if { $max_temp != $min_temp } {error "for 1 replica min_temp and max_temp should match"}
+    return $max_temp
+  }   
+
+  if {![info exists nmin_temp]} {set nmin_temp 0}
   
   # This funciton use the formtula for the probability of aceptation from:
   #
@@ -161,9 +169,7 @@ proc replica_temp { i } {
   # aceptation for all the replicas and using as input max_temp (the
   # temperature of the last replica) and min_temp (the temperature of the
   # nmin_temp replica).
-  
-  if {![info exists nmin_temp]} {set nmin_temp 0}
-
+ 
   # FIXME, need Cp
   # set Max [expr pow($max_temp,1./($num_replicas-1.-$nmin_temp))]
   # set min [expr pow($min_temp,1./($num_replicas-1.-$nmin_temp))]
@@ -177,7 +183,6 @@ proc replica_temp { i } {
   # temperature, to imporove the sampling on it. Considering that num_replicas
   # also include the nmin_temp extra replicas, the general case will be:
 
-  #return [format "%.2f" [expr $max_temp*pow($m/$M,$num_replicas-1-$i)]]
   return [format "%.2f" [expr $max_temp*pow(1.*$min_temp/$max_temp,($num_replicas-1.-$i)/($num_replicas-1.-$nmin_temp))]]
 
   # So if nmin_temp=2 and num_replicas=18, there will be 2 of the 18 replicas

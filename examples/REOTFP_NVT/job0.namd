@@ -34,7 +34,7 @@ set runs_noevolvech        0
 set runs_nosolvech         0
 set runs_per_addchapeaus   5  
 
-set data_each        10
+set data_each        [expr $steps_per_run*1]
 
 set output_root      "output/%s/" ; # directories must exist
 
