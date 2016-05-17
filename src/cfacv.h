@@ -156,6 +156,11 @@ typedef struct RESTRSTRUCT {
   // integer to chapeau index, this will change
   // in replica exchange simulation
   int chid;
+  int chdm;
+
+  FILE * ofp;
+  int outputFreq;
+  int boutput;
 
 } restrStruct;
 
@@ -166,7 +171,8 @@ tamdOptStruct * New_tamdOptStruct ( double g, double kt, double dt, int riftyp);
 
 smdOptStruct * New_smdOptStruct ( double target, int t0, int t1);
 
-restrStruct * New_restrStruct ( double k, double z, int nCV, double * cvc, char * rftypstr, double zmin, double zmax, char * boundstr, double boundk );
+restrStruct * New_restrStruct ( double k, double z, int nCV, double * cvc, char * rftypstr, double zmin, double zmax, char * boundstr, double boundk, char * outfile, int outputFreq);
+    
 
 #ifndef MAXNBOR
 #define MAXNBOR 250
@@ -174,12 +180,11 @@ restrStruct * New_restrStruct ( double k, double z, int nCV, double * cvc, char 
 
 
 typedef struct DATASPACESTRUCT {
-  int N; // number of centers
-  int M; // number of CVs
-  int K; // number of restraints
-  int iN;
-  int iM;
-  int iK;
+  int N,iN; // number of centers
+  int M,iM; // number of CVs
+  int K,iK; // number of restraints
+  int ch_num,ch_now; // number of chapeaus
+
 
   atomCenterStruct ** ac; // defined in centers.h
   cvStruct ** cv;
@@ -192,35 +197,10 @@ typedef struct DATASPACESTRUCT {
 
   double ** R; // array of center cartesian coordinates R[i][0/1/2]
 
-  // below are bits for doing TAMD/OTFP of pairwise intercenter
-  // potentials represented as piecewise-continuous linear functions
+  // below are bits for doing TAMD/OTFP
 
-  // Global PBC for the particles. Each restrain has also a pbc flag.
-  // This is for FES made with distances (like in the original paper)
-  int pbc;
-  double O[3]; // simulation box origin
-  double L[3]; // simulation box size
-  double hL[3]; // simulation box half-size
-  double Min[3], Max[3];
-
-  double squaredPairCutoff;
-  int doAnalyticalCalc; // indicates whether or not we are to perform
-			// the optmization of the analytical
-			// parameterization
-                        
-  // De alguna manera cada chapeau es una direccion 
-  // FIXME: This code was here to allow compute chapeau functions separatedly
-  //for different pair types of particles. For instance, this allow to
-  //recover SOD SOD, CLA CLA and SOD CLA pair potentials in 1 TAMD
-  //simulation. Each index has a number in ch_id which allow to sort the pair
-  //in the different chapeau objects on the c code.  From the studies with
-  //SOD CLA, this pair potentials will be OK only if the ficticius
-  //temperature is the same that the real one.  On the other hand, a better
-  //way to achive this is needed (without saving a lot of numbers in ch_id).
-  //For understand how this worked, see the previous versions of the code. 
-  int ch_num;
-  //int * ch_id;
-
+  int doAnalyticalCalc; // OTFP on or off
+  
   // for evolution of the parameterization
   double lamfric;
   double lamdt;
@@ -248,32 +228,31 @@ unsigned short * Xi;
 // Other subroutines
 FILE * my_fopen ( char * name, char * code ) ;
 DataSpace * NewDataSpace ( int N, int M, int K, long int seed );
-int DataSpace_SetupPBC ( DataSpace * ds, int pbc, double Ox, double Oy, double Oz, double Lx, double Ly, double Lz );
-int DataSpace_Setup1Dchapeau ( DataSpace * ds, int numrep, double min, int nKnots, double max, int beginaccum, int beginsolve, int useTAMDforces, char * outfile, int outfreq, int outlevel, int nupdate);
+int DataSpace_Setupchapeau ( DataSpace * ds, int numrep, int dm, double * min,
+    int * nKnots, double * max, int periodic, int beginaccum, int beginsolve, 
+    int useTAMDforces, char * outfile, int outfreq, int outlevel, int nupdate);
 chapeau * DataSpace_get_chapeauadress ( DataSpace * ds, int i );
 int DataSpace_getN ( DataSpace * ds );
 double * DataSpace_centerPos ( DataSpace * ds, int i );
 int DataSpace_AddAtomCenter ( DataSpace * ds, int n, int * ind, double * m );
 int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind,
 		      double zmin, double zmax,char * boundf, double boundk );
-restrStruct * DataSpace_AddRestr  ( DataSpace * ds, double k, double targ, int nCV, double * cvc, char * rftypstr, double zmin, double zmax,char * boundf, double boundk );
+
+restrStruct * DataSpace_AddRestr  ( DataSpace * ds, double k, double targ, int nCV, double * cvc, char * rftypstr, double zmin, double zmax,char * boundf, double boundk,char * outfile, int outputFreq);
 int restr_UpdateTamdOpt ( restrStruct * r, double g, double kt, double dt );
-int restr_AddTamdOpt ( restrStruct * r, double g, double kt, double dt, int chid );
+int restr_AddTamdOpt ( restrStruct * r, double g, double kt, double dt, int chid  , int chdm );
 int restr_AddSmdOpt  ( restrStruct * r, double target, int t0, int t1 );
+void restr_output  ( restrStruct * r );
 int DataSpace_ComputeCVs ( DataSpace * ds );
 int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep );
 double DataSpace_RestraintEnergy ( DataSpace * ds );
 void DataSpace_ReportAll ( DataSpace * ds );
 void DataSpace_ReportCV ( DataSpace * ds, int * active, double * res );
-void DataSpace_ReportRestraints ( DataSpace * ds, int step, int outputlevel, FILE * fp );
 int DataSpace_checkdata ( DataSpace * ds );
 int DataSpace_dump ( DataSpace * ds ); 
 FILE * my_binfopen ( char * name, char * code, unsigned int outputLevel, DataSpace * ds );
 void DataSpace_BinaryReportRestraints ( DataSpace * ds, int step, int outputlevel, FILE * fp );
 
-
-int fes1D( DataSpace * ds, restrStruct * r );
-int fes_from_distances( DataSpace * ds, int first, int timestep ) ; 
 
 // Evolve Functions
 int cbd ( restrStruct * r, double f );
@@ -298,7 +277,7 @@ double restr_getz ( restrStruct * r );
 double restr_getu ( restrStruct * r );
 int restr_set_rchid ( restrStruct * r, DataSpace * ds, int chid);
 
-void ds_saverestrains ( DataSpace * ds, int timestep, char * filename );
+void ds_saverestrains ( DataSpace * ds, char * filename );
 void ds_loadrestrains ( DataSpace * ds, char * filename );
 
 

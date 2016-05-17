@@ -3,13 +3,12 @@
 tclforces             on
 set CFACV_BASEDIR     ../../src
 tclforcesscript       $CFACV_BASEDIR/calcforces.tcl
- 
+
 # Periodic Boundary Conditions
 set XSCFILE         off
 
 # CVs and group definition
 set labelPDB          label.pdb ;# PDB file with group ID (1-based) in beta position
-set cvINP             cv.inp ;# list of CVs types togeter with it's parameters
 
 # Verbosidad
 # set DEBUG                0
@@ -29,32 +28,39 @@ set BINOUTPUTLEVEL         3          ;#lambda-hits (e.g. 3 => 11 => both)
  
 # About grid
 set CUTOFF                  5.0
-set NLCUTOFF                5.1
 set SPLINEMIN               2.0
 set NKNOTS                  301 ;#dr=$CUTOFF-$SPLINEMIN/(NKNOTS-1)
-# set initKnotsINP            wcaknots
 
 # Offset and interval for improve lambda parameters
 set CFACV_doAnalyticalCalc  1  ;# 1 optmize the analytical parameterization
 set USETAMDFORCES           1  ;# 1 use TAMD forces, 0 use gradient of G
+
 set BEGINEVOLVEPARAMETERS   [expr $steps_per_run*$runs_noevolvech]  ;# Number of steps without evolution at the start
-
-
 set LAMUPDATEINTERVAL       $data_each
 set BEGINSOLVELAM           [expr $steps_per_run*$runs_nosolvech]  ;# Number of steps without evolution at the start
 
 
+# Collective Variables
+set cv(num) 1
+set cv(1.type)     BOND
+set cv(1.centers)  {1 2}
+
 # Restraints
 set restr(num)        1
+
 set restr(1.cv)       1              ; # The cv or cvs associated
 set restr(1.k)        1500           ; # spring constant
-set restr(1.type)     tamd           ; # spring constant
- set restr(1.g)        1500          
- set restr(1.temp)     3000          ; # number between 0 and beta (min and max bias)
- set restr(1.dt)       0.002         
+set restr(1.type)     tamd
+ set restr(1.g)       1500
+ set restr(1.temp)    3000
+ set restr(1.dt)      0.002         
 set restr(1.bound)    soft           ; # boundary behavior
  set restr(1.boundk)   100           
  set restr(1.max)      $CUTOFF       
  set restr(1.min)      $SPLINEMIN    
+set restr(1.outfile)  "C.dat"
+ set restr(1.outfreq) 5000
 
+# Initialize OTFP program
+source $CFACV_BASEDIR/cfacv.tcl
 

@@ -88,11 +88,11 @@ proc rlist_setup { ncv } {
         if {![info exists restr($i.max)]}    {error "CFACV) ERROR: restraint need min value"}
       }
       SOFTUPPER {
-        if {![info exists restr($i.max)]}    {error "CFACV) ERROR: restraint need min value"}
+        if {![info exists restr($i.max)]}    {error "CFACV) ERROR: restraint need max value"}
         if {![info exists restr($i.boundk)]} {error "CFACV) ERROR: restraint need boundk value"}
       }
       SOFTLOWER {
-        if {![info exists restr($i.min)]}    {error "CFACV) ERROR: restraint need max value"}
+        if {![info exists restr($i.min)]}    {error "CFACV) ERROR: restraint need min value"}
         if {![info exists restr($i.boundk)]} {error "CFACV) ERROR: restraint need boundk value"}
       }
       SOFT {
@@ -107,11 +107,20 @@ proc rlist_setup { ncv } {
     if {![info exists restr($i.min)]}    {set restr($i.min) 0.}
     if {![info exists restr($i.max)]}    {set restr($i.max) 0.}
         
+   
+    # Output
+    if {[info exists restr($i.outfile)]} {
+      if {![info exists restr($i.outfreq)]}  {error "CFACV) ERROR: restraint need output frequency"}
+    } else {
+      if {[info exists restr($i.outfile)]}  {error "CFACV) ERROR: restraint need output file"}
+      set restr($i.outfile) ""
+      set restr($i.outfreq) -1
+    }
 
     # Allocating ds->restr[i] in the C code.
     set pcvc [ListToArray $restr($i.cvc)]
     set inicial 0 ; # obsolet when r->z=r->val is placed at first iteration (see cfacv.c)
-    set restr($i.address) [DataSpace_AddRestr $ds $restr($i.k) $inicial $ncv $pcvc $restr($i.func) $restr($i.min) $restr($i.max) $restr($i.bound) $restr($i.boundk)]
+    set restr($i.address) [DataSpace_AddRestr $ds $restr($i.k) $inicial $ncv $pcvc $restr($i.func) $restr($i.min) $restr($i.max) $restr($i.bound) $restr($i.boundk) $restr($i.outfile) $restr($i.outfreq)]
      
     # Default and consistency in type. Allocating ds->restr[i]->tamdOpt in the C code.
     if {![info exists restr($i.type)]} {error "CFACV) ERROR: restraint need a type"}
@@ -121,6 +130,7 @@ proc rlist_setup { ncv } {
         if {![info exists restr($i.g)]}     {error "CFACV) ERROR: TAMD restraint need g"}
         if {![info exists restr($i.dt)]}    {error "CFACV) ERROR: TAMD restraint need dt"}
         if {![info exists restr($i.chid)]}  {set restr($i.chid) 0}
+        if {![info exists restr($i.chdm)]}  {set restr($i.chdm) 0}
 
         if {[info exists restr($i.temp)]}  {
           set ktaux [expr $restr($i.temp)*0.001987191]
@@ -139,7 +149,7 @@ proc rlist_setup { ncv } {
         if {![info exists ktaux]}  {error "CFACV) ERROR: TAMD temperature info is needed."}
 
         # DataSpace_AddTamdOpt $ds $ir $restr($i.g) [expr $temperature*$restr($i.biasf)*0.001987191] $restr($i.dt)
-        restr_AddTamdOpt $restr($i.address) $restr($i.g) $ktaux $restr($i.dt) $restr($i.chid)
+        restr_AddTamdOpt $restr($i.address) $restr($i.g) $ktaux $restr($i.dt) $restr($i.chid) $restr($i.chdm)
       }
       SMD {
         if {![info exists restr($i.target)]} {error "CFACV) ERROR: SMD restraint need target"}

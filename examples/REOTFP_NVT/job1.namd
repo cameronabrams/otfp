@@ -25,7 +25,7 @@ set nmin_temp               0
 set max_temp             1000
 
 set steps_per_run        1000 ; # number of steps between exchange attempts
-set num_runs             4000 ; # runs before stopping, should be divisible by runs_per_frame * frames_per_restart
+set num_runs             4000 ; # total runs before stopping, should be divisible by runs_per_frame * frames_per_restart
 
 set runs_per_frame         1 ;# sortreplicas has a serious BUG when this is not 1
 set runs_per_restart     100 
@@ -47,8 +47,8 @@ set output_root      "output/%s/" ; # directories must exist
 if { ! [catch numPes] } { 
 
   # The molecules
-  structure           ../butane_files/buta.psf
-  coordinates         ../butane_files/buta.pdb
+  structure           ../systems/buta.psf
+  coordinates         ../systems/buta.pdb
 
   # The previous coordinates and boundary conditions
   # bincoordinates rep1999.coor
@@ -65,7 +65,7 @@ if { ! [catch numPes] } {
    
   # Potentials and parameters
   paraTypeCharmm      on
-  parameters          ../butane_files/par_all36_cgenff.prm
+  parameters          ../systems/par_all36_cgenff.prm
   exclude             scaled1-4
   1-4scaling          1.0
 

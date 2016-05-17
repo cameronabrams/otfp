@@ -182,13 +182,12 @@ int set_zsd_circle ( double x,double y, double xy, double s  ) {
 }
 
 int calccv_zsd_circle ( cvStruct * c, DataSpace * ds ) {
-  int i,j,k,l;
+  int i,l;
   double zsdc_v,zsdc_z;
   double aux,aux1,aux2,d,norm;
 
 
   // Compute the average z
-  j=0;
   zsdc_z=0.;
   norm=0.;
   for (l=0;l<c->nC;l++) {
@@ -262,13 +261,12 @@ int calccv_zsd_xrange ( cvStruct * c, DataSpace * ds ) {
   //   zsdc_d as the widht of the x range
   //   zsdc_x as the position of the x range
   //   zsdc_y discarded
-  int i,j,k,l;
+  int i,l;
   double zsdc_v,zsdc_z;
   double aux,aux1,aux2,d,norm;
 
 
   // Compute the average z
-  j=0;
   zsdc_z=0.;
   norm=0.;
   for (l=0;l<c->nC;l++) {
@@ -346,13 +344,12 @@ int set_zsd_ring ( double x,double y, double r1, double r2, double s  ) {
 }
 
 int calccv_zsd_ring ( cvStruct * c, DataSpace * ds ) {
-  int i,j,k,l;
+  int i,l;
   double zsdr_v,zsdr_z;
   double aux,aux1,aux2,aux3,aux4,d,norm;
 
 
   // Compute the average z
-  j=0;
   zsdr_z=0.;
   norm=0.;
   for (l=0;l<c->nC;l++) {

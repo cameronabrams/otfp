@@ -115,39 +115,6 @@ proc read_centersPDB { templatePdb serArr mass pdb} {
       incr n
   }
 
-  # FIXME: This code was here to allow compute chapeau functions separatedly
-  # for different pair types of particles. For instance, this allow to
-  # recover SOD SOD, CLA CLA and SOD CLA pair potentials in 1 TAMD
-  # simulation. Each index has a number in ch_id which allow to sort the pair
-  # in the different chapeau objects on the c code.  From the studies with
-  # SOD CLA, this pair potentials will be OK only if the ficticius
-  # temperature is the same that the real one.  On the other hand, a better
-  # way to achive this is needed (without saving a lot of numbers in ch_id).
-  # For understand how this worked, see the previous versions of the code.
-  # set k 0
-  # set test [expr 0==[string equal $chlist "{}"]]
-  # for {set i 0} {$i < $nMon} {incr i} {
-  #   for {set j [expr $i+1]} {$j < $nMon} {incr j} {
-
-  #     if $test {
-  #       set pair1 "[lindex $reslist $i] [lindex $reslist $j]" ;# e.g. "SOD CLA"
-  #       set pair2 "[lindex $reslist $j] [lindex $reslist $i]" ;# e.g. "CLA SOD"
-  #       set a [lsearch $chlist $pair1]
-  #       set b [lsearch $chlist $pair2]
-  #       
-  #       set k [expr {$a>$b? $a: $b}]
-  #     }
-
-  #     # with the next expresion the [expr $j+($nCntr-2)*$i-($i-1)*$i/2-1] element of ch_id is
-  #     # -1 for non intereset pair, or the corresponding n-index or the $chlist.
-  #     lappend ch_id $k
-  #   }
-  # }
-
-  # if {([string equal [lsort -unique $ch_id] "-1"])} {
-  #   error "ERROR: No residues found to accelerate"
-  # }
-
   print "DB: returning nMon $nMon"
   return $nMon
 }

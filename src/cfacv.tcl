@@ -76,8 +76,6 @@ proc Tcl_UpdateDataSpace { ds lC groups first timestep } {
     DataSpace_RestrainingForces $ds $first $timestep    
     MyParanoiaCheck $ds "tripped after computing restraining forces"
 
-    #  fprintf(stderr,"AAAAAAAAAAAS");
-
     # Transmit forces back to groups
     set i 0
     foreach g $groups {
@@ -171,8 +169,12 @@ if {[info exists CFACV_doAnalyticalCalc]} {
     # problema sodio cloro) a obtener en una simulacion. En ese caso
     # corregir.
 
+    # Default modes
+    if {![info exists DIMEN]} {set DIMEN 1}
+    if {![info exists PERIODIC]} {set PERIODIC 0}
+
     # Saving for allocate chapeau functions
-    chapeau_setup $NUMREP $ds $XSCFILE $SPLINEMIN $NKNOTS $CUTOFF $BEGINEVOLVEPARAMETERS  $BEGINSOLVELAM $USETAMDFORCES $BINREPORTPARAMFILE $BINREPORTPARAMFREQ $BINOUTPUTLEVEL $LAMUPDATEINTERVAL
+    chapeau_setup $NUMREP $ds $DIMEN $SPLINEMIN $NKNOTS $CUTOFF $PERIODIC $BEGINEVOLVEPARAMETERS  $BEGINSOLVELAM $USETAMDFORCES $BINREPORTPARAMFILE $BINREPORTPARAMFREQ $BINOUTPUTLEVEL $LAMUPDATEINTERVAL
   }
 }
 
@@ -180,15 +182,6 @@ if {[info exists CFACV_doAnalyticalCalc]} {
 if {![info exists TAMDof]}          {set TAMDof 1 }
 if {![info exists TAMDbinof]}       {set TAMDbinof 1 }
 if {![info exists TAMDoutputlevel]} {set TAMDoutputlevel 3}
-
-set TAMDoutputFileFP 0
-if {[info exists TAMDoutputFile]} {
-    set TAMDoutputFileFP [my_fopen $TAMDoutputFile "w"]
-    print "CFACV) Opened TAMD output file $TAMDoutputFile"
-} else {
-    set TAMDoutputFileFP [my_fopen stdout "w"]
-    print "CFACV) TAMD output to stdout"
-}
 
 set TAMDbinOutputFileFP 0
 if {[info exists TAMDbinOutputFile]} {

@@ -27,11 +27,9 @@ set BINREPORTPARAMFILE     ${oname} ;#ds->ch->ofp
 set BINOUTPUTLEVEL         3        ;#lambda-hits (e.g. 3 => 11 => both)
  
 # About grid
-set CUTOFF                  4.8
-set NLCUTOFF                5.0
-set SPLINEMIN               2.0
+set CUTOFF                  5.3
+set SPLINEMIN               2.5
 set NKNOTS                  201 ;#dr=$CUTOFF-$SPLINEMIN/(NKNOTS-1)
-# set initKnotsINP            wcaknots
 
 # Offset and interval for improve lambda parameters
 set CFACV_doAnalyticalCalc  1  ;# 1 optmize the analytical parameterization
@@ -49,13 +47,18 @@ set cv(1.centers)  {1 2}
 
 # Restraints
 set restr(num)        1
+
 set restr(1.cv)       1              ; # The cv or cvs associated
 set restr(1.k)        1500           ; # spring constant
-set restr(1.type)     tamd           ; # spring constant
- set restr(1.g)        1500          
- set restr(1.temp)     3000          ; # number between 0 and beta (min and max bias)
- set restr(1.dt)       0.002         
+set restr(1.type)     tamd
+ set restr(1.g)       1500
+ set restr(1.temp)    3000
+ set restr(1.dt)      0.002         
+set restr(1.bound)    soft           ; # boundary behavior
+ set restr(1.boundk)   100           
+ set restr(1.max)      $CUTOFF       
+ set restr(1.min)      $SPLINEMIN    
 
 # Initialize OTFP program
 source $CFACV_BASEDIR/cfacv.tcl
- 
+

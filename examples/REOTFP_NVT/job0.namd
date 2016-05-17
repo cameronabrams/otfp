@@ -9,11 +9,11 @@
 
 # Restart REMD: uncomment and correct the name of the restart file to match the
 # existing file. Then run again.
-#   source output/job0.restart5000.tcl
+# source output/job0.restart5000.tcl
 
 # Restart OTFP: There is two modes to restart otfp, chose one:
-#   set restart_otfp cfacv_loadstate
-set restart_chapeau chapeau_loadlambda
+# set restart_otfp cfacv_loadstate
+# set restart_chapeau chapeau_loadlambda
 
 # sort into single-temperature trajectories:
 #   $bindir/sortreplicas output/%s/fold_alanin.job0 8 10
@@ -47,8 +47,8 @@ set output_root      "output/%s/" ; # directories must exist
 if { ! [catch numPes] } { 
 
   # The molecules
-  structure           ../butane_files/buta.psf
-  coordinates         ../butane_files/buta.pdb
+  structure           ../systems/buta.psf
+  coordinates         ../systems/buta.pdb
 
   # The previous coordinates and boundary conditions
   # bincoordinates rep1999.coor
@@ -65,7 +65,7 @@ if { ! [catch numPes] } {
    
   # Potentials and parameters
   paraTypeCharmm      on
-  parameters          ../butane_files/par_all36_cgenff.prm
+  parameters          ../systems/par_all36_cgenff.prm
   exclude             scaled1-4
   1-4scaling          1.0
 

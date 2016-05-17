@@ -39,11 +39,6 @@ proc calcforces { } {
     if {$first==1} { set first 0 }
 
     # report if requested
-    if {[expr {[getstep]%$TAMDof == 0}]} {
-      DataSpace_ReportRestraints $ds [getstep] $TAMDoutputlevel $TAMDoutputFileFP
-    }
-
-    # report if requested
     if {[info exists TAMDbinOutputFile] && [expr {[getstep]%$TAMDbinof == 0}]} {
       DataSpace_BinaryReportRestraints $ds [getstep] $TAMDoutputlevel $TAMDbinOutputFileFP
     }

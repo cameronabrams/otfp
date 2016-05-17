@@ -1,0 +1,66 @@
+#!/bin/tclsh
+ 
+# Restart OTFP: There is two modes to restart otfp, chose one:
+set restart_otfp cfacv_loadstate
+# set restart_chapeau chapeau_loadlambda
+                        
+set oname           job1
+set temperature     298
+set seed            923458
+seed                $seed
+ 
+
+# The molecules
+structure           ../systems/buta.psf
+coordinates         ../systems/buta.pdb
+binCoordinates      job0.restart.coor
+binVelocities       job0.restart.vel
+# extendedsystem      job0.restart.xsc
+
+firsttimestep       20000000 ;# 20ns
+timestep            1.0
+rigidBonds          none
+
+# Potentials and parameters
+paraTypeCharmm      on
+parameters          ../systems/par_all36_cgenff.prm
+exclude             scaled1-4
+1-4scaling          1.0
+
+# Non-bonding cutoff
+cutoff              11.0  ;#12.0 
+switching           on    ;# suavisado
+switchdist          10.0  ;#10.0 # Desde donde comienza el suavizado
+
+# Verlet List
+pairlistdist        12.0  ;#14.0 #Radio externo de Verlet
+stepspercycle       10    ;#Pasos para el calculo de la lista de Verlet
+
+
+# Multiple time steps
+nonbondedFreq       1
+fullElectFrequency  2
+
+# Ensemble NVT
+# temperature         $temperature
+langevin            on;             # do langevin dynamics
+langevinTemp        $temperature;   # bath temperature
+langevinHydrogen    no
+langevinDamping     50.
+
+# Output
+outputName          ${oname}
+outputEnergies      200000
+restartfreq         200000
+dcdfreq             200000
+outputTiming        200000
+
+source OTFP.namd
+
+# Restart restraints
+ds_loadrestrains $ds job0.rstr 
+    
+# Restart chapeaus
+chapeau_loadstate $chape(0.address) job0.ch0
+          
+run  4000000 ;# 4ns
