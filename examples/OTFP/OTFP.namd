@@ -27,8 +27,8 @@ set BINREPORTPARAMFILE     ${oname} ;#ds->ch->ofp
 set BINOUTPUTLEVEL         3        ;#lambda-hits (e.g. 3 => 11 => both)
  
 # About grid
-set CUTOFF                  5.3
-set SPLINEMIN               2.5
+set CUTOFF                  4.8
+set SPLINEMIN               2.0
 set NKNOTS                  201 ;#dr=$CUTOFF-$SPLINEMIN/(NKNOTS-1)
 
 # Offset and interval for improve lambda parameters

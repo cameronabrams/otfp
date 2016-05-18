@@ -683,7 +683,7 @@ int DataSpace_ComputeCVs ( DataSpace * ds ) {
   if (!ds) return -1;
   for (i=0;i<ds->M;i++){
     c=ds->cv[i];
-    c->calc(c,ds);
+    c->calc(c,ds->R);
   }
   return 0;
 }

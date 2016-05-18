@@ -5,10 +5,4 @@ src/tags
 src/catbinsp
 src/cfacv.so
 src/chapadd
-examples/*/*
-!examples/systems/*
-!examples/*/reference
-!examples/*/*namd
-!examples/*/*plt
-!examples/*/*sh
 message

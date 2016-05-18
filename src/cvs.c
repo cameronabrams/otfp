@@ -147,7 +147,7 @@ cvStruct * New_cvStruct ( int typ, int nC, int * ind,
 }
 
 
-int calccv_s ( cvStruct * c, DataSpace * ds ) {
+int calccv_s ( cvStruct * c, double ** R ) {
   /* S is the CV of bond networks (see \cite{Barducci2006}) */
   int j,k,l;
   double r,aux;
@@ -157,7 +157,7 @@ int calccv_s ( cvStruct * c, DataSpace * ds ) {
   for (j=0;j<c->nC;j+=2) {
     k=c->ind[j];
     l=c->ind[j+1];
-    r=my_getbond( ds->R[k], ds->R[l], c->gr[j], c->gr[j+1]);
+    r=my_getbond( R[k], R[l], c->gr[j], c->gr[j+1]);
     aux=pow((r/2.5),6);
     c->val+=1./(1.+aux);
     aux=(6.*aux/r)/((1.+aux)*(1.+aux));
@@ -181,7 +181,7 @@ int set_zsd_circle ( double x,double y, double xy, double s  ) {
   return 0;
 }
 
-int calccv_zsd_circle ( cvStruct * c, DataSpace * ds ) {
+int calccv_zsd_circle ( cvStruct * c, double ** R ) {
   int i,l;
   double zsdc_v,zsdc_z;
   double aux,aux1,aux2,d,norm;
@@ -194,8 +194,8 @@ int calccv_zsd_circle ( cvStruct * c, DataSpace * ds ) {
     i=c->ind[l];
 
     // Compute the weight
-    aux1= (ds->R[i][0]-zsdc_x);
-    aux2= (ds->R[i][1]-zsdc_y);
+    aux1= (R[i][0]-zsdc_x);
+    aux2= (R[i][1]-zsdc_y);
     d=sqrt(aux1*aux1+aux2*aux2);
     aux1= zsdc_d-d;
     aux2=-zsdc_d-d;
@@ -203,7 +203,7 @@ int calccv_zsd_circle ( cvStruct * c, DataSpace * ds ) {
 
     // Accumulate and save the unnormalized weight
     norm+=aux;
-    zsdc_z+=aux*ds->R[i][2];
+    zsdc_z+=aux*R[i][2];
     c->gr[l][2]=aux;
  
     // Save the derivatvies of the unnormalized weight
@@ -217,8 +217,8 @@ int calccv_zsd_circle ( cvStruct * c, DataSpace * ds ) {
     } else {
      aux=-(aux1-aux2)/(zsdc_s*sqrt(2*M_PI)*d);
     }
-    c->gr[l][0]=aux*(ds->R[i][0]-zsdc_x);
-    c->gr[l][1]=aux*(ds->R[i][1]-zsdc_y);
+    c->gr[l][0]=aux*(R[i][0]-zsdc_x);
+    c->gr[l][1]=aux*(R[i][1]-zsdc_y);
   }
   zsdc_z=zsdc_z/norm;
 
@@ -228,7 +228,7 @@ int calccv_zsd_circle ( cvStruct * c, DataSpace * ds ) {
     i=c->ind[l];
 
     // Accumulate
-    aux=(ds->R[i][2]-zsdc_z);
+    aux=(R[i][2]-zsdc_z);
     zsdc_v+=aux*aux*c->gr[l][2];
   }
 
@@ -241,7 +241,7 @@ int calccv_zsd_circle ( cvStruct * c, DataSpace * ds ) {
   for (l=0;l<c->nC;l++) {
     i=c->ind[l];
 
-    aux=(ds->R[i][2]-zsdc_z);
+    aux=(R[i][2]-zsdc_z);
 
     //c->gr[l][0]=c->gr[l][0]*(aux*aux-zsdc_v)/norm;
     //c->gr[l][1]=c->gr[l][1]*(aux*aux-zsdc_v)/norm;
@@ -255,7 +255,7 @@ int calccv_zsd_circle ( cvStruct * c, DataSpace * ds ) {
 
 }
 
-int calccv_zsd_xrange ( cvStruct * c, DataSpace * ds ) {
+int calccv_zsd_xrange ( cvStruct * c, double ** R ) {
   // set_zsd_cricle set enough number of parameters for this cv
   // therefore we will use:
   //   zsdc_d as the widht of the x range
@@ -273,14 +273,14 @@ int calccv_zsd_xrange ( cvStruct * c, DataSpace * ds ) {
     i=c->ind[l];
 
     // Compute the weight
-    d= abs(ds->R[i][0]-zsdc_x);
+    d= abs(R[i][0]-zsdc_x);
     aux1= zsdc_d-d;
     aux2=-zsdc_d-d;
     aux=cdf(aux1/zsdc_s)-cdf(aux2/zsdc_s);
 
     // Accumulate and save the unnormalized weight
     norm+=aux;
-    zsdc_z+=aux*ds->R[i][2];
+    zsdc_z+=aux*R[i][2];
     c->gr[l][2]=aux;
  
     // Save the derivatvies of the unnormalized weight
@@ -294,7 +294,7 @@ int calccv_zsd_xrange ( cvStruct * c, DataSpace * ds ) {
     } else {
       aux=-(aux1-aux2)/(zsdc_s*sqrt(2*M_PI)*d);
     }
-    c->gr[l][0]=aux*(ds->R[i][0]-zsdc_x);
+    c->gr[l][0]=aux*(R[i][0]-zsdc_x);
     c->gr[l][1]=0.0;
   }
   zsdc_z=zsdc_z/norm;
@@ -305,7 +305,7 @@ int calccv_zsd_xrange ( cvStruct * c, DataSpace * ds ) {
     i=c->ind[l];
 
     // Accumulate
-    aux=(ds->R[i][2]-zsdc_z);
+    aux=(R[i][2]-zsdc_z);
     zsdc_v+=aux*aux*c->gr[l][2];
   }
 
@@ -318,7 +318,7 @@ int calccv_zsd_xrange ( cvStruct * c, DataSpace * ds ) {
   for (l=0;l<c->nC;l++) {
     i=c->ind[l];
 
-    aux=(ds->R[i][2]-zsdc_z);
+    aux=(R[i][2]-zsdc_z);
 
     //c->gr[l][0]=c->gr[l][0]*(aux*aux-zsdc_v)/norm;
     //c->gr[l][1]=c->gr[l][1]*(aux*aux-zsdc_v)/norm;
@@ -343,7 +343,7 @@ int set_zsd_ring ( double x,double y, double r1, double r2, double s  ) {
   return 0;
 }
 
-int calccv_zsd_ring ( cvStruct * c, DataSpace * ds ) {
+int calccv_zsd_ring ( cvStruct * c, double ** R ) {
   int i,l;
   double zsdr_v,zsdr_z;
   double aux,aux1,aux2,aux3,aux4,d,norm;
@@ -356,8 +356,8 @@ int calccv_zsd_ring ( cvStruct * c, DataSpace * ds ) {
     i=c->ind[l];
 
     // Compute the weight
-    aux1= (ds->R[i][0]-zsdr_x);
-    aux2= (ds->R[i][1]-zsdr_y);
+    aux1= (R[i][0]-zsdr_x);
+    aux2= (R[i][1]-zsdr_y);
     d=sqrt(aux1*aux1+aux2*aux2);
     aux1= zsdr_r2-d;
     aux2= zsdr_r1-d;
@@ -368,7 +368,7 @@ int calccv_zsd_ring ( cvStruct * c, DataSpace * ds ) {
 
     // Accumulate and save the unnormalized weight
     norm+=aux;
-    zsdr_z+=aux*ds->R[i][2];
+    zsdr_z+=aux*R[i][2];
     c->gr[l][2]=aux;
  
     // Save the derivatvies of the unnormalized weight
@@ -386,8 +386,8 @@ int calccv_zsd_ring ( cvStruct * c, DataSpace * ds ) {
     //  aux=-(aux1-aux2)/(zsdc_s*sqrt(2*M_PI)*d);
     aux=-(aux1-aux2-aux1+aux2)/(zsdr_s*sqrt(2*M_PI)*d);
     //} 
-    c->gr[l][0]=aux*(ds->R[i][0]-zsdr_x);
-    c->gr[l][1]=aux*(ds->R[i][1]-zsdr_y);
+    c->gr[l][0]=aux*(R[i][0]-zsdr_x);
+    c->gr[l][1]=aux*(R[i][1]-zsdr_y);
   }
   zsdr_z=zsdr_z/norm;
 
@@ -397,7 +397,7 @@ int calccv_zsd_ring ( cvStruct * c, DataSpace * ds ) {
     i=c->ind[l];
 
     // Accumulate
-    aux=(ds->R[i][2]-zsdr_z);
+    aux=(R[i][2]-zsdr_z);
     zsdr_v+=aux*aux*c->gr[l][2];
   }
 
@@ -410,7 +410,7 @@ int calccv_zsd_ring ( cvStruct * c, DataSpace * ds ) {
   for (l=0;l<c->nC;l++) {
     i=c->ind[l];
 
-    aux=(ds->R[i][2]-zsdr_z);
+    aux=(R[i][2]-zsdr_z);
 
     //c->gr[l][0]=c->gr[l][0]*(aux*aux-zsdr_v)/norm;
     //c->gr[l][1]=c->gr[l][1]*(aux*aux-zsdr_v)/norm;
@@ -424,19 +424,19 @@ int calccv_zsd_ring ( cvStruct * c, DataSpace * ds ) {
 
 }
 
-int calccv_bond ( cvStruct * c, DataSpace * ds ) {
-  c->val=my_getbond(ds->R[c->ind[0]],ds->R[c->ind[1]],c->gr[0],c->gr[1]);
+int calccv_bond ( cvStruct * c, double ** R ) {
+  c->val=my_getbond(R[c->ind[0]],R[c->ind[1]],c->gr[0],c->gr[1]);
   return 0;
 }
  
-int calccv_angle ( cvStruct * c, DataSpace * ds ) {
-  c->val=my_getangle(ds->R[c->ind[0]],ds->R[c->ind[1]],ds->R[c->ind[2]],
+int calccv_angle ( cvStruct * c, double ** R ) {
+  c->val=my_getangle(R[c->ind[0]],R[c->ind[1]],R[c->ind[2]],
 			    c->gr[0],        c->gr[1],        c->gr[2]);
   return 0;
 }
 
-int calccv_dihed ( cvStruct * c, DataSpace * ds ) {
-  c->val=my_getdihed(ds->R[c->ind[0]],ds->R[c->ind[1]],ds->R[c->ind[2]],ds->R[c->ind[3]],
+int calccv_dihed ( cvStruct * c, double ** R ) {
+  c->val=my_getdihed(R[c->ind[0]],R[c->ind[1]],R[c->ind[2]],R[c->ind[3]],
   		             c->gr[0],        c->gr[1],       c->gr[2],        c->gr[3]);
 #ifdef _PARANOIA_
 	if (_PARANOIA_) {
@@ -451,31 +451,31 @@ int calccv_dihed ( cvStruct * c, DataSpace * ds ) {
   return 0;
 }
 
-int calccv_x ( cvStruct * c, DataSpace * ds ) {
-  c->val=ds->R[c->ind[0]][0];
+int calccv_x ( cvStruct * c, double ** R ) {
+  c->val=R[c->ind[0]][0];
   c->gr[0][0]=1.0;
   c->gr[0][1]=0.0;
   c->gr[0][2]=0.0; 
   return 0;
 }
 
-int calccv_y ( cvStruct * c, DataSpace * ds ) {
-  c->val=ds->R[c->ind[0]][1];
+int calccv_y ( cvStruct * c, double ** R ) {
+  c->val=R[c->ind[0]][1];
   c->gr[0][0]=0.0;
   c->gr[0][1]=1.0;
   c->gr[0][2]=0.0; 
   return 0;
 }
 
-int calccv_z ( cvStruct * c, DataSpace * ds ) {
-  c->val=ds->R[c->ind[0]][2];
+int calccv_z ( cvStruct * c, double ** R ) {
+  c->val=R[c->ind[0]][2];
   c->gr[0][0]=0.0;
   c->gr[0][1]=0.0;
   c->gr[0][2]=1.0; 
   return 0;
 }
 
-int calccv_cogx ( cvStruct * c, DataSpace * ds ) {
+int calccv_cogx ( cvStruct * c, double ** R ) {
   double aux,aux2;
   int l,i;
 
@@ -486,14 +486,14 @@ int calccv_cogx ( cvStruct * c, DataSpace * ds ) {
     c->gr[l][0]=aux2;
     c->gr[l][1]=0.;
     c->gr[l][2]=0.;
-    aux+=ds->R[i][0];
+    aux+=R[i][0];
   }
 
   c->val = aux/c->nC;
   return 0;
 }
 
-int calccv_cogy ( cvStruct * c, DataSpace * ds ) {
+int calccv_cogy ( cvStruct * c, double ** R ) {
   double aux,aux2;
   int l,i;
 
@@ -504,14 +504,14 @@ int calccv_cogy ( cvStruct * c, DataSpace * ds ) {
     c->gr[l][0]=0.;
     c->gr[l][1]=aux2;
     c->gr[l][2]=0.;
-    aux+=ds->R[i][1];
+    aux+=R[i][1];
   }
 
   c->val = aux/c->nC;
   return 0;
 }
  
-int calccv_cogz ( cvStruct * c, DataSpace * ds ) {
+int calccv_cogz ( cvStruct * c, double ** R ) {
   double aux,aux2;
   int l,i;
 
@@ -522,7 +522,7 @@ int calccv_cogz ( cvStruct * c, DataSpace * ds ) {
     c->gr[l][0]=0.;
     c->gr[l][1]=0.;
     c->gr[l][2]=aux2;
-    aux+=ds->R[i][2];
+    aux+=R[i][2];
   }  
 
   c->val = aux/c->nC;

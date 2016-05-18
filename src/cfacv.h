@@ -74,9 +74,6 @@
 //#include "wrapcoords.h"
 #include "chapeau.h"       // basis functions
 
-// Cross reference with cfacv.h
-struct cvStruct;  
-typedef struct CVSTRUCT cvStruct;
 #include "cvs.h"           // collective variables
 #include "measurements.h"  // random numbers
 

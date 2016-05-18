@@ -7,14 +7,6 @@
 #include <stdio.h>
 #include "measurements.h"
 
-// Cross reference with cfacv.h
-struct DataSpace;  
-typedef struct DATASPACESTRUCT DataSpace;
-// this is needed because the dataspace
-// I guess that the coordinates should be a pointer of arrays in the cv structure
-// in order to give independence to this module
-#include "cfacv.h"
- 
 // collective variable structure
 typedef struct CVSTRUCT {
   int typ;       // collective variable type
@@ -37,7 +29,7 @@ typedef struct CVSTRUCT {
   int (*boundFunc)(struct CVSTRUCT * self);
 
   //pointer to function that calculate the value of the cv
-  int (*calc)(struct CVSTRUCT * self,  DataSpace * ds);
+  int (*calc)(struct CVSTRUCT * self,  double ** R );
                 
 } cvStruct;
 
@@ -49,19 +41,19 @@ cvStruct * New_cvStruct ( int typ, int nC, int * ind,
     double zmin, double zmax,
     char * boundstr, double boundk);
  
-int calccv_cogx  ( cvStruct * c, DataSpace * ds );
-int calccv_cogy  ( cvStruct * c, DataSpace * ds );
-int calccv_cogz  ( cvStruct * c, DataSpace * ds );
-int calccv_x     ( cvStruct * c, DataSpace * ds );
-int calccv_y     ( cvStruct * c, DataSpace * ds );
-int calccv_z     ( cvStruct * c, DataSpace * ds );
-int calccv_s     ( cvStruct * c, DataSpace * ds );
-int calccv_bond  ( cvStruct * c, DataSpace * ds );
-int calccv_dihed ( cvStruct * c, DataSpace * ds );
-int calccv_angle ( cvStruct * c, DataSpace * ds );
-int calccv_zsd_circle ( cvStruct * c, DataSpace * ds );
-int calccv_zsd_xrange ( cvStruct * c, DataSpace * ds );
-int calccv_zsd_ring ( cvStruct * c, DataSpace * ds );
+int calccv_cogx  ( cvStruct * c, double ** R );
+int calccv_cogy  ( cvStruct * c, double ** R );
+int calccv_cogz  ( cvStruct * c, double ** R );
+int calccv_x     ( cvStruct * c, double ** R );
+int calccv_y     ( cvStruct * c, double ** R );
+int calccv_z     ( cvStruct * c, double ** R );
+int calccv_s     ( cvStruct * c, double ** R );
+int calccv_bond  ( cvStruct * c, double ** R );
+int calccv_dihed ( cvStruct * c, double ** R );
+int calccv_angle ( cvStruct * c, double ** R );
+int calccv_zsd_circle ( cvStruct * c, double ** R );
+int calccv_zsd_xrange ( cvStruct * c, double ** R );
+int calccv_zsd_ring ( cvStruct * c, double ** R );
 int set_zsd_circle ( double x,double y, double xy, double s  ); 
 int set_zsd_ring ( double x,double y, double r1, double r2, double s  ); 
 double fcut(double r,double r1,double r2,double dfcut);
