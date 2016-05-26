@@ -789,6 +789,27 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
     }
   }
 
+  // For each CV in dataspace
+  for (j=0;j<ds->M;j++) {
+    cv=ds->cv[j];
+    
+    // For each center in this CV
+    for (jj=0;jj<cv->nC;jj++) {
+
+      // Restart forces in CVs
+      cv->f=0;
+      cv->u=0;
+
+      // Compute the boundary forces
+      cv->boundFunc(cv);
+
+      // Add boundary forces
+      for (d=0;d<3;d++) ds->R[ cv->ind[jj] ][d]+=cv->gr[jj][d]*cv->f;
+
+
+    }
+  }
+   
   // OTFP
   if (ds->doAnalyticalCalc) {
  
@@ -851,8 +872,10 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
     // Compute the boundary forces not included in the atom forces!!
     r->boundFunc(r);
 
+    // Evolution of TAMD restraints
     if (r->tamdOpt) r->evolveFunc(r,-r->f);
- 
+  
+    // Evolution of SMD restraints
     if (r->smdOpt) {
       r->evolve=(int)(r->smdOpt->t0<=timestep)&&(r->smdOpt->t1>=timestep);
       r->evolveFunc(r,r->smdOpt->increment);

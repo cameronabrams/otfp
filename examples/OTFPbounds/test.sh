@@ -4,7 +4,7 @@ set -o errexit
 set -o pipefail
 
 # Run simulation
-# namd2 job0.namd > job0.log
+namd2 job0.namd > job0.log
 
 for file in $(ls *bsp); do
 
@@ -77,7 +77,8 @@ HERETCL
 
   set title "CV trace"
   set output "${f}.png"
-  plot '${f}.s' u (\$0+1):1 w l notit
+  unset key
+  plot '${f}.s' u (\$0+1):1 w l, 3.8, 3.5
 
 HEREGNUPLOT
 
