@@ -61,7 +61,7 @@ char * rf_getstyp ( int ityp ) {
 
 // RESTRAIN STRUCTURES
 
-restrStruct * New_restrStruct ( 
+restraint * New_restraint ( 
     double k, double z, int nCV, 
     double * cvc, char * rftypstr, 
     double zmin, double zmax,
@@ -69,7 +69,7 @@ restrStruct * New_restrStruct (
     char * outfile, int outputFreq
     ) {
 
-  restrStruct * newr=malloc(sizeof(restrStruct));
+  restraint * newr=malloc(sizeof(restraint));
   int i,b_pbc,b_peri;
   b_pbc=0;
   b_peri=0;
@@ -179,7 +179,7 @@ int smdOptInit ( smdOptStruct * smd, double initval) {
 
 void ds_saverestrains ( DataSpace * ds, char * filename ) {
   int i;
-  restrStruct * r;
+  restraint * r;
   FILE * ofs;
 
   ofs=fopen(filename,"w");
@@ -197,7 +197,7 @@ void ds_saverestrains ( DataSpace * ds, char * filename ) {
 
 void ds_loadrestrains ( DataSpace * ds, char * filename ) {
   int i;
-  restrStruct * r;
+  restraint * r;
   FILE * ofs;
   
   ofs=fopen(filename,"r");
@@ -222,14 +222,14 @@ void ds_loadrestrains ( DataSpace * ds, char * filename ) {
 
 //ENERGY FUNCTIONS
 
-int HarmonicCart ( restrStruct * r ) {
+int HarmonicCart ( restraint * r ) {
   double tmp=r->val-r->z;
   r->f=-r->k*tmp;
   r->u=0.5*r->k*tmp*tmp;
   return 0;
 }
 
-int HarmonicCart_cutoff ( restrStruct * r ) {
+int HarmonicCart_cutoff ( restraint * r ) {
   //double r1=10.0,r2=12.0;
  
   // Non tie
@@ -281,7 +281,7 @@ int HarmonicCart_cutoff ( restrStruct * r ) {
   return 0;
 }
 
-int HarmonicCart_pbc ( restrStruct * r ) {
+int HarmonicCart_pbc ( restraint * r ) {
   double tmp=r->val-r->z;
   if (tmp>r->half_domain) {tmp-=2*r->half_domain;}
   if (tmp<-r->half_domain) {tmp+=2*r->half_domain;}
@@ -290,7 +290,7 @@ int HarmonicCart_pbc ( restrStruct * r ) {
   return 0;
 }
 
-int HarmonicCart_cutoff_pbc ( restrStruct * r ) {
+int HarmonicCart_cutoff_pbc ( restraint * r ) {
 
   // Release tie
   if (r->z>r->max) {
@@ -317,17 +317,17 @@ int HarmonicCart_cutoff_pbc ( restrStruct * r ) {
 
 //BOUNDARIES
  
-int nada ( restrStruct * r ) {
+int nada ( restraint * r ) {
   return 0;
 }
 
-int SoftWalls ( restrStruct * r ) {
+int SoftWalls ( restraint * r ) {
   SoftUpperWall(r);
   SoftLowerWall(r);
   return 0;
 }
  
-int SoftLowerWall ( restrStruct * r ) {
+int SoftLowerWall ( restraint * r ) {
   double aux;
   aux=r->z-r->min;
   if (aux>0.) return 0;
@@ -337,7 +337,7 @@ int SoftLowerWall ( restrStruct * r ) {
   return 0;
 }
 
-int SoftUpperWall ( restrStruct * r ) {
+int SoftUpperWall ( restraint * r ) {
   double aux;
   aux=r->z-r->max;
   if (aux<0.) return 0;
@@ -347,14 +347,14 @@ int SoftUpperWall ( restrStruct * r ) {
   return 0;
 }
  
-int Periodic ( restrStruct * r ) {
+int Periodic ( restraint * r ) {
   // TODO: Periodic is the same that PBC and can be unified.
   if (r->z>M_PI) r->z-=2*M_PI;
   else if (r->z<-M_PI) r->z+=2*M_PI;
   return 0;
 }
  
-int pbc ( restrStruct * r ) {
+int pbc ( restraint * r ) {
   if (r->z>r->max) r->z-=2*r->half_domain;
   if (r->z<-r->min) r->z+=2*r->half_domain;
   return 0;
@@ -364,7 +364,7 @@ int pbc ( restrStruct * r ) {
 // EVOLUTION OF RESTRIANS
 
 /* Brownian dynamics (TAMD)*/
-int cbd ( restrStruct * r, double f ) {
+int cbd ( restraint * r, double f ) {
   tamdOptStruct * tamd=r->tamdOpt;
   double dd = tamd->ginv*tamd->dt*f;
   double rd = tamd->noise*gasdev();
@@ -377,7 +377,7 @@ int cbd ( restrStruct * r, double f ) {
 }
 
 /* Constant Velocity (SMD)*/
-int uniformvelocity ( restrStruct * r, double f ) {
+int uniformvelocity ( restraint * r, double f ) {
   if (!r->evolve) return 0;
   r->z=r->z+f;
   return 0;
@@ -403,15 +403,15 @@ int uniformvelocity ( restrStruct * r, double f ) {
 // DATA SPACE
 
 
-DataSpace * NewDataSpace ( int N, int M, int K, long int seed ) {
+DataSpace * NewDataSpace ( int N, int ncv, int K, long int seed ) {
   DataSpace * ds = malloc(sizeof(DataSpace));
   int i;
   ds->N=N;
-  ds->M=M;
   ds->K=K;
   ds->iN=0;
-  ds->iM=0;
   ds->iK=0;
+
+  ds->ncv=ncv;   ds->icv=0;
 
   // This will not work with numbers less that 16 bits!
   //// Random seed. I deatached this from the data space a do it global
@@ -438,8 +438,8 @@ DataSpace * NewDataSpace ( int N, int M, int K, long int seed ) {
 
   ds->ac = (atomCenterStruct**)malloc(N*sizeof(atomCenterStruct*));
 
-  ds->cv=(cvStruct**)malloc(M*sizeof(cvStruct*));
-  ds->restr=(restrStruct**)malloc(K*sizeof(restrStruct*));
+  ds->cv=(cv**)malloc(ncv*sizeof(cv*));
+  ds->restr=(restraint**)malloc(K*sizeof(restraint*));
 
   ds->doAnalyticalCalc=0;
   ds->evolveAnalyticalParameters=0;
@@ -579,30 +579,31 @@ int DataSpace_AddAtomCenter ( DataSpace * ds, int n, int * ind, double * m ) {
     ds->ac[i]->M+=m[j];
   }
 
-  return (i);
+  return i;
 }
 
-int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind,
-		      double zmin, double zmax,char * boundf, double boundk ) {
-  int ityp=cv_getityp(typ);
-
+cv * DataSpace_add_cv ( DataSpace * ds, char * typ, int nind, int * ind,
+		      double zmin, double zmax,char * boundf,double boundk,  
+          char * outfile, int outputFreq )  {
+  int i;
   if (!ds) {fprintf(stderr,"CFACV) null argument\n"); exit(-1);}
 
-  if (ds->iM<ds->M) {
-    ds->cv[ds->iM++]=New_cvStruct(ityp,nind,ind,zmin,zmax,boundf,boundk);
-    return (ds->iM-1);
-  }
-  return -1;
-      
+  ds->icv++;
+  if (ds->icv>ds->ncv) {fprintf(stderr,"CFACV) out of size\n"); exit(-1);}
+
+  i=ds->icv-1;
+  ds->cv[i]=cv_init(typ,nind,ind,zmin,zmax,boundf,boundk,outfile,outputFreq);
+
+  return ds->cv[i];
 }
 
-restrStruct * DataSpace_AddRestr ( DataSpace * ds, double k, double z, int nCV, double * cvc, char * rftypstr, 
+restraint * DataSpace_AddRestr ( DataSpace * ds, double k, double z, int nCV, double * cvc, char * rftypstr, 
 			 double zmin, double zmax,char * boundf, double boundk, char * outfile, int outputFreq ) 
 {
-  // Esta subrrutina parece que hace lo mismo que New_restrStruct, pero tambien
+  // Esta subrrutina parece que hace lo mismo que New_restraint, pero tambien
   // registra la nueva estructura en dataspace, que es el objeto que va a
   // recordar la dimension de los vectores donde se almacenan los objetos como
-  // restrStruct. Si en C existiera una forma de comprobar la dimension de los
+  // restraint. Si en C existiera una forma de comprobar la dimension de los
   // vectores, la estructura dataspace no haria falta.
   int i;
 
@@ -612,13 +613,13 @@ restrStruct * DataSpace_AddRestr ( DataSpace * ds, double k, double z, int nCV, 
   if (ds->iK>ds->K) {fprintf(stderr,"CFACV) out of size\n"); exit(-1);}
  
   i=ds->iK-1;
-  ds->restr[i]=New_restrStruct(k,z,nCV,cvc,rftypstr,zmin,zmax,boundf,boundk,outfile, outputFreq);
+  ds->restr[i]=New_restraint(k,z,nCV,cvc,rftypstr,zmin,zmax,boundf,boundk,outfile, outputFreq);
     
 
   return ds->restr[i];
 }
 
-int restr_set_rchid ( restrStruct * r, DataSpace * ds, int chid) {
+int restr_set_rchid ( restraint * r, DataSpace * ds, int chid) {
   if (!ds) {fprintf(stderr,"CFACV) null argument\n"); exit(-1);}
   if (!r) {fprintf(stderr,"CFACV) null argument\n"); exit(-1);}
   if (chid>=ds->ch_num) return -1;
@@ -626,7 +627,7 @@ int restr_set_rchid ( restrStruct * r, DataSpace * ds, int chid) {
   return 0;
 }
  
-int restr_AddTamdOpt ( restrStruct * r, double g, double kt, double dt, int chid, int chdm  ) {
+int restr_AddTamdOpt ( restraint * r, double g, double kt, double dt, int chid, int chdm  ) {
   
   if (!r) return -1;
 
@@ -637,7 +638,7 @@ int restr_AddTamdOpt ( restrStruct * r, double g, double kt, double dt, int chid
   return 0;
 }
 
-int restr_UpdateTamdOpt ( restrStruct * r, double g, double kt, double dt ) {
+int restr_UpdateTamdOpt ( restraint * r, double g, double kt, double dt ) {
   tamdOptStruct * tamd;
   if (!r) return -1;
   tamd = r->tamdOpt;
@@ -650,7 +651,7 @@ int restr_UpdateTamdOpt ( restrStruct * r, double g, double kt, double dt ) {
   return 0;
 }
  
-int restr_AddSmdOpt  ( restrStruct * r, double target, int t0, int t1 ) {
+int restr_AddSmdOpt  ( restraint * r, double target, int t0, int t1 ) {
   if (!r) return -1;
   r->evolveFunc = uniformvelocity;
   r->smdOpt = New_smdOptStruct(target,t0,t1);
@@ -658,33 +659,32 @@ int restr_AddSmdOpt  ( restrStruct * r, double target, int t0, int t1 ) {
   return 0;
 }
 
-double restr_getz ( restrStruct * r ) {
+double restr_getz ( restraint * r ) {
   if (!r) return -1;
   return r->z;
 }
 
-double restr_getu ( restrStruct * r ) {
+double restr_getu ( restraint * r ) {
   if (!r) return -1;
   return r->u;
 }
 
-void restr_output ( restrStruct * r ) {
+void restr_output ( restraint * r ) {
   fprintf(r->ofp,"%11.5f",r->z);
-  fprintf(r->ofp,"%11.5f",r->val);
-  fprintf(r->ofp,"%11.5f",r->f);
-  fprintf(r->ofp,"%d\n",r->chid);
+  // fprintf(r->ofp,"%11.5f",r->val);
+  fprintf(r->ofp," %11.5f",r->f);
+  fprintf(r->ofp," %d\n",r->chid);
   fflush(r->ofp);
 }
 
 int DataSpace_ComputeCVs ( DataSpace * ds ) {
   int i;
-  cvStruct * c;
  
   if (!ds) return -1;
-  for (i=0;i<ds->M;i++){
-    c=ds->cv[i];
-    c->calc(c,ds->R);
+  for (i=0;i<ds->ncv;i++){
+    ds->cv[i]->calc(ds->cv[i],ds->R);
   }
+ 
   return 0;
 }
 
@@ -694,8 +694,8 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
   double * cvc;
   int d=0;
   int K=ds->K;
-  cvStruct * cv;
-  restrStruct * r;
+  cv * cv;
+  restraint * r;
   chapeau * ch;
       
   // install SIGINT handler
@@ -745,13 +745,6 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
     r=ds->restr[i];
     cvc=r->cvc;
 
-    // if this is a cartesian single-cv restraint, get the dimension
-    for (j=0;j<r->nCV;j++) {
-      if (cvc[j]) {
-          d=cv_dimension(ds->cv[j]);
-      }
-    }
-
     // Compute the energy and the force of the restrain
     r->energyFunc(r);
 
@@ -790,24 +783,26 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
   }
 
   // For each CV in dataspace
-  for (j=0;j<ds->M;j++) {
+  for (j=0;j<ds->ncv;j++) {
     cv=ds->cv[j];
+
+    // Restart forces in CVs
+    cv->f=0;
+    cv->u=0;
+
+    // Compute the boundary forces
+    cv->boundFunc(cv);
     
-    // For each center in this CV
+    // Add boundary forces
     for (jj=0;jj<cv->nC;jj++) {
-
-      // Restart forces in CVs
-      cv->f=0;
-      cv->u=0;
-
-      // Compute the boundary forces
-      cv->boundFunc(cv);
-
-      // Add boundary forces
       for (d=0;d<3;d++) ds->R[ cv->ind[jj] ][d]+=cv->gr[jj][d]*cv->f;
-
-
     }
+
+    // cv output
+    if (cv->boutput) {
+      if (!(timestep % cv->outputFreq)) cv_output(cv);
+    }
+     
   }
    
   // OTFP
@@ -892,7 +887,7 @@ double DataSpace_RestraintEnergy ( DataSpace * ds ) {
   if (ds) {
     double u=0.0;
     int i;
-    restrStruct * r;
+    restraint * r;
     for (i=0;i<ds->K;i++) {
       r=ds->restr[i];
       u+=r->u;
@@ -905,7 +900,7 @@ double DataSpace_RestraintEnergy ( DataSpace * ds ) {
 void DataSpace_ReportCV ( DataSpace * ds, int * active, double * res ) {
   if (ds) {
     int i;
-    for (i=0;i<ds->M;i++) {
+    for (i=0;i<ds->ncv;i++) {
       if (active[i]) res[i]=ds->cv[i]->val;
       else res[i]=0.0;
     }
@@ -916,12 +911,12 @@ void DataSpace_ReportAll ( DataSpace * ds ) {
   if (ds) {
     int i,j,k;
     printf("CFACV_OTFP/C) DataSpace: %i Centers, %i CV's, %i Restraints\n",
-	   ds->N, ds->M, ds->K);
+	   ds->N, ds->ncv, ds->K);
     for (i=0;i<ds->N;i++) {
       printf("CFACV_OTFP/C)  Center %i : %.5f %.5f %.5f\n",
 	     i,ds->R[i][0],ds->R[i][1],ds->R[i][2]);
     }
-    for (i=0;i<ds->M;i++) {
+    for (i=0;i<ds->ncv;i++) {
       printf("CFACV_OTFP/C)      CV %i : typ %s val %.5f ind ",i,cv_getstyp(ds->cv[i]->typ),
 	     ds->cv[i]->val);
       for (j=0;j<ds->cv[i]->nC;j++) printf("%i ",ds->cv[i]->ind[j]);

@@ -12,12 +12,9 @@ load ${CFACV_BASEDIR}/cfacv.so cfa_cvlibc
 
 # load tcl procedures
 source ${CFACV_BASEDIR}/data.tcl
-source ${CFACV_BASEDIR}/centers.tcl
 source ${CFACV_BASEDIR}/restraints.tcl
 source ${CFACV_BASEDIR}/cvs.tcl
 source ${CFACV_BASEDIR}/chapeau.tcl
-
-
 
 # BEGIN FUNCTION DEFINITION ###############################
 
@@ -61,8 +58,8 @@ proc Tcl_UpdateDataSpace { ds lC groups first timestep } {
     # Move group center positions to dataspace
     set i 0
     foreach g $groups {
-	ListToArray_Data [DataSpace_centerPos $ds $i] $p($g)
-	incr i
+      ListToArray_Data [DataSpace_centerPos $ds $i] $p($g)
+      incr i
     }
     MyParanoiaCheck $ds "tripped after moving data to dataspace"
 
@@ -126,8 +123,6 @@ proc MyParanoiaCheck {ds msg} {
 set CFACV_VERSION 0.30
 set kB_kcm 0.001987191
 set first 1
-set serArray {}; # must have for addgroup
-set pdbline {};
 set masses {}
 
 # Banner
@@ -141,18 +136,14 @@ if {![info exists seed]} {
 print "CFACV) random seed $seed"
 
 # Read the template PDB file that identifies subdomain memberships
-set nCntr [read_centersPDB $labelPDB serArray masses pdbline]
-#nCntr is the number of centers
-#serArray is the atom serial list of each group
-#masses is the atom mass list of each group
-#ch_id holds the chapeau object for the ij pair type
-print "CFACV) nCenters $nCntr  masses $masses"
+parse_pdb $labelPDB pdb
+print "CFACV) nCenters $pdb(nctrs)"
 
 # Allocate dataspace in C code
-set ds [NewDataSpace $nCntr $cv(num) $restr(num) $seed]
+set ds [NewDataSpace $pdb(nctrs) $cv(num) $restr(num) $seed]
  
 # Add CVs to the datapsace structure
-cvs_setup $nCntr pdbline
+cvs_setup pdb
  
 # Add restraints to the dataspace structure
 rlist_setup $cv(num)

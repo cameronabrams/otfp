@@ -1,6 +1,6 @@
 #!/bin/tclsh
  
-set oname           job0
+set oname           rmsd
 set temperature     298
 set seed            923458
 seed                $seed
@@ -8,7 +8,7 @@ seed                $seed
 
 # The molecules
 structure           ../systems/buta.psf
-coordinates         ../systems/buta.pdb
+coordinates         ../systems/buta_gauche.pdb
 
 firsttimestep       0
 timestep            2.0
@@ -44,10 +44,10 @@ langevinDamping     50.
 # Output
 outputName          ${oname}
 restartfreq         10000
-dcdfreq             5000
-xstfreq             5000
-outputEnergies      5000
+dcdfreq             1000
+xstfreq             1000
+outputEnergies      1000
 
-source OTFP.namd
+source rmsd.otfp
 
-run  1000000 ;# 4ns
+run  1000000 ;# 2ns

@@ -65,4 +65,4 @@ ds_loadrestrains $ds job0.rstr
 # Restart chapeaus
 chapeau_loadstate $chape(0.address) job0.ch0
           
-run  4000000 ;# 4ns
+run  2000000 ;# 4ns

@@ -1,6 +1,6 @@
 #!/bin/tclsh
  
-set oname           job0
+set oname           line
 set temperature     298
 set seed            923458
 seed                $seed
@@ -8,7 +8,7 @@ seed                $seed
 
 # The molecules
 structure           ../systems/buta.psf
-coordinates         ../systems/buta.pdb
+coordinates         ../systems/buta_gauche.pdb
 
 firsttimestep       0
 timestep            2.0
@@ -48,6 +48,6 @@ dcdfreq             5000
 xstfreq             5000
 outputEnergies      5000
 
-source OTFP.namd
+source line.otfp
 
-run  1000000 ;# 4ns
+run   5000000 ;# 10ns

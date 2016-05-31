@@ -49,8 +49,8 @@ for file in $(ls *bsp); do
 
   set cbrange [0:25]
   set output "${f}_fes.png"
-  set ylabel 'φ' norotate
-  set xlabel 'ψ' offset 1,0
+  set xlabel 'φ' norotate
+  set ylabel 'ψ' offset 1,0
   set pm3d map
   splot [-pi:pi][-pi:pi]\
       '${f}.fes' u 2:1:(Is0(\$3)-fesmin) notit

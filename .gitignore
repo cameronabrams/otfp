@@ -3,6 +3,6 @@ src/version
 src/*_wrap.c
 src/tags
 src/catbinsp
-src/cfacv.so
+src/*.so
 src/chapadd
 message

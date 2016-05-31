@@ -15,15 +15,15 @@ double get_double(double *a, int index) {
 %}
 extern void cfacvBanner ( void );
 extern FILE * my_fopen ( char * name, char * code );
-extern DataSpace * NewDataSpace ( int N, int M, int K, long int seed ) ;
+extern DataSpace * NewDataSpace ( int N, int ncv, int K, long int seed ) ;
 extern chapeau * DataSpace_get_chapeauadress ( DataSpace * ds, int i );
 extern int DataSpace_AddAtomCenter ( DataSpace * ds, int n, int * ind, double * m );
-extern int DataSpace_AddCV ( DataSpace * ds, char * typ, int nind, int * ind, double zmin, double zmax,char * boundf, double boundk );
-restrStruct * DataSpace_AddRestr  ( DataSpace * ds, double k, double targ, int nCV, double * cvc, char * rftypstr, double zmin, double zmax,char * boundf, double boundk,char * outfile, int outputFreq);
+cv * DataSpace_add_cv ( DataSpace * ds, char * typ, int nind, int * ind, double zmin, double zmax,char * boundf, double boundk, char * outfile, int outputFreq );
+restraint * DataSpace_AddRestr  ( DataSpace * ds, double k, double targ, int nCV, double * cvc, char * rftypstr, double zmin, double zmax,char * boundf, double boundk,char * outfile, int outputFreq);
 extern int DataSpace_SetupChapeau ( DataSpace * ds, int numrep, int dm, double * min, int * nKnots, double * max, int periodic, int beginaccum, int beginsolve, int useTAMDforces, char * outfile, int outfreq, int outlevel, int nupdate);
-extern int restr_UpdateTamdOpt ( restrStruct * r, double g, double kt, double dt );
-extern int restr_AddTamdOpt ( restrStruct * r, double g, double kt, double dt, int chid , int chdm );
-extern int restr_AddSmdOpt  ( restrStruct * r, double target, int t0, int t1 );
+extern int restr_UpdateTamdOpt ( restraint * r, double g, double kt, double dt );
+extern int restr_AddTamdOpt ( restraint * r, double g, double kt, double dt, int chid , int chdm );
+extern int restr_AddSmdOpt  ( restraint * r, double target, int t0, int t1 );
 extern int DataSpace_getN ( DataSpace * ds );
 extern void DataSpace_ReportAll ( DataSpace * ds );
 void DataSpace_ReportCV ( DataSpace * ds, int * active, double * res );
@@ -52,8 +52,8 @@ extern void chapeau_savestate ( chapeau * ch, char * filename );
 extern void ds_loadrestrains ( DataSpace * ds, char * filename );
 extern void ds_saverestrains ( DataSpace * ds, char * filename );
 
-extern double restr_getz ( restrStruct * r );
-extern double restr_getu ( restrStruct * r );
-extern int restr_set_rchid ( restrStruct * r, DataSpace * ds, int chid);
+extern double restr_getz ( restraint * r );
+extern double restr_getu ( restraint * r );
+extern int restr_set_rchid ( restraint * r, DataSpace * ds, int chid);
 
 //extern void chapeau_setmref ( chapeau * ch, double z );
