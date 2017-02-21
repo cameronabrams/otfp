@@ -232,7 +232,6 @@ void chapeau_loadstate ( chapeau * ch, char * filename ) {
     
     // This variables might be not set
     ch->nupdate     = chaux->nupdate    ;
-    strcpy(ch->filename,chaux->filename);
     ch->outputFreq  = chaux->outputFreq ;
     ch->outputLevel = chaux->outputLevel;
     
