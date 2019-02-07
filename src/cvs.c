@@ -8,6 +8,7 @@ enum {ZSDCIRCLE,
       RMSD, 
       LINE, 
       BOND,
+      HALFBOND,
       S,
       ANGLE,
       DIHED,
@@ -26,6 +27,7 @@ char * CVSTRINGS[NULL_CV] = {
       "RMSD",
       "LINE",
       "BOND",
+      "HALFBOND",
       "S",
       "ANGLE",
       "DIHED",
@@ -82,6 +84,7 @@ cv * cv_init ( char * typ, int nC, int * ind,
                       for (i=0;i<nC;i++) c->ref2[i] = calloc(3,sizeof(double));
                       break;
     case BOND:        c->calc = calccv_bond; break;
+    case HALFBOND:    c->calc = calccv_halfbond; break;
     case S:           c->calc = calccv_s; break;
     case ANGLE:       c->calc = calccv_angle; break;
     case DIHED:       c->calc = calccv_dihed; break;
@@ -540,6 +543,14 @@ int calccv_zsd_ring ( cv * c, double ** R ) {
 
 int calccv_bond ( cv * c, double ** R ) {
   c->val=my_getbond(R[c->ind[0]],R[c->ind[1]],c->gr[0],c->gr[1]);
+  return 0;
+}
+ 
+int calccv_halfbond ( cv * c, double ** R ) {
+  c->val=my_getbond(R[c->ind[0]],R[c->ind[1]],c->gr[0],c->gr[1]);
+  c->gr[1][0]=0.;
+  c->gr[1][1]=0.;
+  c->gr[1][2]=0.;
   return 0;
 }
  

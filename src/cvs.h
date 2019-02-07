@@ -61,6 +61,7 @@ int calccv_x     ( cv * c, double ** R );
 int calccv_y     ( cv * c, double ** R );
 int calccv_z     ( cv * c, double ** R );
 int calccv_s     ( cv * c, double ** R );
+int calccv_halfbond  ( cv * c, double ** R );
 int calccv_bond  ( cv * c, double ** R );
 int calccv_dihed ( cv * c, double ** R );
 int calccv_angle ( cv * c, double ** R );
