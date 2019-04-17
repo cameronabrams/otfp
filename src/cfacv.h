@@ -186,8 +186,8 @@ unsigned short * Xi;
 // Other subroutines
 FILE * my_fopen ( char * name, char * code ) ;
 DataSpace * NewDataSpace ( int N, int ncv, int K, long int seed );
-int DataSpace_Setupchapeau ( DataSpace * ds, int numrep, int dm, double * min,
-    int * nKnots, double * max, int periodic, int beginaccum, int beginsolve, 
+int DataSpace_SetupChapeau ( DataSpace * ds, int numrep, int dm, double * min,
+    int * nKnots, double * max, int * periodic, int beginaccum, int beginsolve, 
     int useTAMDforces, char * outfile, int outfreq, int outlevel, int nupdate);
 chapeau * DataSpace_get_chapeauadress ( DataSpace * ds, int i );
 int DataSpace_getN ( DataSpace * ds );

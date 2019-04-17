@@ -13,23 +13,21 @@ proc parse_pdb {pdbfile pdbarray} {
   close $inStream
   set lines [split $data \n]
 
+  set j 0 
+
   foreach line $lines {
 
-    # Check if we have an ATOM
+    # Check if we have an ATOM. NAMD does not pay atention to pdb atom index so
+    # we will just count.
     set cardstr [string range $line 0 3]
     if {$cardstr ne "ATOM"} continue
+ 
+    # Retrive atom index
+    incr j
  
     # Check and retrive center index
     set i [expr int([string trim [string range $line 60 65]])]
     if {$i == 0} continue
-
-    # Retrive atom index
-    set j [string trim [string range $line 6 11]]
-    if {[string is integer $j]} {
-      set serl [expr $j]
-        } else {
-      set serl [expr 0x$j]
-    }
 
     # Save center data
     if {![info exists pdb($i.atoms)]} {incr pdb(nctrs)}

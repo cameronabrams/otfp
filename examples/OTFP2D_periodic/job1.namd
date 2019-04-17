@@ -17,7 +17,7 @@ binCoordinates      job0.restart.coor
 binVelocities       job0.restart.vel
 extendedsystem      job0.restart.xsc
 
-firsttimestep       1000000
+firsttimestep       500000
 timestep            2.0
 rigidBonds          all  
 
@@ -82,4 +82,4 @@ ds_loadrestrains $ds job0.rstr
 chapeau_loadstate $chape(0.address) job0.ch0
           
 # variables needed for the tclforcesscript
-run  5000000 ;# 5ns
+run    500000 ;#  1ns

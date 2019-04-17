@@ -162,7 +162,9 @@ if {[info exists CFACV_doAnalyticalCalc]} {
 
     # Default modes
     if {![info exists DIMEN]} {set DIMEN 1}
-    if {![info exists PERIODIC]} {set PERIODIC 0}
+    if {![info exists PERIODIC]} {
+      for {set i 0} {$i < $DIMEN} {incr i} {lappend PERIODIC 0}
+    }
 
     # Saving for allocate chapeau functions
     chapeau_setup $NUMREP $ds $DIMEN $SPLINEMIN $NKNOTS $CUTOFF $PERIODIC $BEGINEVOLVEPARAMETERS  $BEGINSOLVELAM $USETAMDFORCES $BINREPORTPARAMFILE $BINREPORTPARAMFREQ $BINOUTPUTLEVEL $LAMUPDATEINTERVAL

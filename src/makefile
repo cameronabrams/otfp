@@ -2,8 +2,6 @@
 # This makefile will compile all c stuff in a shared object
 # that, thanks to SWIG, is ready to be loaded in tcl scripts
 
-CC=gcc
-
 ifeq ($(CC),icc)
   LIBS+=-mkl
   # LIBS+=-lmkl_avx

@@ -20,7 +20,7 @@ extern chapeau * DataSpace_get_chapeauadress ( DataSpace * ds, int i );
 extern int DataSpace_AddAtomCenter ( DataSpace * ds, int n, int * ind, double * m );
 cv * DataSpace_add_cv ( DataSpace * ds, char * typ, int nind, int * ind, double zmin, double zmax,char * boundf, double boundk, char * outfile, int outputFreq );
 restraint * DataSpace_AddRestr  ( DataSpace * ds, double k, double targ, int nCV, double * cvc, char * rftypstr, double zmin, double zmax,char * boundf, double boundk,char * outfile, int outputFreq);
-extern int DataSpace_SetupChapeau ( DataSpace * ds, int numrep, int dm, double * min, int * nKnots, double * max, int periodic, int beginaccum, int beginsolve, int useTAMDforces, char * outfile, int outfreq, int outlevel, int nupdate);
+extern int DataSpace_SetupChapeau ( DataSpace * ds, int numrep, int dm, double * min, int * nKnots, double * max, int * periodic, int beginaccum, int beginsolve, int useTAMDforces, char * outfile, int outfreq, int outlevel, int nupdate);
 extern int restr_UpdateTamdOpt ( restraint * r, double g, double kt, double dt );
 extern int restr_AddTamdOpt ( restraint * r, double g, double kt, double dt, int chid , int chdm );
 extern int restr_AddSmdOpt  ( restraint * r, double target, int t0, int t1 );

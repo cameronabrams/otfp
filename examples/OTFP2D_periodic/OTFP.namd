@@ -34,7 +34,7 @@ lappend CUTOFF          [expr acos(-1.)]
 set SPLINEMIN           [expr -acos(-1.)]
 lappend SPLINEMIN       [expr -acos(-1.)]
 set NKNOTS                 {151 151} 
-set PERIODIC                1
+set PERIODIC                {1 1}
 #dr=$CUTOFF-$SPLINEMIN/(NKNOTS-1)
 
 # Offset and interval for improve lambda parameters
@@ -61,10 +61,10 @@ set restr(num)        2
 set restr(1.cv)       1              ; # The cv or cvs associated
 set restr(1.chid)     0           
 set restr(1.chdm)     0
-set restr(1.k)        1500           ; # spring constant
+set restr(1.k)         500           ; # spring constant
 set restr(1.type)     tamd           ; # spring constant
- set restr(1.g)       1500          
- set restr(1.temp)    3000          ; # number between 0 and beta (min and max bias)
+ set restr(1.g)        500          
+ set restr(1.temp)    10000          ; # number between 0 and beta (min and max bias)
  set restr(1.dt)      0.001         
 set restr(1.bound)    periodic
  set restr(1.max)     [expr acos(-1.)]
@@ -73,10 +73,10 @@ set restr(1.bound)    periodic
 set restr(2.cv)       2              ; # The cv or cvs associated
 set restr(2.chid)     0           
 set restr(2.chdm)     1
-set restr(2.k)        1500           ; # spring constant
+set restr(2.k)         500           ; # spring constant
 set restr(2.type)     tamd           ; # spring constant
- set restr(2.g)       1500          
- set restr(2.temp)    3000          ; # number between 0 and beta (min and max bias)
+ set restr(2.g)        500          
+ set restr(2.temp)    10000          ; # number between 0 and beta (min and max bias)
  set restr(2.dt)      0.001         
 set restr(2.bound)    periodic
  set restr(2.max)     [expr acos(-1.)]

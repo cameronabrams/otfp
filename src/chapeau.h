@@ -30,7 +30,7 @@ typedef struct CHAPEAU {
   int ldad;    // dimension of the packed matrix
                  
                
-  int periodic; 
+  int * periodic; 
   double * rmin;
   double * rmax;
   double * dr;
@@ -75,7 +75,7 @@ typedef struct CHAPEAU {
                 
 } chapeau;
 
-chapeau * chapeau_alloc ( int dm, double * rmin, double * rmax, int * N, int periodic );
+chapeau * chapeau_alloc ( int dm, double * rmin, double * rmax, int * N, int * periodic );
 void chapeau_free ( chapeau * ch );
 int chapeau_comparesize ( chapeau * ch1,  chapeau * ch2);
 int chapeau_comparegrid ( chapeau * ch1,  chapeau * ch2);

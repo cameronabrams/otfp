@@ -453,7 +453,7 @@ chapeau * DataSpace_get_chapeauadress ( DataSpace * ds, int i ) {
 }
   
 int DataSpace_SetupChapeau ( DataSpace * ds, int numrep, int dm, double*  min, int * nKnots,
-    double * max, int periodic, int beginaccum, int beginsolve, int useTAMDforces, char * outfile, 
+    double * max, int * periodic, int beginaccum, int beginsolve, int useTAMDforces, char * outfile, 
     int outfreq, int outlevel, int nupdate) {
   // Initialize chapeaus objects in DataSpace. Since Data space might not have
   // any chapeau allocated, the number of chapeaus is not indicated in the
