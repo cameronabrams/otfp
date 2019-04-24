@@ -39,7 +39,10 @@ extern void DataSpace_BinaryReportRestraints ( DataSpace * ds, int step, int out
 extern int set_zsd_circle ( double x,double y, double xy, double s );
 extern int set_zsd_ring ( double x,double y, double r1, double r2, double s );
 
+extern int chapeau_caneval_f1 ( chapeau * ch, double z );
+extern int chapeau_caneval_f2 ( chapeau * ch, double z1, double z2 );
 extern double chapeau_evalf_1simplex ( chapeau * ch, double z );
+extern double chapeau_evalf_2simplex ( chapeau * ch, double z1, double z2 );
 extern char * chapeau_serialize ( chapeau * ch );
 extern void chapeau_addserialized ( chapeau * ch, char * str );
 extern void chapeau_setserialized ( chapeau *ch, char * str );

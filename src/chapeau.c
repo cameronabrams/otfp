@@ -750,21 +750,71 @@ void chapeau_set_peaks ( chapeau * ch, char * filename ) {
 }
 
 // Process for replica exechange
-    
+                     
+int chapeau_caneval_f1 ( chapeau * ch, double z ) {
+  // return 1 if there is enough information to compute the free energy in
+  // z. return 0 oterwise.
+  int m;
+  
+  if (ch->dm!=1) {
+    fprintf(stderr,"CFACV/C) ERROR: chapeau dimension does not match evaluation requested");
+    exit(-1);
+  }
+  if ( z > ch->rmax[0] ) return 0;
+  if ( z <= ch->rmin[0] ) return 0;
+ 
+  m=(int) ch->idr[0]*(z-ch->rmin[0]);
+
+  if (!ch->hits[m]) return 0;
+  if (!ch->hits[m+1]) return 0;
+
+  return 1;
+}
+                      
+int chapeau_caneval_f2 ( chapeau * ch, double z1, double z2 ) {
+  // return 1 if there is enough information to compute the free energy in
+  // z. return 0 oterwise.
+  int i,j,ni,nj,nk;
+  double dx,dy;
+  
+  if (ch->dm!=2) {
+    fprintf(stderr,"CFACV/C) ERROR: chapeau dimension does not match evaluation requested");
+    exit(-1);
+  }
+  if ( z1 > ch->rmax[0] ) return 0;
+  if ( z1 <= ch->rmin[0] ) return 0;
+  if ( z2 > ch->rmax[1] ) return 0;
+  if ( z2 <= ch->rmin[1] ) return 0;
+
+  dx=(ch->r[0]-ch->rmin[0])*ch->idr[0]; 
+  dy=(ch->r[1]-ch->rmin[1])*ch->idr[1]; 
+
+  i=(int)(dx);
+  j=(int)(dy);
+  ni=j*ch->N[0]+i+1;
+  nj=ni+ch->N[0]-1;
+             
+  dx=dx-i; 
+  dy=dy-j;
+  if(dy<1-dx) {
+    nk=ni-1;
+  } else {
+    nk=nj+1;
+  }
+
+  if (!ch->hits[ni]) return 0;
+  if (!ch->hits[nj]) return 0;
+  if (!ch->hits[nk]) return 0;
+
+  return 1;
+}
+
 double chapeau_evalf_1simplex ( chapeau * ch, double z ) {
   // Evaluate the free energy of a given CV vector from the linear
   // interpolation of the lambda vector on a chapeau object.
-
   int m;
   double dm,la,lb;
 
-  // Early return to avoid interpolations beyond the boundaries
-  if (ch->dm > 1 ) {
-    fprintf(stderr,"CFACV/C) ERROR: chapeau object does not leaves in 1D");
-    exit(-1);
-  }
-  if ( z > ch->rmax[0] ) return 0.;
-  if ( z <= ch->rmin[0] ) return 0.;
    
   /*
     o                    z   
@@ -789,49 +839,51 @@ double chapeau_evalf_1simplex ( chapeau * ch, double z ) {
 } 
     
 double chapeau_evalf_2simplex ( chapeau * ch, double z1, double z2 ) {
+  // Evaluate the free energy of a given CV vector
   int i,j,ni,nj,nk;
   double f,dx,dy;
 
-  // Early return to avoid interpolations beyond the boundaries
-  if ( z1 > ch->rmax[0] ) return 0.;
-  if ( z1 <= ch->rmin[0] ) return 0.;
-  if ( z2 > ch->rmax[1] ) return 0.;
-  if ( z2 <= ch->rmin[1] ) return 0.;
-  f=0;
-
   /*
- 
-  -\  |      -\  |      -\  |    
-    -\|        -\|        -\|    
-  ----*----------*----------*----
-      |-\        |-\        |-\
-      |  -\  R5  |  -\      |  -\
-      |    -\    |    -\    |    
-  -\  |  R6  -\  | R4   -\  |    
-    -\|        -\|        -\|    
-  ----*----------*----------*----
-      |-\        |-\        |-\
-      |  -\  R1  |  -\  R3  |  -\
-      |    -\    |    -\    |    
-  -\  |      -\  |  R2  -\  |    
-    -\|        -\|        -\|    
-  ----*----------*----------*----
-      |-\        |-\        |-\
-      |  -\      |  -\      |  -\
+  -\|        -\|        -\|  
+  --*----------*----------*--
+    |-\|||||||||-\        |-\
+    |---\|1-y|||//-\      |  
+    |-----\|||||////-\    |  
+    |--1+x--\|||1-x-y -\  |  
+  -\|---------\|////////-\|  
+  --*----------*----------*--
+    |-\//1+x+y/|-\--------|-\
+    |  -\//////|||-\--1-x-|  
+    |    -\////|||||-\----|  
+    |      -\//||1+y||-\--|  
+  -\|        -\|||||||||-\|  
+  --*----------*----------*--
+    |-\        |-\        |-\
 
   */
  
   // Identifico el cuadrado, esto define dos nodos
-  i=(int)( (z1 - ch->rmin[0]) * ch->idr[0] );
-  j=(int)( (z2 - ch->rmin[1]) * ch->idr[1] );
-  ni=j*(ch->N[0]-1)+i+1;
-  nj=j+1*(ch->N[0]-1)+i;
-    
+  /*nj----------*
+     |          |  
+     |          |  
+     |     x    |  
+     |          |  
+     |          |  
+     *---------ni */
+  dx=(ch->r[0]-ch->rmin[0])*ch->idr[0]; 
+  dy=(ch->r[1]-ch->rmin[1])*ch->idr[1]; 
+
+  i=(int)(dx);
+  j=(int)(dy);
+  ni=j*ch->N[0]+i+1;
+  //nj=(j+1)*ch->N[0]+i;
+  nj=ni+ch->N[0]-1;
+             
   // ahora el triangulo, define el tercer nodo
-  dx=z1 - i*ch->idr[0] -1;
-  dy=z2 - j*ch->idr[1];
-  if(dy/dx<1) {
-    nk=j*(ch->N[0]-1)+i;
+  dx=dx-i; 
+  dy=dy-j;
+  if(dy<1-dx) {
+    nk=ni-1;
     /*nj----------* 
        |-\        | 
        |  -\      | 
@@ -840,11 +892,20 @@ double chapeau_evalf_2simplex ( chapeau * ch, double z1, double z2 ) {
        |        -\| 
       nk---------ni */
 
-    f-=(dx*ch->idr[0]+1)*ch->lam[nk];
-    f-=(dy*ch->idr[1]+1)*ch->lam[nk];
+    // Thus, the nk function is 1-x-y
+    //       the ni function is 1+x
+    //       the nj function is 1+y
+    // but taking into account the different centers:
+    //       the ni coordinates are (dx-1,dy)
+    //       the nj coordinates are (dx,dy-1)
+    // entonces:
+    f=(1+dx+dy)*ch->lam[nk];
+    f+=dx*ch->lam[ni];
+    f+=dy*ch->lam[nj];
 
   } else {
-    nk=(j+1)*(ch->N[0]-1)+(i+1);
+    nk=nj+1;
+    
     /*nj---------nk
        |-\        |  
        |  -\   x  |  
@@ -853,14 +914,18 @@ double chapeau_evalf_2simplex ( chapeau * ch, double z1, double z2 ) {
        |        -\|  
        *---------ni */
 
-    f+=(dx*ch->idr[0]+1)*ch->lam[nk];
-    f+=(dy*ch->idr[1]+1)*ch->lam[nk];
-
+    // Thus, the nk function is 1+x+y
+    //       the ni function is 1-y
+    //       the nj function is 1-x
+    // but taking into account the different centers:
+    //       the nk coordinates are (dx-1,dy-1)
+    //       the ni coordinates are (dx-1,dy)
+    //       the nj coordinates are (dx,dy-1)
+    // entonces:
+    f=(dx+dy-1)*ch->lam[nk];
+    f+=(1-dy)*ch->lam[ni];
+    f+=(1-dx)*ch->lam[nj];
   }
-    
-  // Sumando contribucion de ni y nj
-  f+=(dx*ch->idr[0]+1)*ch->lam[ni];
-  f+=(dy*ch->idr[1]+1)*ch->lam[nj];
 
   return f;
 }  
@@ -1187,7 +1252,9 @@ int accumulate_2D( chapeau * ch ) {
  
            
   // ahora el triangulo, define el tercer nodo
-  if(dy<(j+1)-(dx-i)) {
+  dx=dx-i; 
+  dy=dy-j;
+  if(dy<1-dx) {
 
     //nk=j*ch->N[0]+i;
     nk=ni-1;
