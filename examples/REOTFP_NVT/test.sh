@@ -6,14 +6,14 @@ set -o pipefail
 rm -fr output
 mkdir output
 cd output
-mkdir 0 1 2 3 4 5
+mkdir 0 1 2 3
 cd ..
 
 # Run simulation
-mpiexec -n 6 namd2 +replicas 6 job0.namd +stdout output/%d/job0.log 2>&1 | tee job0.log
+mpiexec -n 4 namd2 +replicas 4 job0.namd +stdout output/%d/job0.log 2>&1 | tee job0.log
 
 # Run restart
-mpiexec -n 6 namd2 +replicas 6 job1.namd +stdout output/%d/job1.log 2>&1 | tee job1.log
+mpiexec -n 4 namd2 +replicas 4 job1.namd +stdout output/%d/job1.log 2>&1 | tee job1.log
 
 # Sorting replicas. For the sort of the replicas, I use sortreplicas code that
 # comes with namd distribution. This code expect a name format that has twice
@@ -22,25 +22,26 @@ mpiexec -n 6 namd2 +replicas 6 job1.namd +stdout output/%d/job1.log 2>&1 | tee j
 # construct hard links to make compatible the names convention.
 for j in job0 job1; do
   echo $j
-  for i in $(seq 0 5); do
+  for i in $(seq 0 3); do
     ln -sf ${j}.dcd output/$i/${j}.${i}.dcd
     ln -sf ${j}.history output/$i/${j}.${i}.history
   done
-  ./sortreplicas output/%s/${j} 6 1
-  for i in $(seq 0 5); do
+  ./sortreplicas output/%s/${j} 4 1
+  for i in $(seq 0 3); do
     ln -sf ${j}.${i}.sort.dcd output/${i}/${j}_sort.dcd
     ln -sf ${j}.${i}.sort.history output/${i}/${j}_sort.history
   done
   echo $j
 done
 
-for i in 0 5; do
+for i in $(seq 0 3); do
 
   for file in $(ls output/${i}/job*bsp); do
  
     f=${file%.*}
 
     # Decoding the FES
+    echo Making ${f}.LAMBDA
     ../../src/catbinsp -f $file -ol 1 \
       | awk 'BEGIN{a=""} (NR>1&&$2!=a){a=$2;$1="";$2="";print $0}'\
       > ${f}.LAMBDA

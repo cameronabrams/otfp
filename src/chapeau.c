@@ -42,6 +42,7 @@ chapeau * chapeau_alloc ( int dm, double * rmin, double * rmax, int * N, int * p
   ch->hits=(int*)calloc(ch->m,sizeof(int));
   ch->b=(double*)calloc(ch->m,sizeof(double));
   ch->bfull=(double*)calloc(ch->m,sizeof(double));
+  ch->norm=1.;
                  
   // chapeau 1D => 1 uperdiagonals
   // chapeau 2D => ch->N[0] uperdiagonals
@@ -103,9 +104,9 @@ void chapeau_free ( chapeau * ch ) {
 }
              
 int chapeau_comparesize ( chapeau * ch1,  chapeau * ch2) {
-  if (ch1->dm          != ch2->dm         ) return 0;
+  if (ch1->dm       != ch2->dm      ) return 0;
   if (ch1->m        != ch2->m       ) return 0;
-  if (ch1->ldad        != ch2->ldad       ) return 0;
+  if (ch1->ldad     != ch2->ldad    ) return 0;
   return 1;
 }
  
@@ -140,10 +141,11 @@ void chapeau_sum ( chapeau * ch1, chapeau * ch2 ) {
   //  fprintf(stderr,"CFACV/C) ERROR: you can not sum chapeau objects with different domains\n");
   //  exit(-1);
   //}
+  
   for (i=0;i<ch1->m;i++) {
     ch1->b[i] += ch2->b[i];
     ch1->bfull[i] += ch2->bfull[i];
-    ch1->hits[i] = (ch1->hits[i]||ch2->hits[i]);
+    ch1->hits[i] = ch1->hits[i]+ch2->hits[i];
     for (j=0;j<ch1->ldad;j++) {
       ch1->A[j][i] += ch2->A[j][i];
       ch1->Afull[j][i] += ch2->Afull[j][i];
@@ -974,7 +976,7 @@ char * chapeau_serialize ( chapeau * ch ) {
 void chapeau_addserialized ( chapeau *ch, char * str ) {
   // str contains the serialized chapeau that comes from the partial sampling
   // of other replica partial statistic information. This is added to the
-  // partial sampling ot the principal replica computing the sum.
+  // partial sampling of the principal replica computing the sum.
   int i,j,err;
   int size1;
   int size2;
@@ -1072,12 +1074,12 @@ void chapeau_setserialized ( chapeau *ch, char * str ) {
     ch->hits[i]=iaux;
   }
      
-  // Reading the partial A (simetric and tridiagonal)
+  // Reading the full A (simetric and tridiagonal)
   for (i=0;i<ch->ldad;i++) {
     for (j=0;j<ch->m;j++) {
       memcpy(word1, &str[size1], 13 ); size1+=13;
       err=sscanf(word1,"%13le",&aux); if(!err) {fprintf(stderr,"CFACV/C) Error 1112 on read %s\n",word1);}
-      ch->Afull[i][j]+=aux;
+      ch->Afull[i][j]=aux;
     }
   }
 

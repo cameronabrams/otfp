@@ -4,7 +4,7 @@ replicaBarrier
 
 # Boltzman constant
 set kB_kcm 0.001987191
-set pepe 0
+
 # The replica_id is the procesor where the present replica runs. A replica can
 # change its temperature (index) but will never change its replica_id. So
 # replica_id is constant during this script. 
@@ -44,22 +44,10 @@ puts $mystderr "random seed on replica $replica_id $seed"
 # Load OTFP settings 
 source OTFP.namd
 
-if { $restr(num) == 1 } {
-  puts $mystderr "Running 1D REOTFP"
-  if { $DIMEN != 1 } {error "You need DIMEN=1"}
-  if { $restr(num) != 1 } {error "You need 1 restraints (and only 1 for now)"}
-  set evalf chapeau_evalf_1simplex
-} else {
-  puts $mystderr "Running 2D REOTFP"
-  if { $restr(num) != 2 } {error "You need 2 restraints (and only 2 for now)"}
-  if { $DIMEN != 2 } {error "You need DIMEN=2"}
-  if { $restr(1.chid) != $restr(2.chid) } {error "You need 2 restraints with the same chid"}
-  if { $restr(1.temp) != $restr(2.temp) } {error "Can't use two different auxiliary temperatures to build acceptance rule"}
-  set evalf chapeau_evalf_2simplex
-}
+# This should be set for each particular system taking in account a high
+# probability configuration
+set zprob 2.5
  
-
-
 # Initialize OTFP program
 source $CFACV_BASEDIR/cfacv.tcl
 
@@ -258,19 +246,16 @@ set replica(dbeta.b)       [expr 1.0/($replica(temperature.b)*$kB_kcm)-$replica(
 #   return [expr $min_temp*$x]
 # }
 
-# FIXME: This will work only if there is n restrains in a simulation with
-# n-dimentional chapeaus. What if there is a mix of TAMD with other types of
-# restraints or this are not in order?
+set r  1; # FIXME
 set temperature        $replica(temperature)
-set replica(auxtemp)   $restr(1.temp)
+set replica(auxtemp)   $restr($r.temp)
 puts $mystderr "I'm $replica_id reporting $replica(auxtemp)"
 set replica(auxbeta)   [expr 1.0/($replica(auxtemp)*$kB_kcm)]
 set replica(dbeta)     [expr $replica(auxbeta)-$replica(beta)]
 
 # Update the chapeau id that store the restrain evolution
-for {set r 1} {$r <= $restr(num)} {incr r} {
-  set restr($r.chid)     $replica(index)
-}
+set restr($r.chid) $replica(index)
+set restr($r.temp) $replica(auxtemp)
 
 # Save variables
 proc save_callback {labels values} {
@@ -292,6 +277,7 @@ proc save_array {} {
 # NAMD temperature setup
 set NEWTEMP        $replica(temperature)
 langevinTemp       $NEWTEMP
+langevinPistonTemp $NEWTEMP; # should be set equal to the target temperature (langevinTemp).
 
 # Initial state
 if {$i_run} {
@@ -309,14 +295,36 @@ if {$i_run} {
 set history_file [open [format "$job_output_root.history" $replica_id] "w"]
 fconfigure $history_file -buffering line
 
-# Runs without exchange but allowing restarts
+# Runs without exchange
 while {$i_run < $runs_noexchange} {
 
   # After the first run, the global scope of the tclforces is accesible. Then,
   # variables like "chape" or "restr" can be used now.
   run $steps_per_run
   
+  # Create array with the properties of namd ETITLE
+  save_array
+
   incr i_step $steps_per_run
+
+  # Get replica info from NAMD
+  set TEMP $saved_array(TEMP)      ;# Only to include in the log...?
+  set POTENTIAL [expr $saved_array(TOTAL) - $saved_array(KINETIC)]
+
+  # Get replica info from TAMD
+  set r  1 ;# FIXME
+  set chapeau $chape($replica(index).address)
+  set z  [ restr_getz $restr($r.address)  ]
+  set f  [ chapeau_evalf_1simplex $chapeau $z  ]
+  set u  [ restr_getu $restr($r.address)  ]
+  
+  # This should be set for each particular system taking in account a high
+  # probability configuration
+  # set zprob 3.2
+  set fref  [ chapeau_evalf_1simplex $chapeau $zprob ]
+
+  puts $history_file "$i_step $replica(index) $NEWTEMP $TEMP $POTENTIAL $z $f $fref $u"
+  
   incr i_run
 
   # Restart
@@ -389,7 +397,7 @@ while {$i_run < $num_runs} {
    
   # Do I have to add all the chapeaus?
   if { ($i_run+1) % $runs_per_addchapeaus == 0 } {
-  
+
     if { $replica_id == 0 } {puts $mystderr "EXCHANGE_CHAPEAUS at $i_step"}
 
     # To do it in parallel. Each processor can add the chapeaus of a
@@ -407,7 +415,6 @@ while {$i_run < $num_runs} {
       } else {
         # Send partial statistics to the center replica
         set chserial [chapeau_serialize $chape($i.address)]
-        puts "$replica_id chapeau_serialized $i"
         replicaSend $chserial $i
       }
     }
@@ -416,7 +423,6 @@ while {$i_run < $num_runs} {
     for {set i 0} {$i < $NUMREP} {incr i} {
       if { $replica_id == $i } continue
       chapeau_addserialized $chape($replica_id.address) $chserials($replica_id.$i)
-      puts "$replica_id chapeau_addserialized $i"
     }
 
     # Finally, the comunication backward of the results
@@ -424,7 +430,6 @@ while {$i_run < $num_runs} {
       if { $replica_id == $i } {
         # Send the full statistics to the other replicas
         set chserial [chapeau_serialize $chape($i.address)]
-        puts "$replica_id chapeau_serialized $i"
         for {set j 0} {$j < $NUMREP} {incr j} {
           if { $i == $j } continue
           replicaSend $chserial $j
@@ -433,25 +438,10 @@ while {$i_run < $num_runs} {
         # Set full replica statistic variables and clean the partial ones
         set chserial [replicaRecv $i]
         chapeau_setserialized $chape($i.address) $chserial
-        puts "$replica_id chapeau_setserialized $i"
       }
     }
-   
-    # DEBUG (DELETE IN NEAR FUTURE)
-    # chapeau_savestate $chape(0.address) [format $restart_root.ch0_test$pepe $replica_id]
-    # chapeau_savestate $chape(1.address) [format $restart_root.ch1_test$pepe $replica_id]
-    # chapeau_savestate $chape(2.address) [format $restart_root.ch2_test$pepe $replica_id]
-    # chapeau_savestate $chape(3.address) [format $restart_root.ch3_test$pepe $replica_id]
-    # puts "PEPEPEPEPE $i_run $runs_per_addchapeaus"
-    # if { $pepe == 1} {
-    #   puts "[format $restart_root.ch0_test $replica_id]  $replica_id"
-    #   replicaBarrier
-    #   exit
-    # }
-    # incr pepe
-              
-  }
 
+  }
 
   # if { ($i_run+1) % $runs_per_addchapeaus == 0 } {
   #   set chserial [chapeau_serialize $chape(0.address)]
@@ -459,18 +449,23 @@ while {$i_run < $num_runs} {
   # }
 
   # Get replica info from NAMD
+  set VOLUME $saved_array(VOLUME)  ;# For NPT simulations
   set TEMP $saved_array(TEMP)      ;# Only to include in the log...?
   set POTENTIAL [expr $saved_array(TOTAL) - $saved_array(KINETIC)]
 
-  # Eval free energy of this replica
+  # Get replica info from TAMD
+  set r  1 ;# FIXME
   set chapeau $chape($replica(index).address)
-  set z {}
-  for {set r 1} {$r <= $restr(num)} {incr r} {
-    lappend z  [ restr_getz $restr($r.address)  ]
-  }
-  set f  [ $evalf $chapeau {*}$z ]
+  set z  [ restr_getz $restr($r.address)  ]
+  set f  [ chapeau_evalf_1simplex $chapeau $z  ]
+  set u  [ restr_getu $restr($r.address)  ]
+  
+  # This should be set for each particular system taking in account a high
+  # probability configuration
+  # set zprob 3.2
+  set fref  [ chapeau_evalf_1simplex $chapeau $zprob ]
 
-  puts $history_file "$i_step $replica(index) $NEWTEMP T:$TEMP u:$POTENTIAL f:$f z:$z"
+  puts $history_file "$i_step $replica(index) $NEWTEMP $TEMP $POTENTIAL $VOLUME $z $f $fref $u"
   
   # Select a or b replica
   if { $i_run % 2 == 0 } {
@@ -488,17 +483,15 @@ while {$i_run < $num_runs} {
     # Compute Delta U term
     set dpot  [replicaRecv $replica(loc.$swap)]
     set dpot  [expr ($dpot-$POTENTIAL)]
-    set delta $dpot
 
-    # NO needed, energy already counted in POTENTIAL trough MISC COLUMN
-    # # Compute Delta Uk term
-    # set duk   [replicaRecv $replica(loc.$swap)]
-    # set duk   [expr ($duk-$u)]
-    # set delta [expr $dpot + $duk]
-     
+    # Compute Delta V term (for NPT)
+    set dvol  [replicaRecv $replica(loc.$swap)]
+    set dvol  [expr ($dvol-$VOLUME)]
+    set delta [expr $dpot + $pressure*$dvol ]
+      
     # Compute Delta Free Energy of this replica
     set z2    [replicaSendrecv $z $replica(loc.$swap) $replica(loc.$swap)]
-    set dfre  [ $evalf $chapeau {*}$z2 ]
+    set dfre  [chapeau_evalf_1simplex $chapeau $z2 ]
     set dfre  [expr $replica(dbeta)*($dfre-$f)]
     set delta [expr $replica(dbeta.$swap)*$delta - $dfre]
       
@@ -522,7 +515,7 @@ while {$i_run < $num_runs} {
       incr replica(exchanges_accepted)
     }
 
-    puts $mystderr "DELTA_INFO $i_run $doswap $replica_id $replica(loc.$swap) $replica(index) $replica(index.$swap) $prob $nrand $replica(dbeta.$swap) $replica(dbeta) $dpot $dfre $dfre2"
+    puts $mystderr "DELTA_INFO $i_run $doswap $replica_id $replica(loc.$swap) $replica(index) $replica(index.$swap) $prob $nrand $replica(dbeta.$swap) $replica(dbeta) $dpot $dvol $dfre $dfre2"
 
     incr replica(exchanges_attempted)
   }
@@ -530,9 +523,10 @@ while {$i_run < $num_runs} {
   if { $replica(index) > $replica(index.$swap) } {
 
     replicaSend $POTENTIAL $replica(loc.$swap)
-
+    replicaSend $VOLUME    $replica(loc.$swap)
+    #replicaSend $u         $replica(loc.$swap)
     set z2 [replicaSendrecv $z $replica(loc.$swap) $replica(loc.$swap)]
-    set f2  [ $evalf $chapeau {*}$z2 ]
+    set f2  [ chapeau_evalf_1simplex $chapeau $z2 ]
 
     set delta [expr $replica(dbeta) * ($f-$f2)]
     replicaSend $delta $replica(loc.$swap)
@@ -576,21 +570,22 @@ while {$i_run < $num_runs} {
     # Set new temperature and rescale velocities
     rescalevels [expr sqrt(1.0*$NEWTEMP/$OLDTEMP)]
     langevinTemp $NEWTEMP
+    langevinPistonTemp $NEWTEMP; # should be set equal to the target temperature (langevinTemp).
 
-    for {set r 1} {$r <= $restr(num)} {incr r} {
-      # Update the auxiliary temperature of the OTFP restraint
-      set restr($r.temp) $replica(auxtemp)
-      restr_UpdateTamdOpt $restr($r.address) $restr($r.g) [expr $kB_kcm*$restr($r.temp)] $restr($r.dt)
+    # Update the auxiliary temperature of the OTFP restraint
+    set r  1; # FIXME
+    set restr($r.temp) $replica(auxtemp)
+    restr_UpdateTamdOpt $restr($r.address) $restr($r.g) [expr $kB_kcm*$restr($r.temp)] $restr($r.dt)
 
-      # Update the chapeau id that store the restrain evolution
-      set restr($r.chid) $replica(index)
-      restr_set_rchid $restr($r.address) $ds $replica(index)
-      # set chapeau $chape($replica(index).address)
-    }
+    # Update the chapeau id that store the restrain evolution
+    set r  1; # FIXME
+    set restr($r.chid) $replica(index)
+    restr_set_rchid $restr($r.address) $ds $replica(index)
+    # set chapeau $chape($replica(index).address)
   }
 
   incr i_run
-  
+
   # Restart
   if { $i_run % $runs_per_restart == 0 || $i_run == $num_runs } {  
 
@@ -639,7 +634,6 @@ while {$i_run < $num_runs} {
     # }
     set old_restart_root $restart_root
   }
- 
 }
 
 

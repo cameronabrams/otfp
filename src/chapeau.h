@@ -59,6 +59,12 @@ typedef struct CHAPEAU {
   double * lam;
   int * hits; 
 
+  // This indicates the norm factor of A and b (needed to add chapeau or
+  // accumulate new data). A, Afull and b are normalized to avoid long
+  // numbers.... not sure if that is true. (We need something that lead
+  // to a FES that does not have a huge additive constant.... ).
+  double norm; 
+
   //matrix A will have dimensions (dm-1)*3*(ch->N[0]-1)+1 x m
   double ** A;
 

@@ -19,10 +19,10 @@ set restart_chapeau chapeau_loadlambda
 #   $bindir/sortreplicas output/%s/fold_alanin.job0 8 10
 # Warning: sortreplicas has a BUG when runs_per_frame is not 1
 
-set num_replicas            6
-set min_temp              100
+set num_replicas            4
+set min_temp              150
 set nmin_temp               0
-set max_temp             1000
+set max_temp              850
 
 set steps_per_run        1000 ; # number of steps between exchange attempts
 set num_runs             4000 ; # total runs before stopping, should be divisible by runs_per_frame * frames_per_restart
@@ -117,6 +117,6 @@ if { ! [catch numPes] } {
   # source REMD_NPT.namd 
 
   # source REOFP_NPT.namd 
-  source ../../scripts/REOFP_NVT.namd 
+  source ../../scripts/REOTFP_NVT.namd 
 }
 

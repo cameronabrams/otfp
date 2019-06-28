@@ -44,6 +44,22 @@ puts $mystderr "random seed on replica $replica_id $seed"
 # Load OTFP settings 
 source OTFP.namd
 
+if { $restr(num) == 1 } {
+  puts $mystderr "Running 1D REOTFP"
+  if { $DIMEN != 1 } {error "You need DIMEN=1"}
+  if { $restr(num) != 1 } {error "You need 1 restraints (and only 1 for now)"}
+  set evalf chapeau_evalf_1simplex
+} else {
+  puts $mystderr "Running 2D REOTFP"
+  if { $restr(num) != 2 } {error "You need 2 restraints (and only 2 for now)"}
+  if { $DIMEN != 2 } {error "You need DIMEN=2"}
+  if { $restr(1.chid) != $restr(2.chid) } {error "You need 2 restraints with the same chid"}
+  if { $restr(1.temp) != $restr(2.temp) } {error "Can't use two different auxiliary temperatures to build acceptance rule"}
+  set evalf chapeau_evalf_2simplex
+}
+ 
+
+
 # Initialize OTFP program
 source $CFACV_BASEDIR/cfacv.tcl
 
@@ -245,16 +261,16 @@ set replica(dbeta.b)       [expr 1.0/($replica(temperature.b)*$kB_kcm)-$replica(
 # FIXME: This will work only if there is n restrains in a simulation with
 # n-dimentional chapeaus. What if there is a mix of TAMD with other types of
 # restraints or this are not in order?
-for {set r 0} {$r < $restr(num)} {incr r} {
-  set replica($r.auxtemp)   $restr($r.temp)
-  set replica($r.auxbeta)   [expr 1.0/($replica($r.auxtemp)*$kB_kcm)]
-  set replica($r.dbeta)     [expr $replica($r.auxbeta)-$replica(beta)]
-  set restr($r.chid)        $replica(index)
-  puts $mystderr "I'm $replica_id reporting $replica(auxtemp)"
-}
-
 set temperature        $replica(temperature)
+set replica(auxtemp)   $restr(1.temp)
+puts $mystderr "I'm $replica_id reporting $replica(auxtemp)"
+set replica(auxbeta)   [expr 1.0/($replica(auxtemp)*$kB_kcm)]
+set replica(dbeta)     [expr $replica(auxbeta)-$replica(beta)]
 
+# Update the chapeau id that store the restrain evolution
+for {set r 1} {$r <= $restr(num)} {incr r} {
+  set restr($r.chid)     $replica(index)
+}
 
 # Save variables
 proc save_callback {labels values} {
@@ -430,14 +446,15 @@ while {$i_run < $num_runs} {
   set TEMP $saved_array(TEMP)      ;# Only to include in the log...?
   set POTENTIAL [expr $saved_array(TOTAL) - $saved_array(KINETIC)]
 
-  # Get replica info from TAMD
-  set r  1 ;# FIXME
+  # Eval free energy of this replica
   set chapeau $chape($replica(index).address)
-  set z  [ restr_getz $restr($r.address)  ]
-  set f  [ chapeau_evalf_1simplex $chapeau $z  ]
-  set u  [ restr_getu $restr($r.address)  ]
+  set z {}
+  for {set r 1} {$r <= $restr(num)} {incr r} {
+    lappend z  [ restr_getz $restr($r.address)  ]
+  }
+  set f  [ $evalf $chapeau {*}$z ]
 
-  puts $history_file "$i_step $replica(index) $NEWTEMP $TEMP $POTENTIAL $VOLUME $z $f $u"
+  puts $history_file "$i_step $replica(index) $NEWTEMP T:$TEMP u:$POTENTIAL v:$VOLUME f:$f z:$z"
   
   # Select a or b replica
   if { $i_run % 2 == 0 } {
@@ -452,89 +469,58 @@ while {$i_run < $num_runs} {
   set doswap 0
   if { $replica(index) < $replica(index.$swap) } {
 
-    # Check if is posible to compute delta energy of this replica
+    # Compute Delta U term
+    set dpot  [replicaRecv $replica(loc.$swap)]
+    set dpot  [expr ($dpot-$POTENTIAL)]
+
+    # Compute Delta V term (for NPT)
+    set dvol  [replicaRecv $replica(loc.$swap)]
+    set dvol  [expr ($dvol-$VOLUME)]
+    set delta [expr $dpot + $pressure*$dvol ]
+      
+    # Compute Delta Free Energy of this replica
     set z2    [replicaSendrecv $z $replica(loc.$swap) $replica(loc.$swap)]
-    set canswap  [ chapeau_caneval_f1 $chapeau $z2  ]
-    
-    # Send/Recv if is posible to compute delta free energy
-    set canswap2 [replicaSendRecv $canswap $replica(loc.$swap) $replica(loc.$swap)]
-       
-    # If is possible to compute the delta energies, then it is possible
-    # to compute a swapping probability.
-    if {canswap && canswap2} {
+    set dfre  [ $evalf $chapeau {*}$z2 ]
+    set dfre  [expr $replica(dbeta)*($dfre-$f)]
+    set delta [expr $replica(dbeta.$swap)*$delta - $dfre]
+      
+    # Compute Delta Free Energy of the swap replica
+    set dfre2 [replicaRecv $replica(loc.$swap) ]
+    set delta [expr $delta + $dfre2]
 
-      # Compute Delta U term
-      set dpot  [replicaRecv $replica(loc.$swap)]
-      set dpot  [expr ($dpot-$POTENTIAL)]
+    # Metropoli creiterion and send results
+    set prob [expr exp($delta)]
+    set nrand [expr rand()]
+    set doswap [expr $delta > 0. || $prob > $nrand]
 
-      # Compute Delta V term (for NPT)
-      set dvol  [replicaRecv $replica(loc.$swap)]
-      set dvol  [expr ($dvol-$VOLUME)]
-      set delta [expr $dpot + $pressure*$dvol ]
-        
-      # NO needed, energy already counted in POTENTIAL trough MISC COLUMN
-      # # Compute Delta Uk term
-      # set duk   [replicaRecv $replica(loc.$swap)]
-      # set duk   [expr ($duk-$u)]
-      # set delta [expr $delta + $duk]
-           
-      # Compute Delta Free Energy of this replica
-      set dfre  [ chapeau_evalf_1simplex $chapeau $z2 ]
-      set dfre  [expr $replica(dbeta)*($dfre-$f)]
-      set delta [expr $replica(dbeta.$swap)*$delta - $dfre]
-         
-      # Compute Delta Free Energy of the swap replica
-      set dfre2 [replicaRecv $replica(loc.$swap) ]
-      set delta [expr $delta + $dfre2]
+    # To make a fake replica exchange with no exchange
+    # uncoment this
+    # set doswap 0
 
-      # Metropoli creiterion and send results
-      set prob [expr exp($delta)]
-      set nrand [expr rand()]
-      set doswap [expr $delta > 0. || $prob > $nrand]
+    replicaSend $doswap $replica(loc.$swap)
 
-      # To make a fake replica exchange with no exchange
-      # uncoment this
-      # set doswap 0
-
-      replicaSend $doswap $replica(loc.$swap)
-
-      if { $doswap } {
-        # puts $mystderr "EXCHANGE_ACCEPT $replica(temperature) $replica(temperature.$swap)"
-        incr replica(exchanges_accepted)
-      }
-
-      puts $mystderr "DELTA_INFO $i_run $doswap $replica_id $replica(loc.$swap) $replica(index) $replica(index.$swap) $prob $nrand $replica(dbeta.$swap) $replica(dbeta) $dpot $dvol $dfre $dfre2"
-
-      incr replica(exchanges_attempted)
-    } else {
-      incr replica(exchanges_frustred)
+    if { $doswap } {
+      # puts $mystderr "EXCHANGE_ACCEPT $replica(temperature) $replica(temperature.$swap)"
+      incr replica(exchanges_accepted)
     }
 
+    puts $mystderr "DELTA_INFO $i_run $doswap $replica_id $replica(loc.$swap) $replica(index) $replica(index.$swap) $prob $nrand $replica(dbeta.$swap) $replica(dbeta) $dpot $dvol $dfre $dfre2"
+
+    incr replica(exchanges_attempted)
   }
 
   if { $replica(index) > $replica(index.$swap) } {
 
-    # Check if is posible to compute delta energy of this replica
+    replicaSend $POTENTIAL $replica(loc.$swap)
+    replicaSend $VOLUME    $replica(loc.$swap)
+
     set z2 [replicaSendrecv $z $replica(loc.$swap) $replica(loc.$swap)]
-    set canswap  [ chapeau_caneval_f1 $chapeau $z2  ]
-    
-    # Send/Recv if is posible to compute delta free energy
-    set canswap2 [replicaSendRecv $canswap $replica(loc.$swap) $replica(loc.$swap)]
-       
-    # If is possible to compute the delta energies, then it is possible
-    # to compute a swapping probability.
-    if {canswap && canswap2} {
-     
-      #replicaSend $u         $replica(loc.$swap)
-      replicaSend $POTENTIAL $replica(loc.$swap)
-      replicaSend $VOLUME    $replica(loc.$swap)
-      set f2  [ chapeau_evalf_1simplex $chapeau $z2 ]
+    set f2  [ $evalf $chapeau {*}$z2 ]
 
-      set delta [expr $replica(dbeta) * ($f-$f2)]
-      replicaSend $delta $replica(loc.$swap)
+    set delta [expr $replica(dbeta) * ($f-$f2)]
+    replicaSend $delta $replica(loc.$swap)
 
-      set doswap [replicaRecv $replica(loc.$swap)]
-    }
+    set doswap [replicaRecv $replica(loc.$swap)]
   }
 
   # About the update of variable other
@@ -575,16 +561,16 @@ while {$i_run < $num_runs} {
     langevinTemp $NEWTEMP
     langevinPistonTemp $NEWTEMP; # should be set equal to the target temperature (langevinTemp).
 
-    # Update the auxiliary temperature of the OTFP restraint
-    set r  1; # FIXME
-    set restr($r.temp) $replica(auxtemp)
-    restr_UpdateTamdOpt $restr($r.address) $restr($r.g) [expr $kB_kcm*$restr($r.temp)] $restr($r.dt)
+    for {set r 1} {$r <= $restr(num)} {incr r} {
+      # Update the auxiliary temperature of the OTFP restraint
+      set restr($r.temp) $replica(auxtemp)
+      restr_UpdateTamdOpt $restr($r.address) $restr($r.g) [expr $kB_kcm*$restr($r.temp)] $restr($r.dt)
 
-    # Update the chapeau id that store the restrain evolution
-    set r  1; # FIXME
-    set restr($r.chid) $replica(index)
-    restr_set_rchid $restr($r.address) $ds $replica(index)
-    # set chapeau $chape($replica(index).address)
+      # Update the chapeau id that store the restrain evolution
+      set restr($r.chid) $replica(index)
+      restr_set_rchid $restr($r.address) $ds $replica(index)
+      # set chapeau $chape($replica(index).address)
+    }
   }
 
   incr i_run

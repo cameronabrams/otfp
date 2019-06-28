@@ -29,7 +29,7 @@ int main ( int argc, char * argv[] ) {
 
   fread(flag,sizeof(char),4,fp);
   fprintf(stdout,"#flag is %c%c%c%c\n",flag[0],flag[1],flag[2],flag[3]);
-  fread(&fileOutputLevel,sizeof(unsigned int),1,fp);
+  fread(&fileOutputLevel,sizeof(int),1,fp);
   fread(&n,sizeof(int),1,fp);
   if (n0==0) n0=n;
   fprintf(stderr,"#INFO: outputLevel %u nKnots %i\n",fileOutputLevel,n);
@@ -52,7 +52,7 @@ int main ( int argc, char * argv[] ) {
     if (desiredOutputLevel & 1) {
       fprintf(stdout,"KNOTS    %i ",timestep);
       for (i=0;i<n;i=i+n0) {
-        for (j=0;j<n0;j++) fprintf(stdout,"%12.5le ",data[0][j+i]);
+        for (j=0;j<n0;j++) fprintf(stdout,"%25.10e ",data[0][j+i]);
         fprintf(stdout,"\n");
       }
     } 
