@@ -4,7 +4,7 @@ replicaBarrier
 
 # Boltzman constant
 set kB_kcm 0.001987191
-set pepe 0
+# set pepe 0
 # The replica_id is the procesor where the present replica runs. A replica can
 # change its temperature (index) but will never change its replica_id. So
 # replica_id is constant during this script. 
@@ -407,7 +407,7 @@ while {$i_run < $num_runs} {
       } else {
         # Send partial statistics to the center replica
         set chserial [chapeau_serialize $chape($i.address)]
-        puts "$replica_id chapeau_serialized $i"
+        # puts "$replica_id chapeau_serialized $i"
         replicaSend $chserial $i
       }
     }
@@ -416,7 +416,7 @@ while {$i_run < $num_runs} {
     for {set i 0} {$i < $NUMREP} {incr i} {
       if { $replica_id == $i } continue
       chapeau_addserialized $chape($replica_id.address) $chserials($replica_id.$i)
-      puts "$replica_id chapeau_addserialized $i"
+      # puts "$replica_id chapeau_addserialized $i"
     }
 
     # Finally, the comunication backward of the results
@@ -424,7 +424,7 @@ while {$i_run < $num_runs} {
       if { $replica_id == $i } {
         # Send the full statistics to the other replicas
         set chserial [chapeau_serialize $chape($i.address)]
-        puts "$replica_id chapeau_serialized $i"
+        # puts "$replica_id chapeau_serialized $i"
         for {set j 0} {$j < $NUMREP} {incr j} {
           if { $i == $j } continue
           replicaSend $chserial $j
@@ -433,7 +433,7 @@ while {$i_run < $num_runs} {
         # Set full replica statistic variables and clean the partial ones
         set chserial [replicaRecv $i]
         chapeau_setserialized $chape($i.address) $chserial
-        puts "$replica_id chapeau_setserialized $i"
+        # puts "$replica_id chapeau_setserialized $i"
       }
     }
    

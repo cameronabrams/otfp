@@ -6,3 +6,12 @@ src/catbinsp
 src/*.so
 src/chapadd
 message
+examples/**/*old
+examples/**/*xsc
+examples/**/*xst
+examples/**/*bsp
+examples/**/*coor
+examples/**/*vel
+examples/**/*log
+examples/**/*dcd
+examples/**/*ch0*

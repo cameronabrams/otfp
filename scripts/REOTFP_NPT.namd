@@ -317,9 +317,28 @@ while {$i_run < $runs_noexchange} {
   # variables like "chape" or "restr" can be used now.
   run $steps_per_run
   
+  # Create array with the properties of namd ETITLE
+  save_array
+
   incr i_step $steps_per_run
   incr i_run
 
+  # Get replica info from NAMD
+  set VOLUME $saved_array(VOLUME)  ;# For NPT simulations
+  set TEMP $saved_array(TEMP)      ;# Only to include in the log...?
+  set PRESSURE $saved_array(GPRESSURE)  
+  set POTENTIAL [expr $saved_array(TOTAL) - $saved_array(KINETIC)]
+  
+  # Eval free energy of this replica
+  set chapeau $chape($replica(index).address)
+  set z {}
+  for {set r 1} {$r <= $restr(num)} {incr r} {
+    lappend z  [ restr_getz $restr($r.address)  ]
+  }
+  set f  [ $evalf $chapeau {*}$z ]
+  
+  puts $history_file "$i_step $replica(index) $NEWTEMP T:$TEMP u:$POTENTIAL v:$VOLUME f:$f z:$z"
+   
   # Restart
   if { $i_run % $runs_per_restart == 0 || $i_run == $num_runs } {  
 
@@ -444,6 +463,7 @@ while {$i_run < $num_runs} {
   # Get replica info from NAMD
   set VOLUME $saved_array(VOLUME)  ;# For NPT simulations
   set TEMP $saved_array(TEMP)      ;# Only to include in the log...?
+  set PRESSURE $saved_array(GPRESSURE)  
   set POTENTIAL [expr $saved_array(TOTAL) - $saved_array(KINETIC)]
 
   # Eval free energy of this replica
@@ -476,7 +496,7 @@ while {$i_run < $num_runs} {
     # Compute Delta V term (for NPT)
     set dvol  [replicaRecv $replica(loc.$swap)]
     set dvol  [expr ($dvol-$VOLUME)]
-    set delta [expr $dpot + $pressure*$dvol ]
+    set delta [expr $dpot + $PRESSURE*$dvol ]
       
     # Compute Delta Free Energy of this replica
     set z2    [replicaSendrecv $z $replica(loc.$swap) $replica(loc.$swap)]

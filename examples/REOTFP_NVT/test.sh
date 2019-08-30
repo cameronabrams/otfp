@@ -47,7 +47,7 @@ for i in $(seq 0 3); do
       > ${f}.LAMBDA
 
     # Adding x-range
-    awk -v N=201 -v min=2.5 -v max=5.3 \
+    awk -v N=301 -v min=2. -v max=5. \
         'END{
           for (i=1;i<=N;i++){
             print min+(max-min)/(N-1)*i,$i
@@ -61,7 +61,9 @@ for i in $(seq 0 3); do
 
     set title "Free energy"
     set output "${f}.png"
-    plot '${f}.fes' w l notit
+    stats [2.5:4.5] '${f}.fes' 
+    
+    plot [2.5:4.5] '${f}.fes' u 1:(\$2-STATS_min_y) w l notit
 
 HEREGNUPLOT
 

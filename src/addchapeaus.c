@@ -17,8 +17,8 @@ int main ( int argc, char * argv[] ) {
     fprintf(stdout,"reading %s\n",argv[i]); 
     ch[i-1]=chapeau_allocloadstate(argv[i]);
   
-
     for (j=0;j<ch[i-1]->dm;j++) {
+      fprintf(stderr,"--- ch dm %d/%d\n",j,ch[i-1]->dm); 
       fprintf(stderr,"--- ch rmin %.5f\n",ch[i-1]->rmin[j]); 
       fprintf(stderr,"--- ch rmax %.5f\n",ch[i-1]->rmax[j]); 
       fprintf(stderr,"--- ch dr %.5f\n",ch[i-1]->dr[j]); 
