@@ -5,7 +5,10 @@
 enum {ZSDCIRCLE, 
       ZSDXRANGE, 
       ZSDRING, 
+      RMSD, 
+      LINE, 
       BOND,
+      HALFBOND,
       S,
       ANGLE,
       DIHED,
@@ -21,7 +24,10 @@ char * CVSTRINGS[NULL_CV] = {
       "ZSDCIRCLE",
       "ZSDXRANGE",
       "ZSDRING",
+      "RMSD",
+      "LINE",
       "BOND",
+      "HALFBOND",
       "S",
       "ANGLE",
       "DIHED",
@@ -36,40 +42,105 @@ char * CVSTRINGS[NULL_CV] = {
 double zsdc_x,zsdc_y;
 double zsdc_d; //radius of the cilinder
 double zsdc_s; //radius of the lipids
-//cvStruct * zsdc_c=NULL;
+//cv * zsdc_c=NULL;
 
 // zsd ring
 double zsdr_x,zsdr_y;
 double zsdr_r1; //internal radius of the cilinder
 double zsdr_r2; //external radius of the cilinder
 double zsdr_s; //radius of the lipids
- 
 
-int cv_dimension ( cvStruct * c ) {
-  //TODO: I shuld remove this
-  int d;
 
+// Constructores
+
+cv * cv_init ( char * typ, int nC, int * ind, 
+    double zmin, double zmax, char * boundstr, double boundk,
+    char * outfile, int outputFreq )  {
+  int i;
+  cv * c=malloc(sizeof(cv));
+
+  c->nC=nC;
+  c->val=0.0;
+
+  c->ind=calloc(nC,sizeof(int));
+  for (i=0;i<nC;i++) c->ind[i]=ind[i];
+
+  c->gr=(double**)malloc(nC*sizeof(double*));
+  for (i=0;i<nC;i++) c->gr[i]=(double*)malloc(3*sizeof(double));
+
+  c->typ=cv_getityp(typ);
   switch(c->typ) {
-    case ZSDCIRCLE: d=0; break;
-    case ZSDXRANGE: d=0; break;
-    case ZSDRING: d=0; break;
-    case BOND:   d=0; break;
-    case S:      d=0; break;
-    case ANGLE:  d=0; break;
-    case DIHED:  d=0; break;
-    case COGX:   d=0; break;
-    case COGY:   d=1; break; 
-    case COGZ:   d=2; break;
-    case CARTESIAN_X: d=0; break;
-    case CARTESIAN_Y: d=1; break;
-    case CARTESIAN_Z: d=2; break;
+    case ZSDCIRCLE:   c->calc = calccv_zsd_circle; break;
+    case ZSDXRANGE:   c->calc = calccv_zsd_xrange; break;
+    case ZSDRING:     c->calc = calccv_zsd_ring; break;
+    case RMSD:        c->calc = calccv_rmsd; 
+                      c->ref = (double**)malloc(nC*sizeof(double*));
+                      for (i=0;i<nC;i++) c->ref[i] = calloc(3,sizeof(double));
+                      break;
+    case LINE:    c->calc = calccv_line; 
+                      c->ref = (double**)malloc(nC*sizeof(double*));
+                      for (i=0;i<nC;i++) c->ref[i] = calloc(3,sizeof(double));
+                      c->ref2 = (double**)malloc(nC*sizeof(double*));
+                      for (i=0;i<nC;i++) c->ref2[i] = calloc(3,sizeof(double));
+                      break;
+    case BOND:        c->calc = calccv_bond; break;
+    case HALFBOND:    c->calc = calccv_halfbond; break;
+    case S:           c->calc = calccv_s; break;
+    case ANGLE:       c->calc = calccv_angle; break;
+    case DIHED:       c->calc = calccv_dihed; break;
+    case COGX:	      c->calc = calccv_cogx; break;
+    case COGY:	      c->calc = calccv_cogy; break;
+    case COGZ:	      c->calc = calccv_cogz; break;
+    case CARTESIAN_X: c->calc = calccv_x; break;
+    case CARTESIAN_Y: c->calc = calccv_y; break;
+    case CARTESIAN_Z: c->calc = calccv_z; break;
     default: 
       fprintf(stderr,"ERROR, CV not recognized");
-      fflush(stderr);exit(-1);break; 
+      fflush(stderr);exit(-1);break;
   }
-  return d;
-}
+                       
+  // boundary function
+  c->f=0.;
+  c->u=0.;
+  c->min=zmin;
+  c->max=zmax;
+  c->half_domain=0.5*(zmax-zmin);
+  c->boundk=boundk;
+  if     (!strcmp(boundstr,"SOFTUPPER")) {c->boundFunc = cv_SoftUpperWall;}
+  else if(!strcmp(boundstr,"SOFTLOWER")) {c->boundFunc = cv_SoftLowerWall;} 
+  else if(!strcmp(boundstr,"SOFT"     )) {c->boundFunc = cv_SoftWalls    ;} 
+  else if(!strcmp(boundstr,"NADA"     )) {c->boundFunc = cv_nada         ;} 
+  else {
+    fprintf(stderr, "Error: boundary type not recognized");
+    exit(1);
+  }
  
+
+  // output
+  c->boutput=(outputFreq>0);
+  if (c->boutput) {
+    c->boutput=1;
+    c->outputFreq=outputFreq;
+    c->ofp=fopen(outfile,"w");
+  }
+   
+  return c;
+}
+
+// Get addresses
+double * cv_access_ref ( cv * c, int i ) {
+  if (!c)         {fprintf(stderr,"CVS) null argument\n"); exit(-1);}
+  if (i>=c->nC)   {fprintf(stderr,"CVS) out of size\n"); exit(-1);}
+  return c->ref[i];
+}                   
+
+double * cv_access_ref2 ( cv * c, int i ) {
+  if (!c)         {fprintf(stderr,"CVS) null argument\n"); exit(-1);}
+  if (i>=c->nC)   {fprintf(stderr,"CVS) out of size\n"); exit(-1);}
+  return c->ref2[i];
+}                   
+ 
+// Get properties
 int cv_getityp ( char * typ ) {
   int i;
   for (i=0;i<NULL_CV&&strcmp(typ,CVSTRINGS[i]);i++);
@@ -82,52 +153,118 @@ char * cv_getstyp ( int ityp ) {
   else return "NOT_FOUND";
 }
  
-cvStruct * New_cvStruct ( int typ, int nC, int * ind ) {
-  int i;
-  cvStruct * c=malloc(sizeof(cvStruct));
 
-  c->typ=typ;
-  switch(c->typ) {
-    case ZSDCIRCLE:
-      c->calc = calccv_zsd_circle;
-      break;
-    case ZSDXRANGE:
-      c->calc = calccv_zsd_xrange;
-      break;
-    case ZSDRING:
-      c->calc = calccv_zsd_ring;
-      break;
-    case BOND:        c->calc = calccv_bond; break;
-    case S:           c->calc = calccv_s; break;
-    case ANGLE:       c->calc = calccv_angle; break;
-    case DIHED:       c->calc = calccv_dihed; break;
-    case COGX: c->calc = calccv_cogx; break;
-    case COGY: c->calc = calccv_cogy; break;
-    case COGZ: c->calc = calccv_cogz; break;
-    case CARTESIAN_X: c->calc = calccv_x; 
-      fprintf(stderr,"ERROR, CV not recognized");fflush(stderr);break;
-    case CARTESIAN_Y: c->calc = calccv_y; break;
-    case CARTESIAN_Z: c->calc = calccv_z; break;
-      fprintf(stderr,"ERROR, CV not recognized");fflush(stderr);break;
-    default: 
-      fprintf(stderr,"ERROR, CV not recognized");
-      fflush(stderr);exit(-1);break;
+// CV computing 
+
+int calccv_rmsd (cv * c, double ** R ) {
+  int l,i,d;
+
+  double aux, sum2;
+
+  //  optimal rotation ? 
+  //
+  //    E. A. Coutsias, C. Seok, and K. A. Dill.
+  //    Using quaternions to calculate RMSD.
+  //    J. Comput. Chem., 25(15):1849-1857, 2004. 
+  //
+
+  c->val=0.;
+  for (l=0;l<c->nC;l++) {
+    for (d=0;d<3;d++) {
+      i=c->ind[l];
+      aux=R[i][d]-c->ref[i][d];
+      c->val+=aux*aux;
+    }
   }
 
-  c->nC=nC;
-  c->val=0.0;
+  for (l=0;l<c->nC;l++) {
+    for (d=0;d<3;d++) {
+      i=c->ind[l];
+      c->gr[i][d]=2.0*(R[i][d]-c->ref[i][d]);
+    }
+  } 
 
-  c->ind=calloc(nC,sizeof(int));
-  if (ind) for (i=0;i<nC;i++) c->ind[i]=ind[i];
+  c->val=c->val/c->nC;
 
-  c->gr=(double**)malloc(nC*sizeof(double*));
-  for (i=0;i<nC;i++) c->gr[i]=(double*)malloc(3*sizeof(double));
+  return 0;
 
-  return c;
 }
 
+int set_line (cv * c) {
+  int l,i,d;
+  double aux;
 
-int calccv_s ( cvStruct * c, DataSpace * ds ) {
+  // // Corrects COG of ref
+  // for (d=0;d<3;d++) {
+  //   aux=0.;
+  //   for (l=0;l<c->nC;l++) aux+=c->ref[l][d];
+  //   for (l=0;l<c->nC;l++) c->ref[l][d]-=aux/c->nC;
+  // }
+  //
+  // // Corrects COG of ref2
+  // for (d=0;d<3;d++) {
+  //   aux=0.;
+  //   for (l=0;l<c->nC;l++) aux+=c->ref2[l][d];
+  //   for (l=0;l<c->nC;l++) c->ref2[l][d]-=aux/c->nC;
+  // }
+  //
+  //Optimal rotation ? 
+  
+  // Computes ref2-ref and store in gr
+  c->refmod=0.;
+  for (d=0;d<3;d++) {
+    for (l=0;l<c->nC;l++) {
+      c->gr[l][d]=c->ref2[l][d]-c->ref[l][d];
+      c->refmod+=c->gr[l][d]*c->gr[l][d];
+    }
+  }
+
+  // 0 is ref and 1 is ref2 so refmod go to the square
+  // c->refmod=sqrt(c->refmod);
+
+  // Normalize
+  for (d=0;d<3;d++) {
+    for (l=0;l<c->nC;l++) c->gr[l][d]=c->gr[l][d]/c->refmod;
+  }
+   
+  return 0;
+
+}
+
+int calccv_line (cv * c, double ** R ) {
+  int l,i,d;
+  double cog[3];
+  double aux;
+
+  //Correct COG
+
+  // // Computes COG of ref
+  // for (d=0;d<3;d++) {
+  //   aux=0.;
+  //   for (l=0;l<c->nC;l++) {
+  //     i=c->ind[l];
+  //     aux+=R[i][d];
+  //   }
+  //   cog[d] = aux/c->nC;
+  // }
+                    
+  // Computes cv value
+  c->val=0.;
+  for (l=0;l<c->nC;l++) {
+    for (d=0;d<3;d++) {
+      i=c->ind[l];
+      // c->val+=(R[i][d]-cog[d]-c->ref[l][d])*c->gr[l][d];
+      c->val+=(R[i][d]-c->ref[l][d])*c->gr[l][d];
+    }
+  }
+               
+  //The gradient is constant
+     
+  return 0;
+
+}
+ 
+int calccv_s ( cv * c, double ** R ) {
   /* S is the CV of bond networks (see \cite{Barducci2006}) */
   int j,k,l;
   double r,aux;
@@ -137,7 +274,7 @@ int calccv_s ( cvStruct * c, DataSpace * ds ) {
   for (j=0;j<c->nC;j+=2) {
     k=c->ind[j];
     l=c->ind[j+1];
-    r=my_getbond( ds->R[k], ds->R[l], c->gr[j], c->gr[j+1]);
+    r=my_getbond( R[k], R[l], c->gr[j], c->gr[j+1]);
     aux=pow((r/2.5),6);
     c->val+=1./(1.+aux);
     aux=(6.*aux/r)/((1.+aux)*(1.+aux));
@@ -161,22 +298,21 @@ int set_zsd_circle ( double x,double y, double xy, double s  ) {
   return 0;
 }
 
-int calccv_zsd_circle ( cvStruct * c, DataSpace * ds ) {
-  int i,j,k,l;
+int calccv_zsd_circle ( cv * c, double ** R ) {
+  int i,l;
   double zsdc_v,zsdc_z;
   double aux,aux1,aux2,d,norm;
 
 
   // Compute the average z
-  j=0;
   zsdc_z=0.;
   norm=0.;
   for (l=0;l<c->nC;l++) {
     i=c->ind[l];
 
     // Compute the weight
-    aux1= (ds->R[i][0]-zsdc_x);
-    aux2= (ds->R[i][1]-zsdc_y);
+    aux1= (R[i][0]-zsdc_x);
+    aux2= (R[i][1]-zsdc_y);
     d=sqrt(aux1*aux1+aux2*aux2);
     aux1= zsdc_d-d;
     aux2=-zsdc_d-d;
@@ -184,8 +320,8 @@ int calccv_zsd_circle ( cvStruct * c, DataSpace * ds ) {
 
     // Accumulate and save the unnormalized weight
     norm+=aux;
-    zsdc_z+=aux*ds->R[i][2];
-    c->gr[i][2]=aux;
+    zsdc_z+=aux*R[i][2];
+    c->gr[l][2]=aux;
  
     // Save the derivatvies of the unnormalized weight
     // (cdf(aux1/s))'=gauss(aux1,s,0)*(x-x0)/d
@@ -198,8 +334,8 @@ int calccv_zsd_circle ( cvStruct * c, DataSpace * ds ) {
     } else {
      aux=-(aux1-aux2)/(zsdc_s*sqrt(2*M_PI)*d);
     }
-    c->gr[i][0]=aux*(ds->R[i][0]-zsdc_x);
-    c->gr[i][1]=aux*(ds->R[i][1]-zsdc_y);
+    c->gr[l][0]=aux*(R[i][0]-zsdc_x);
+    c->gr[l][1]=aux*(R[i][1]-zsdc_y);
   }
   zsdc_z=zsdc_z/norm;
 
@@ -209,12 +345,12 @@ int calccv_zsd_circle ( cvStruct * c, DataSpace * ds ) {
     i=c->ind[l];
 
     // Accumulate
-    aux=(ds->R[i][2]-zsdc_z);
-    zsdc_v+=aux*aux*c->gr[i][2];
+    aux=(R[i][2]-zsdc_z);
+    zsdc_v+=aux*aux*c->gr[l][2];
   }
 
   zsdc_v=zsdc_v/norm;
-  //fprintf(stdout,"BLP) %.5f %.5f\n",aux*aux,c->gr[i][2]);
+  //fprintf(stdout,"BLP) %.5f %.5f\n",aux*aux,c->gr[l][2]);
 
   c->val=zsdc_v;
 
@@ -222,13 +358,13 @@ int calccv_zsd_circle ( cvStruct * c, DataSpace * ds ) {
   for (l=0;l<c->nC;l++) {
     i=c->ind[l];
 
-    aux=(ds->R[i][2]-zsdc_z);
+    aux=(R[i][2]-zsdc_z);
 
-    //c->gr[i][0]=c->gr[i][0]*(aux*aux-zsdc_v)/norm;
-    //c->gr[i][1]=c->gr[i][1]*(aux*aux-zsdc_v)/norm;
-    c->gr[i][0]=c->gr[i][0]*(aux*aux-3*zsdc_v)/norm;
-    c->gr[i][1]=c->gr[i][1]*(aux*aux-3*zsdc_v)/norm;
-    c->gr[i][2]=2*c->gr[i][2]*aux/norm;
+    //c->gr[l][0]=c->gr[l][0]*(aux*aux-zsdc_v)/norm;
+    //c->gr[l][1]=c->gr[l][1]*(aux*aux-zsdc_v)/norm;
+    c->gr[l][0]=c->gr[l][0]*(aux*aux-3*zsdc_v)/norm;
+    c->gr[l][1]=c->gr[l][1]*(aux*aux-3*zsdc_v)/norm;
+    c->gr[l][2]=2*c->gr[l][2]*aux/norm;
 
   }
 
@@ -236,34 +372,33 @@ int calccv_zsd_circle ( cvStruct * c, DataSpace * ds ) {
 
 }
 
-int calccv_zsd_xrange ( cvStruct * c, DataSpace * ds ) {
+int calccv_zsd_xrange ( cv * c, double ** R ) {
   // set_zsd_cricle set enough number of parameters for this cv
   // therefore we will use:
   //   zsdc_d as the widht of the x range
   //   zsdc_x as the position of the x range
   //   zsdc_y discarded
-  int i,j,k,l;
+  int i,l;
   double zsdc_v,zsdc_z;
   double aux,aux1,aux2,d,norm;
 
 
   // Compute the average z
-  j=0;
   zsdc_z=0.;
   norm=0.;
   for (l=0;l<c->nC;l++) {
     i=c->ind[l];
 
     // Compute the weight
-    d= abs(ds->R[i][0]-zsdc_x);
+    d= abs(R[i][0]-zsdc_x);
     aux1= zsdc_d-d;
     aux2=-zsdc_d-d;
     aux=cdf(aux1/zsdc_s)-cdf(aux2/zsdc_s);
 
     // Accumulate and save the unnormalized weight
     norm+=aux;
-    zsdc_z+=aux*ds->R[i][2];
-    c->gr[i][2]=aux;
+    zsdc_z+=aux*R[i][2];
+    c->gr[l][2]=aux;
  
     // Save the derivatvies of the unnormalized weight
     // (cdf(aux1/s))'=gauss(aux1,s,0)*(x-x0)/d
@@ -276,8 +411,8 @@ int calccv_zsd_xrange ( cvStruct * c, DataSpace * ds ) {
     } else {
       aux=-(aux1-aux2)/(zsdc_s*sqrt(2*M_PI)*d);
     }
-    c->gr[i][0]=aux*(ds->R[i][0]-zsdc_x);
-    c->gr[i][1]=0.0;
+    c->gr[l][0]=aux*(R[i][0]-zsdc_x);
+    c->gr[l][1]=0.0;
   }
   zsdc_z=zsdc_z/norm;
 
@@ -287,12 +422,12 @@ int calccv_zsd_xrange ( cvStruct * c, DataSpace * ds ) {
     i=c->ind[l];
 
     // Accumulate
-    aux=(ds->R[i][2]-zsdc_z);
-    zsdc_v+=aux*aux*c->gr[i][2];
+    aux=(R[i][2]-zsdc_z);
+    zsdc_v+=aux*aux*c->gr[l][2];
   }
 
   zsdc_v=zsdc_v/norm;
-  //fprintf(stdout,"BLP) %.5f %.5f\n",aux*aux,c->gr[i][2]);
+  //fprintf(stdout,"BLP) %.5f %.5f\n",aux*aux,c->gr[l][2]);
 
   c->val=zsdc_v;
 
@@ -300,13 +435,13 @@ int calccv_zsd_xrange ( cvStruct * c, DataSpace * ds ) {
   for (l=0;l<c->nC;l++) {
     i=c->ind[l];
 
-    aux=(ds->R[i][2]-zsdc_z);
+    aux=(R[i][2]-zsdc_z);
 
-    //c->gr[i][0]=c->gr[i][0]*(aux*aux-zsdc_v)/norm;
-    //c->gr[i][1]=c->gr[i][1]*(aux*aux-zsdc_v)/norm;
-    c->gr[i][0]=c->gr[i][0]*(aux*aux-3*zsdc_v)/norm;
-    c->gr[i][1]=0.0;
-    c->gr[i][2]=2*c->gr[i][2]*aux/norm;
+    //c->gr[l][0]=c->gr[l][0]*(aux*aux-zsdc_v)/norm;
+    //c->gr[l][1]=c->gr[l][1]*(aux*aux-zsdc_v)/norm;
+    c->gr[l][0]=c->gr[l][0]*(aux*aux-3*zsdc_v)/norm;
+    c->gr[l][1]=0.0;
+    c->gr[l][2]=2*c->gr[l][2]*aux/norm;
 
   }
 
@@ -325,22 +460,21 @@ int set_zsd_ring ( double x,double y, double r1, double r2, double s  ) {
   return 0;
 }
 
-int calccv_zsd_ring ( cvStruct * c, DataSpace * ds ) {
-  int i,j,k,l;
+int calccv_zsd_ring ( cv * c, double ** R ) {
+  int i,l;
   double zsdr_v,zsdr_z;
   double aux,aux1,aux2,aux3,aux4,d,norm;
 
 
   // Compute the average z
-  j=0;
   zsdr_z=0.;
   norm=0.;
   for (l=0;l<c->nC;l++) {
     i=c->ind[l];
 
     // Compute the weight
-    aux1= (ds->R[i][0]-zsdr_x);
-    aux2= (ds->R[i][1]-zsdr_y);
+    aux1= (R[i][0]-zsdr_x);
+    aux2= (R[i][1]-zsdr_y);
     d=sqrt(aux1*aux1+aux2*aux2);
     aux1= zsdr_r2-d;
     aux2= zsdr_r1-d;
@@ -351,8 +485,8 @@ int calccv_zsd_ring ( cvStruct * c, DataSpace * ds ) {
 
     // Accumulate and save the unnormalized weight
     norm+=aux;
-    zsdr_z+=aux*ds->R[i][2];
-    c->gr[i][2]=aux;
+    zsdr_z+=aux*R[i][2];
+    c->gr[l][2]=aux;
  
     // Save the derivatvies of the unnormalized weight
     // (cdf(aux1/s))'=gauss(aux1,s,0)*(x-x0)/d
@@ -369,8 +503,8 @@ int calccv_zsd_ring ( cvStruct * c, DataSpace * ds ) {
     //  aux=-(aux1-aux2)/(zsdc_s*sqrt(2*M_PI)*d);
     aux=-(aux1-aux2-aux1+aux2)/(zsdr_s*sqrt(2*M_PI)*d);
     //} 
-    c->gr[i][0]=aux*(ds->R[i][0]-zsdr_x);
-    c->gr[i][1]=aux*(ds->R[i][1]-zsdr_y);
+    c->gr[l][0]=aux*(R[i][0]-zsdr_x);
+    c->gr[l][1]=aux*(R[i][1]-zsdr_y);
   }
   zsdr_z=zsdr_z/norm;
 
@@ -380,12 +514,12 @@ int calccv_zsd_ring ( cvStruct * c, DataSpace * ds ) {
     i=c->ind[l];
 
     // Accumulate
-    aux=(ds->R[i][2]-zsdr_z);
-    zsdr_v+=aux*aux*c->gr[i][2];
+    aux=(R[i][2]-zsdr_z);
+    zsdr_v+=aux*aux*c->gr[l][2];
   }
 
   zsdr_v=zsdr_v/norm;
-  //fprintf(stdout,"BLP) %.5f %.5f\n",aux*aux,c->gr[i][2]);
+  //fprintf(stdout,"BLP) %.5f %.5f\n",aux*aux,c->gr[l][2]);
 
   c->val=zsdr_v;
 
@@ -393,13 +527,13 @@ int calccv_zsd_ring ( cvStruct * c, DataSpace * ds ) {
   for (l=0;l<c->nC;l++) {
     i=c->ind[l];
 
-    aux=(ds->R[i][2]-zsdr_z);
+    aux=(R[i][2]-zsdr_z);
 
-    //c->gr[i][0]=c->gr[i][0]*(aux*aux-zsdr_v)/norm;
-    //c->gr[i][1]=c->gr[i][1]*(aux*aux-zsdr_v)/norm;
-    c->gr[i][0]=c->gr[i][0]*(aux*aux-3*zsdr_v)/norm;
-    c->gr[i][1]=c->gr[i][1]*(aux*aux-3*zsdr_v)/norm;
-    c->gr[i][2]=2*c->gr[i][2]*aux/norm;
+    //c->gr[l][0]=c->gr[l][0]*(aux*aux-zsdr_v)/norm;
+    //c->gr[l][1]=c->gr[l][1]*(aux*aux-zsdr_v)/norm;
+    c->gr[l][0]=c->gr[l][0]*(aux*aux-3*zsdr_v)/norm;
+    c->gr[l][1]=c->gr[l][1]*(aux*aux-3*zsdr_v)/norm;
+    c->gr[l][2]=2*c->gr[l][2]*aux/norm;
 
   }
 
@@ -407,24 +541,32 @@ int calccv_zsd_ring ( cvStruct * c, DataSpace * ds ) {
 
 }
 
-int calccv_bond ( cvStruct * c, DataSpace * ds ) {
-  c->val=my_getbond(ds->R[c->ind[0]],ds->R[c->ind[1]],c->gr[0],c->gr[1]);
+int calccv_bond ( cv * c, double ** R ) {
+  c->val=my_getbond(R[c->ind[0]],R[c->ind[1]],c->gr[0],c->gr[1]);
   return 0;
 }
  
-int calccv_angle ( cvStruct * c, DataSpace * ds ) {
-  c->val=my_getangle(ds->R[c->ind[0]],ds->R[c->ind[1]],ds->R[c->ind[2]],
+int calccv_halfbond ( cv * c, double ** R ) {
+  c->val=my_getbond(R[c->ind[0]],R[c->ind[1]],c->gr[0],c->gr[1]);
+  c->gr[1][0]=0.;
+  c->gr[1][1]=0.;
+  c->gr[1][2]=0.;
+  return 0;
+}
+ 
+int calccv_angle ( cv * c, double ** R ) {
+  c->val=my_getangle(R[c->ind[0]],R[c->ind[1]],R[c->ind[2]],
 			    c->gr[0],        c->gr[1],        c->gr[2]);
   return 0;
 }
 
-int calccv_dihed ( cvStruct * c, DataSpace * ds ) {
-  c->val=my_getdihed(ds->R[c->ind[0]],ds->R[c->ind[1]],ds->R[c->ind[2]],ds->R[c->ind[3]],
+int calccv_dihed ( cv * c, double ** R ) {
+  c->val=my_getdihed(R[c->ind[0]],R[c->ind[1]],R[c->ind[2]],R[c->ind[3]],
   		             c->gr[0],        c->gr[1],       c->gr[2],        c->gr[3]);
 #ifdef _PARANOIA_
 	if (_PARANOIA_) {
 	  if (c->val!=c->val) {
-	    fprintf(stderr,"CFACV/C/PARANOIA) Tripped at dihed cvi->val %.5f\n",cvi->val);
+	    fprintf(stderr,"CVS/C/PARANOIA) Tripped at dihed cvi->val %.5f\n",cvi->val);
 	    fprintf(stderr,"Program exits.\n");
 	    fflush(stderr);
 	    exit(-1);
@@ -434,31 +576,31 @@ int calccv_dihed ( cvStruct * c, DataSpace * ds ) {
   return 0;
 }
 
-int calccv_x ( cvStruct * c, DataSpace * ds ) {
-  c->val=ds->R[c->ind[0]][0];
+int calccv_x ( cv * c, double ** R ) {
+  c->val=R[c->ind[0]][0];
   c->gr[0][0]=1.0;
   c->gr[0][1]=0.0;
   c->gr[0][2]=0.0; 
   return 0;
 }
 
-int calccv_y ( cvStruct * c, DataSpace * ds ) {
-  c->val=ds->R[c->ind[0]][1];
+int calccv_y ( cv * c, double ** R ) {
+  c->val=R[c->ind[0]][1];
   c->gr[0][0]=0.0;
   c->gr[0][1]=1.0;
   c->gr[0][2]=0.0; 
   return 0;
 }
 
-int calccv_z ( cvStruct * c, DataSpace * ds ) {
-  c->val=ds->R[c->ind[0]][2];
+int calccv_z ( cv * c, double ** R ) {
+  c->val=R[c->ind[0]][2];
   c->gr[0][0]=0.0;
   c->gr[0][1]=0.0;
   c->gr[0][2]=1.0; 
   return 0;
 }
 
-int calccv_cogx ( cvStruct * c, DataSpace * ds ) {
+int calccv_cogx ( cv * c, double ** R ) {
   double aux,aux2;
   int l,i;
 
@@ -466,17 +608,17 @@ int calccv_cogx ( cvStruct * c, DataSpace * ds ) {
   aux2=1./c->nC;
   for (l=0;l<c->nC;l++) {
     i=c->ind[l];
-    c->gr[i][0]=aux2;
-    c->gr[i][1]=0.;
-    c->gr[i][2]=0.;
-    aux+=ds->R[i][0];
+    c->gr[l][0]=aux2;
+    c->gr[l][1]=0.;
+    c->gr[l][2]=0.;
+    aux+=R[i][0];
   }
 
   c->val = aux/c->nC;
   return 0;
 }
 
-int calccv_cogy ( cvStruct * c, DataSpace * ds ) {
+int calccv_cogy ( cv * c, double ** R ) {
   double aux,aux2;
   int l,i;
 
@@ -484,17 +626,17 @@ int calccv_cogy ( cvStruct * c, DataSpace * ds ) {
   aux2=1./c->nC;
   for (l=0;l<c->nC;l++) {
     i=c->ind[l];
-    c->gr[i][0]=0.;
-    c->gr[i][1]=aux2;
-    c->gr[i][2]=0.;
-    aux+=ds->R[i][1];
+    c->gr[l][0]=0.;
+    c->gr[l][1]=aux2;
+    c->gr[l][2]=0.;
+    aux+=R[i][1];
   }
 
   c->val = aux/c->nC;
   return 0;
 }
  
-int calccv_cogz ( cvStruct * c, DataSpace * ds ) {
+int calccv_cogz ( cv * c, double ** R ) {
   double aux,aux2;
   int l,i;
 
@@ -502,10 +644,10 @@ int calccv_cogz ( cvStruct * c, DataSpace * ds ) {
   aux2=1./c->nC;
   for (l=0;l<c->nC;l++) {
     i=c->ind[l];
-    c->gr[i][0]=0.;
-    c->gr[i][1]=0.;
-    c->gr[i][2]=aux2;
-    aux+=ds->R[i][2];
+    c->gr[l][0]=0.;
+    c->gr[l][1]=0.;
+    c->gr[l][2]=aux2;
+    aux+=R[i][2];
   }  
 
   c->val = aux/c->nC;
@@ -576,3 +718,40 @@ double cdf(double x)
 //
 //  return fc;
 //}
+//
+
+// BOUNDARIES
+
+int cv_nada ( cv * c ) {
+  return 0;
+}
+
+int cv_SoftWalls ( cv * c ) {
+  cv_SoftUpperWall(c);
+  cv_SoftLowerWall(c);
+}
+ 
+int cv_SoftLowerWall ( cv * c ) {
+  double aux;
+  aux=c->val-c->min;
+  if (aux>0.) return 0;
+  c->f-=c->boundk*aux;
+  c->u+=.5*c->boundk*aux*aux;
+  return 0;
+}
+
+int cv_SoftUpperWall ( cv * c ) {
+  double aux;
+  aux=c->val-c->max;
+  if (aux<0.) return 0;
+  c->f-=c->boundk*aux;
+  c->u+=.5*c->boundk*aux*aux;
+  return 0;
+}
+
+void cv_output ( cv * c ) {
+  fprintf(c->ofp,"%11.5f",c->val);
+  fprintf(c->ofp," %11.5f\n",c->f);
+  fflush(c->ofp);
+}
+            

@@ -1,4 +1,8 @@
 src/*.o
 src/version
 src/*_wrap.c
+src/tags
+src/catbinsp
+src/*.so
+src/chapadd
 message

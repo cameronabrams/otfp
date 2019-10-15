@@ -1,0 +1,85 @@
+#!/bin/tclsh
+ 
+# Restart OTFP: There is two modes to restart otfp, chose one:
+# set restart_otfp cfacv_loadstate
+# set restart_chapeau chapeau_loadlambda
+                        
+set oname           job1
+set temperature     298
+set seed            923458
+seed                $seed
+ 
+
+# The molecules
+structure           ../systems/ala2.psf
+coordinates         ../systems/ala2.pdb
+binCoordinates      job0.restart.coor
+binVelocities       job0.restart.vel
+extendedsystem      job0.restart.xsc
+
+firsttimestep       1000000
+timestep            2.0
+rigidBonds          all  
+
+ 
+# Potentials and parameters
+paraTypeCharmm      on
+parameters          ../systems/par_all22_prot.prm
+parameters          ../systems/toppar_water_ions_namd.str
+exclude             scaled1-4
+1-4scaling          1.0 
+
+# Non-bonding cutoff
+cutoff              10.0  ;#12.0 
+switching           on    ;# suavisado
+switchdist           9.0  ;#10.0 # Desde donde comienza el suavizado
+
+# Verlet List
+pairlistdist        11.5  ;#14.0 #Radio externo de Verlet
+# stepspercycle       10    ;#Pasos para el calculo de la lista de Verlet
+
+# Particle Mesh Ewald algorithm
+PME                 on    ; # 3D grid representing the system charge.
+PMEgridspacing      1     ; # Maximum distance between grid points in each direction.
+
+# Multiple time steps
+nonbondedFreq       1
+fullElectFrequency  2
+
+# Ensemble NVT
+# temperature         $temperature
+langevin            on;             # do langevin dynamics
+langevinTemp        $temperature;   # bath temperature
+langevinHydrogen    no
+langevinDamping     50.
+
+# # Ensamble NPT
+# langevinPiston      off
+#
+# set pressure          1.01325
+# langevinPistonTarget  $pressure ;# in bar
+# set pressure          [expr $pressure*1.43933857e-10] ;#  in kcalmol/A3 
+#
+# langevinPistonPeriod  100.0 ;# oscillation time constant in fs
+# langevinPistonDecay   50.0 ;# damping time constant in fs
+# useGroupPresyysure    yes ;# needed for rigidBonds
+# useFlexibleCell       no  ;# three directions are independent
+# useConstantArea       no  ;# xy area constant.
+ 
+# Output
+outputName          ${oname}
+outputEnergies      10000
+restartfreq         10000
+dcdfreq             10000
+outputTiming        50000
+
+source OTFP.namd
+
+# Restart restraints
+ds_loadrestrains $ds job0.rstr 
+    
+# Restart chapeaus
+chapeau_loadstate $chape(0.address) job0.ch0
+          
+# variables needed for the tclforcesscript
+run  5000000 ;# 5ns

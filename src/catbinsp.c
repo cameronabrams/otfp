@@ -47,12 +47,12 @@ int main ( int argc, char * argv[] ) {
 
     if (desiredOutputLevel & 1) {
       fprintf(stdout,"KNOTS    %i ",timestep);
-      for (i=0;i<n;i++) fprintf(stdout,"% 11.5lf",data[0][i]);
+      for (i=0;i<n;i++) fprintf(stdout,"%12.5le ",data[0][i]);
       fprintf(stdout,"\n");
     } 
     if (desiredOutputLevel & 2) {
       fprintf(stdout,"HITS     %i ",timestep);
-      for (i=0;i<n;i++) fprintf(stdout,"% 1i",intdata[i]);
+      for (i=0;i<n;i++) fprintf(stdout,"%1i ",intdata[i]);
       fprintf(stdout,"\n");
     } 
     ln++;

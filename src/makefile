@@ -5,26 +5,29 @@
 CC=gcc
 
 ifeq ($(CC),icc)
-CCFLAGS+=-static-libgcc
-LIBS += -L/usr/lib64
+  LIBS+=-mkl
+  # LIBS+=-lmkl_avx
+  
+  # LIBS+=-lmkl_intel_ilp64 -lmkl_sequential -lmkl_core -lpthread -lm -ldl
 endif
 
 ifeq ($(CC),gcc)
-# CCFLAGS+=-O3 
-# CCFLAGS+=-static
-# CCFLAGS=-g -Wall -Wpedantic
+#  CFLAGS+=-g
+#  CFLAGS+=-O0 
+#  CFLAGS+=-O3 
+# CFLAGS+=-static
+# CFLAGS+=-Wall
+# CFLAGS+=-Wpedantic
 #
 # Profile
-# CCFLAGS+=-Wall -g -rdynamic
+# CFLAGS+=-Wall -g -rdynamic
+#
+# LIBS += -lgsl -lgslcblas
+LIBS += -llapack
+LIBS += -lm
 endif
 
-# On stampede
-# LIBS += -I$(TACC_GSL_INC) -L$(TACC_GSL_LIB)
-
-
-LIBS += -lgsl -lgslcblas
-LIBS += -lm
-
+LIBS+=-ltcl8.6
 
 OBJ += measurements.o
 OBJ += chapeau.o
@@ -33,16 +36,16 @@ OBJ += cfacv.o
 OBJ += cvs.o
 
 GIT_VERSION := $(shell git describe --abbrev=4 --dirty --always 2>/dev/null || cat version 2>/dev/null || echo unknown )
-CCFLAGS+=-DVERSION=\"$(GIT_VERSION)\"
+CFLAGS+=-DVERSION=\"$(GIT_VERSION)\"
 
 
-all: cfacv.so chapadd catbinsp
+all: cfacv.so cvs.so chapadd catbinsp
  
 %.so:  $(OBJ) %_wrap.o
-	$(CC) $(CCFLAGS) -shared -o $@ $^ $(LIBS)
+	$(CC) $(CFLAGS) -shared -o $@ $^ $(LIBS)
         
 %.o: %.c
-	$(CC) -c -fpic $(CCFLAGS) $< $(LIBS)
+	$(CC) -c -fpic $(CFLAGS) $< $(LIBS)
  
 %_wrap.c: %.i %.c %.h
 	swig -tcl8 $<
@@ -52,10 +55,10 @@ version: force
 
 
 catbinsp: catbinsp.o
-	$(CC) $(CCFLAGS) -o $@ $^ $(LIBS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
  
 chapadd: addchapeaus.o chapeau.o
-	$(CC) $(CCFLAGS) -o $@ $^ $(LIBS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
 measurements.o : measurements.h
 chapeau.o : chapeau.h
