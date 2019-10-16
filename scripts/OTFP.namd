@@ -2,7 +2,7 @@
 
 tclforces             on
 set CFACV_BASEDIR     OTFP
-tclforcesscript       $CFACV_BASEDIR/cfacv_tclforces.tcl
+tclforcesscript       $CFACV_BASEDIR/calcforces.tcl
  
 # Periodic Boundary Conditions
 set XSCFILE         off
@@ -24,6 +24,7 @@ set TAMDof                 $data_each ;# frequency
 
 # for chapeau_output
 set BINREPORTPARAMFREQ     $data_each ;#ds->ch->outputFreq
+set BINREPORTPARAMFILE     [format $job_output_root $replica_id]
 set BINOUTPUTLEVEL         3          ;#lambda-hits (e.g. 3 => 11 => both)
  
 # About grid
@@ -36,10 +37,11 @@ set NKNOTS                  371 ;#dr=$CUTOFF-$SPLINEMIN/(NKNOTS-1)
 # Offset and interval for improve lambda parameters
 set CFACV_doAnalyticalCalc  1  ;# 1 optmize the analytical parameterization
 set USETAMDFORCES           1  ;# 1 use TAMD forces, 0 use gradient of G
-set BEGINEVOLVEPARAMETERS   5000  ;# Number of steps without evolution at the start
+set BEGINEVOLVEPARAMETERS   [expr $steps_per_run*$runs_noevolvech]  ;# Number of steps without evolution at the start
 
 
 set LAMUPDATEINTERVAL       $data_each
+set BEGINSOLVELAM           [expr $steps_per_run*$runs_nosolvech]  ;# Number of steps without evolution at the start
 
 
 # Restraints
@@ -48,7 +50,7 @@ set restr(1.cv)       1              ; # The cv or cvs associated
 set restr(1.k)        1500           ; # spring constant
 set restr(1.type)     tamd           ; # spring constant
  set restr(1.g)        1500          
- set restr(1.biasf)    10            ; # number between 0 and beta (min and max bias)
+ set restr(1.temp)     3000          ; # number between 0 and beta (min and max bias)
  set restr(1.dt)       0.002         
 set restr(1.bound)    soft           ; # boundary behavior
  set restr(1.boundk)   100           

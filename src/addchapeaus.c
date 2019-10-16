@@ -8,7 +8,7 @@
 
 int main ( int argc, char * argv[] ) {
   chapeau ** ch;
-  int i;
+  int i,j;
   
   
   ch=(chapeau**)malloc((argc-1)*sizeof(chapeau*));
@@ -17,19 +17,20 @@ int main ( int argc, char * argv[] ) {
     fprintf(stdout,"reading %s\n",argv[i]); 
     ch[i-1]=chapeau_allocloadstate(argv[i]);
   
-    fprintf(stdout,"ch %i info:\n",i-1); 
-    fprintf(stdout,"--- ch rmin %.5f\n",ch[i-1]->rmin); 
-    fprintf(stdout,"--- ch rmax %.5f\n",ch[i-1]->rmax); 
-    fprintf(stdout,"--- ch dr %.5f\n",ch[i-1]->dr); 
-    fprintf(stdout,"--- ch idr %.5f\n",ch[i-1]->idr); 
-    fprintf(stdout,"--- alpha  %.5f\n",ch[i-1]->alpha); 
- 
+
+    for (j=0;j<ch[i-1]->dm;j++) {
+      fprintf(stderr,"--- ch rmin %.5f\n",ch[i-1]->rmin[j]); 
+      fprintf(stderr,"--- ch rmax %.5f\n",ch[i-1]->rmax[j]); 
+      fprintf(stderr,"--- ch dr %.5f\n",ch[i-1]->dr[j]); 
+      fprintf(stderr,"--- ch idr %.5f\n",ch[i-1]->idr[j]); 
+    }
+     
   }
   
   // Output of the first chapeau before add in it
-  chapeau_setupoutput(ch[0],"chaps",1,1);
+  chapeau_setupoutput(ch[0],"chaps.bsp","chaps",1,1);
   ch[0]->nupdate=1;
-  chapeau_update_peaks(ch[0]);
+  chapeau_solve(ch[0]);
   chapeau_output(ch[0],1);
 
   //Prepare the output of the rest to the same file
@@ -42,13 +43,13 @@ int main ( int argc, char * argv[] ) {
 
   // start adding and output of each chapeau
   for (i=1;i<argc-1;i++) {
-    chapeau_update_peaks(ch[i]);
+    chapeau_solve(ch[i]);
     chapeau_output(ch[i],1);
     chapeau_sum(ch[0],ch[i]);
   }
 
   // Output of the sum
-  chapeau_update_peaks(ch[0]);
+  chapeau_solve(ch[0]);
   chapeau_output(ch[0],1);
                    
   fflush(ch[0]->ofp);

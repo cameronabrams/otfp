@@ -1,0 +1,119 @@
+#!/usr/bin/tclsh
+
+# configuration for replica exchange scripts
+
+# Run: the number of MPI ranks must be a multiple of the replicas
+#   (mkdir output; cd output; mkdir 0 1 2 3 4 5 6 7)
+#   mpirun -np 6 -hostfile hostfile $bindir/namd2 +replicas 6 job0.conf +stdout output/%d/job0.%d.log
+#   mpiexec -n 6 namd2 +replicas 6 job0.conf +stdout output/%d/job0.%d.log
+
+# Restart REMD: uncomment and correct the name of the restart file to match the
+# existing file. Then run again.
+#   source output/job0.restart1000.tcl
+
+# Restart OTFP: There is two modes to restart otfp, chose one:
+#   set restart_otfp cfacv_loadstate
+set restart_chapeau chapeau_loadlambda
+
+# sort into single-temperature trajectories:
+#   $bindir/sortreplicas output/%s/fold_alanin.job0 8 10
+# Warning: sortreplicas has a BUG when runs_per_frame is not 1
+
+set num_replicas            6
+set min_temp              100
+set nmin_temp               0
+set max_temp             1000
+
+set steps_per_run        1000 ; # number of steps between exchange attempts
+set num_runs             1000 ; # runs before stopping, should be divisible by runs_per_frame * frames_per_restart
+
+set runs_per_frame         1 ;# sortreplicas has a serious BUG when this is not 1
+set runs_per_restart     100 
+set runs_noexchange      300
+
+set data_each        [expr $steps_per_run*1]
+
+set output_root      "output/%s/" ; # directories must exist
+
+# # the following used only by show_replicas.vmd
+# set psf_file "buta.psf"
+# set initial_pdb_file "buta.pdb"
+# set fit_pdb_file "alanin.pdb"
+
+# prevent TCL from reading NAMD commands
+if { ! [catch numPes] } { 
+
+  # The molecules
+  structure           ../systems/buta.psf
+  coordinates         ../systems/buta.pdb
+
+  # The previous coordinates and boundary conditions
+  # bincoordinates rep1999.coor
+  timestep            2.0
+  rigidBonds          all  
+
+  # Periodic Boundary Conditions
+  set XSCFILE         off
+  # cellBasisVector1    54.0    0    0.0
+  # cellBasisVector2     0.0 54.0    0.0
+  # cellBasisVector3     0.0    0   54.0
+  # cellOrigin           0.0    0.0  0.0
+  # wrapall             on   ;# wrap all the atoms
+   
+  # Potentials and parameters
+  paraTypeCharmm      on
+  parameters          ../systems/par_all36_cgenff.prm
+  exclude             scaled1-4
+  1-4scaling          1.0
+
+  # Non-bonding cutoff
+  cutoff              11.0  ;#12.0 
+  switching           on    ;# suavisado
+  switchdist          10.0  ;#10.0 # Desde donde comienza el suavizado
+
+  # Verlet List
+  pairlistdist        12.0  ;#14.0 #Radio externo de Verlet
+  stepspercycle       10    ;#Pasos para el calculo de la lista de Verlet
+
+  # Particle Mesh Ewald algorithm
+  # PME                 on    ; # 3D grid representing the system charge.
+  # PMEgridspacing      1     ; # Maximum distance between grid points in each direction.
+
+  # Multiple time steps
+  nonbondedFreq       1
+  fullElectFrequency  2
+ 
+  # Ensemble NVT
+  langevin            on;             # do langevin dynamics
+  langevinHydrogen    no;             # don't couple langevin bath to hydrogens
+  langevinDamping     50.
+
+  # # Ensamble NPT
+  # langevinPiston      off
+  #
+  # set pressure          1.01325
+  # langevinPistonTarget  $pressure ;# in bar
+  # set pressure          [expr $pressure*1.43933857e-10] ;#  in kcalmol/A3 
+  #
+  # langevinPistonPeriod  100.0 ;# oscillation time constant in fs
+  # langevinPistonDecay   50.0 ;# damping time constant in fs
+  # useGroupPresyysure    yes ;# needed for rigidBonds
+  # useFlexibleCell       no  ;# three directions are independent
+  # useConstantArea       no  ;# xy area constant.
+   
+  # Output
+  # If steps_per_run is not multiple of outputEnergies, the potential energy
+  # needed for markov criteria will not be accesible trough callback
+  outputEnergies  $steps_per_run  ;# Should be a fraction of steps_per_run
+  xstfreq         $steps_per_run  ;# Should be a fraction of steps_per_run?
+  outputpressure  $data_each
+  dcdFreq         [expr $steps_per_run*$runs_per_frame] 
+ 
+  # Call replica (make sure is in the correct ensamble)
+  source ../../scripts/REMD_NVT.namd 
+  # source REMD_NPT.namd 
+
+  # source REOFP_NPT.namd 
+  # source REOFP_NVT.namd 
+}
+

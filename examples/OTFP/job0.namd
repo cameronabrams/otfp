@@ -1,0 +1,53 @@
+#!/bin/tclsh
+ 
+set oname           job0
+set temperature     298
+set seed            923458
+seed                $seed
+ 
+
+# The molecules
+structure           ../systems/buta.psf
+coordinates         ../systems/buta.pdb
+
+firsttimestep       0
+timestep            2.0
+rigidBonds          all  
+ 
+# Potentials and parameters
+paraTypeCharmm      on
+parameters          ../systems/par_all36_cgenff.prm
+exclude             scaled1-4
+1-4scaling          1.0
+
+# Non-bonding cutoff
+cutoff              11.0  ;#12.0 
+switching           on    ;# suavisado
+switchdist          10.0  ;#10.0 # Desde donde comienza el suavizado
+
+# Verlet List
+pairlistdist        12.0  ;#14.0 #Radio externo de Verlet
+stepspercycle       10    ;#Pasos para el calculo de la lista de Verlet
+
+
+# Multiple time steps
+nonbondedFreq       1
+fullElectFrequency  2
+
+# Ensemble NVT
+temperature         $temperature
+langevin            on;             # do langevin dynamics
+langevinTemp        $temperature;   # bath temperature
+langevinHydrogen    no
+langevinDamping     50.
+
+# Output
+outputName          ${oname}
+restartfreq         10000
+dcdfreq             5000
+xstfreq             5000
+outputEnergies      5000
+
+source OTFP.namd
+
+run  1000000 ;# 4ns
