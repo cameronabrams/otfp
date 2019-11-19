@@ -1,0 +1,101 @@
+#!/bin/tclsh
+
+tclforces             on
+set CFACV_BASEDIR     ../../src
+tclforcesscript       $CFACV_BASEDIR/calcforces.tcl
+
+# Periodic Boundary Conditions
+set XSCFILE         off
+
+# CVs and group definition
+set labelPDB          label.pdb ;# PDB file with group ID (1-based) in beta position
+set cvINP             cv.inp ;# list of CVs types togeter with it's parameters
+
+# Verbosidad
+# set DEBUG                0
+# set PARANOIA             0
+set TAMDverbose            1
+
+# for DataSpace_ReportRestraints
+# set TAMDoutputlevel        15     ;# Z-Th-FD-ND (e.g. 5 => 0101 => Th and ND)
+# set TAMDof                 200000 ;# frequency
+# set TAMDbinOutputFile       asd.bin
+# set TAMDbinof               100 ;# frequency
+
+# for chapeau_output
+# set BINREPORTPARAMFREQ     200000
+# set BINREPORTPARAMFILE     ${oname} ;#ds->ch->ofp
+# set BINOUTPUTLEVEL         3        ;#lambda-hits (e.g. 3 => 11 => both)
+ 
+# About grid                
+# set DIMEN                        2
+# set CUTOFF              [expr acos(-1.)]
+# lappend CUTOFF          [expr acos(-1.)]
+# set SPLINEMIN           [expr -acos(-1.)]
+# lappend SPLINEMIN       [expr -acos(-1.)]
+# set NKNOTS                 {151 151} 
+# set PERIODIC                {1 1}
+#dr=$CUTOFF-$SPLINEMIN/(NKNOTS-1)
+
+# Offset and interval for improve lambda parameters
+# set CFACV_doAnalyticalCalc  1  ;# 1 optmize the analytical parameterization
+# set USETAMDFORCES           1  ;# 1 use TAMD forces, 0 use gradient of G
+
+
+# Segun mis test y deducciones en el primer paso namd hace:
+# 1- llama a calcforces
+# 2- calcula las energías (hasta aca un un `run 0`)
+# 3- mueve
+# 4- llama a calcforces
+# 5- vuelve a clacular las energías e imprimendolas en pantalla.
+# 6- ejecuta el callback
+#
+# Hasta aca coincide la posicion con la energia
+# en pantalla, y hasta aca 2 llamados a
+# calcforces y luego el callback.
+#
+# El segundo paso evita repetir el paso anterior, y luego:
+# 1- llama a calcforces
+# 2- mueve
+# 3- vuelve a calcular las energías
+# 4- ejecuta el callback
+#
+# Notar que recien aca en 1 coincide posicion con la energía guardad
+# en el callback del paso anterior. Por eso conviene si se usa el
+# calllback (como en una dinamica acelerada) evitar los primeros 2 pasos
+# de registrar nada.
+#
+# Por eso para evitar los primeros 2 puntos fallidos, se puede hacer
+# BEGINEVOLVEPARAMETERS 2
+# set BEGINEVOLVEPARAMETERS        2  ;# Number of steps without evolution at the start
+# set LAMUPDATEINTERVAL       200000
+# set BEGINSOLVELAM                2 
+
+
+# Collective Variables
+set cv(num) 1
+set cv(1.type)     DIHED
+set cv(1.centers)  {5 7 9 15}
+set cv(1.outfile)  "phi"
+set cv(1.outfreq)  100
+
+set cv(num) 2
+set cv(2.type)     DIHED
+set cv(2.centers)  {7 9 15 17}
+set cv(2.outfile)  "psi"
+set cv(2.outfreq)  100
+            
+set cv(num) 3
+set cv(3.type)     {D2CHAP "fes.ch0"}
+set cv(3.centers)  {5 7 9 15 17}
+set cv(3.a)        -1.0
+set cv(3.bound)    "AMD"
+set cv(3.outfile)  "g2d_amd"
+set cv(3.outfreq)  100
+   
+
+set restr(num) 0
+
+# Initialize OTFP program
+source $CFACV_BASEDIR/cfacv.tcl
+ 

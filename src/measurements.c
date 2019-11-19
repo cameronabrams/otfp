@@ -193,9 +193,16 @@ double my_getdihed ( double p1[3], double p2[3], double p3[3], double p4[3],
   cos_phi=mydot(C12,C23)/(c12*c23);
   sin_phi=mydot(C23,C123)/(c23*c123);
 
-  if (fabs(cos_phi+1.0)<1.e-6) phi=M_PI;
-  else if (fabs(cos_phi-1.0)<1.e-6) phi=0.0;
-  else phi=acos(cos_phi);
+  // No le encuentro sentido a esto.. y de echo
+  // fuerza la aparicion de M_PI o 0 más veces 
+  // de lo probable (cero).. lo que me genera un error en el codigo algunas
+  // veces
+  // if (fabs(cos_phi+1.0)<1.e-6) phi=M_PI;
+  // else if (fabs(cos_phi-1.0)<1.e-6) phi=0.0;
+  // else phi=acos(cos_phi);
+  // if (sin_phi<0) phi*=-1;
+  //
+  phi=acos(cos_phi);
   if (sin_phi<0) phi*=-1;
   
 #ifdef _PARANOIA_

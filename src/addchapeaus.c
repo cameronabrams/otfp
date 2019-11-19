@@ -1,3 +1,7 @@
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+#include "chapeau_obj.h"
 #include "chapeau.h"
 // Este programa lee los .bsp.retart y saca un .bsp que corresponde al restart
 // todo, que lea tambien el .bsp y saque un .bsp en el tiempo 

@@ -1,25 +1,34 @@
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+#include "chapeau_obj.h"
 #include "chapeau.h"
 
-chapeau * chapeau_alloc ( int dm, double * rmin, double * rmax, int * N, int * periodic) {
-  chapeau * ch;
+#define SMALL 1.e-10
+
+int chapeau_init ( chapeau * ch, int dm, double * rmin, double * rmax, int * N, int * periodic) {
   int i;
 
   //TODO: check size of argument vectors and write the errors
   
-  // Allocating the object
-  ch=(chapeau*)malloc(sizeof(chapeau));
-  ch->ofp=0;
+  ch->ofp=NULL;
+  ch->nupdate     = 0;
+  ch->outputFreq  = 0;
+  ch->outputLevel = 0;
+
+  // Initialize filename bytes
+  memset(ch->filename, 0, 255*sizeof(char));
 
   // Allocating the dimension
   ch->dm=dm;
-  ch->periodic=(int*)malloc(dm*sizeof(int));
-  ch->rmin=(double*)malloc(dm*sizeof(double));
-  ch->rmax=(double*)malloc(dm*sizeof(double));
-  ch->dr=(double*)malloc(dm*sizeof(double));
-  ch->idr=(double*)malloc(dm*sizeof(double));
-  ch->N=(int*)malloc(dm*sizeof(int));
-  ch->r=(double*)malloc(dm*sizeof(double));
-  ch->f=(double*)malloc(dm*sizeof(double));
+  ch->periodic=calloc(dm,sizeof(int));
+  ch->rmin=calloc(dm,sizeof(double));
+  ch->rmax=calloc(dm,sizeof(double));
+  ch->dr=calloc(dm,sizeof(double));
+  ch->idr=calloc(dm,sizeof(double));
+  ch->N=calloc(dm,sizeof(int));
+  ch->r=calloc(dm,sizeof(double));
+  ch->f=calloc(dm,sizeof(double));
 
   if (ch->dm==1) {
     ch->accumulate=accumulate_1D;
@@ -38,17 +47,20 @@ chapeau * chapeau_alloc ( int dm, double * rmin, double * rmax, int * N, int * p
   }
           
   // Allocating the vectors
-  ch->lam=(double*)calloc(ch->m,sizeof(double));
-  ch->hits=(int*)calloc(ch->m,sizeof(int));
-  ch->b=(double*)calloc(ch->m,sizeof(double));
-  ch->bfull=(double*)calloc(ch->m,sizeof(double));
+  ch->lam=calloc(ch->m,sizeof(double));
+  ch->hits=calloc(ch->m,sizeof(int));
+  ch->b=calloc(ch->m,sizeof(double));
+  ch->bfull=calloc(ch->m,sizeof(double));
   ch->norm=1.;
                  
   // chapeau 1D => 1 uperdiagonals
   // chapeau 2D => ch->N[0] uperdiagonals
-  if (dm==1) {
+  if (ch->dm==1) {
     ch->ku=1;
   } else{
+    // TODO: En realidad si entiendo bien, la mayoria de estas diagonales van a tener ceros.
+    // salvo la primera y la ch->N[0], osea que aca quizas se podría dejar
+    // en 2 no N[0] si es que se pudiera empaquetar así.
     ch->ku=ch->N[0];
   }  
   ch->ldad=2*ch->ku+1;
@@ -74,33 +86,52 @@ chapeau * chapeau_alloc ( int dm, double * rmin, double * rmax, int * N, int * p
   // the upper or lower triangle since the matrix is
   // symmetric.
               
-  ch->A=(double**)calloc(ch->ldad,sizeof(double*));
-  ch->Afull=(double**)calloc(ch->ldad,sizeof(double*));
+  ch->A=calloc(ch->ldad,sizeof(double*));
+  ch->Afull=calloc(ch->ldad,sizeof(double*));
   for (i=0;i<ch->ldad;i++) {
-    ch->A[i]=(double*)calloc(ch->m,sizeof(double));
-    ch->Afull[i]=(double*)calloc(ch->m,sizeof(double));
+    ch->A[i]=calloc(ch->m,sizeof(double));
+    ch->Afull[i]=calloc(ch->m,sizeof(double));
   }
+
+  return 0;
+}
+ 
+chapeau * chapeau_alloc ( int dm, double * rmin, double * rmax, int * N, int * periodic) {
+  chapeau * ch;
+  int i;
+
+  // Allocating the object
+  ch=malloc(sizeof(chapeau));
+  chapeau_init(ch, dm, rmin, rmax, N, periodic);
 
   return ch;
 }
 
 void chapeau_free ( chapeau * ch ) {
   int i;
+
+  free(ch->periodic);
+  free(ch->rmin);
+  free(ch->rmax);
+  free(ch->dr);
+  free(ch->idr);
+  free(ch->N);
+  free(ch->r);
+  free(ch->f); 
+
+  free(ch->lam);
+  free(ch->hits);
+  free(ch->b);
+  free(ch->bfull);
   for (i = 0; i < ch->ldad; i++) { 
       free(ch->A[i]);
       free(ch->Afull[i]);
   }
   free(ch->A);
   free(ch->Afull);
-  free(ch->b);
-  free(ch->bfull);
-  free(ch->hits);
-  free(ch->rmin);
-  free(ch->rmax);
-  free(ch->dr);
-  free(ch->idr);
-  free(ch->N);
+  
   free(ch);
+  ch=NULL;
 }
              
 int chapeau_comparesize ( chapeau * ch1,  chapeau * ch2) {
@@ -205,11 +236,18 @@ void chapeau_savestate ( chapeau * ch, char * filename ) {
 
   fwrite(ch, sizeof(*ch), 1, ofs);
 
+  //TODO
+  // fwrite(ch->periodic.. );
+  // fwrite(ch->norm.. );
+  // fwrite(ch->ku.. );
+  
   fwrite(ch->rmin,sizeof(*(ch->rmin)),ch->dm,ofs);
   fwrite(ch->rmax,sizeof(*(ch->rmax)),ch->dm,ofs);
   fwrite(ch->N,sizeof(*(ch->N)),ch->dm,ofs);
    
+  // getchar();
   fwrite(ch->lam,sizeof(*(ch->lam)),ch->m,ofs);
+  // getchar();
   fwrite(ch->hits,sizeof(*(ch->hits)),ch->m,ofs);
 
   for (i=0;i<ch->ldad;i++) {
@@ -241,7 +279,7 @@ void chapeau_loadstate ( chapeau * ch, char * filename ) {
     // With chaux we prevent override of addresses (hits, A, etc) when
     // reading integers (N,M,et), that is only what we want... better way to do
     // this?
-    chaux = (chapeau*)malloc(sizeof(chapeau));
+    chaux = malloc(sizeof(chapeau));
     fread(chaux, sizeof(*chaux), 1,ofs);
     if (!chapeau_comparesize(ch,chaux)) {
       fprintf(stdout,"CFACV) ERROR, the chapeau object from the file is diferent\n");
@@ -289,41 +327,51 @@ chapeau * chapeau_allocloadstate ( char * filename ) {
     int i;
     FILE * ofs;
     chapeau * ch;
+    double * rmin;
+    double * rmax;
+    int * N;
+    int * periodic;
    
     fprintf(stdout,"CFACV) Allocating chapeau object from restart file\n");
 
-    ch = (chapeau*)malloc(sizeof(chapeau));
-  
-    // Reading only the sizes
     ofs=fopen(filename,"r");
-    fread(ch, sizeof(*ch), 1, ofs);
-    fclose(ofs);
- 
-    // Allocating the dimension
-    ch->rmin=(double*)malloc(ch->dm*sizeof(double));
-    ch->rmax=(double*)malloc(ch->dm*sizeof(double));
-    ch->dr=(double*)malloc(ch->dm*sizeof(double));
-    ch->idr=(double*)malloc(ch->dm*sizeof(double));
-    ch->N=(int*)malloc(ch->dm*sizeof(int));
-    ch->r=(double*)malloc(ch->dm*sizeof(double));
-    ch->f=(double*)malloc(ch->dm*sizeof(double));
 
-    // Allocating the size. TODO: En este bloque me parece que con malloc basta.
-    ch->lam=(double*)malloc(ch->m*sizeof(double));
-    ch->hits=(int*)calloc(ch->m,sizeof(int));
-    ch->b=(double*)calloc(ch->m,sizeof(double));
-    ch->bfull=(double*)calloc(ch->m,sizeof(double));
+    ch = malloc(sizeof(chapeau));
+         
+    // Read overall information of chapeau object
+    fread(ch, sizeof(*ch), 1,ofs);
 
-    ch->A=(double**)calloc(ch->ldad,sizeof(double*));
-    ch->Afull=(double**)calloc(ch->ldad,sizeof(double*));
+    // Alloc minimal info to run initializacion of the chapeau
+    periodic=calloc(ch->dm,sizeof(int));
+    rmin=malloc(ch->dm*sizeof(double));
+    rmax=malloc(ch->dm*sizeof(double));
+    N=malloc(ch->dm*sizeof(int));          
+
+    // Read the minimal informacion
+    // TODO: Read periodic vector
+    fread(rmin,sizeof(*rmin),ch->dm,ofs);
+    fread(rmax,sizeof(*rmax),ch->dm,ofs);
+    fread(N,sizeof(*N),ch->dm,ofs);
+         
+    // Initialize object
+    chapeau_init(ch,ch->dm,rmin,rmax,N,periodic);
+            
+    // Read the rest of the information
+    fread(ch->lam,sizeof(*(ch->lam)),ch->m,ofs);
+    fread(ch->hits,sizeof(*(ch->hits)),ch->m,ofs);
+
     for (i=0;i<ch->ldad;i++) {
-      ch->A[i]=(double*)calloc(ch->m,sizeof(double));
-      ch->Afull[i]=(double*)calloc(ch->m,sizeof(double));
+      fread(ch->A[i],sizeof(*(ch->A[i])),ch->m,ofs);
     }
-                     
-    // Now reading the state
-    chapeau_loadstate(ch,filename);
+    fread(ch->b,sizeof(*(ch->b)),ch->m,ofs);
 
+    for (i=0;i<ch->ldad;i++) {
+      fread(ch->Afull[i],sizeof(*(ch->Afull[i])),ch->m,ofs);
+    }
+    fread(ch->bfull,sizeof(*(ch->bfull)),ch->m,ofs);
+             
+    fclose(ofs);     
+    
     return ch;
 }
 
@@ -399,9 +447,9 @@ void chapeau_solve ( chapeau * ch ) {
 
   // Allocating the size. TODO: En este bloque me parece que con malloc basta.
   ldad=ch->ldad+ch->ku;
-  bbar=(double*)malloc(nred*sizeof(double));
-  Abar=(double*)calloc(nred*ldad,sizeof(double));
-  pivot=(int*)malloc(nred*sizeof(int));
+  bbar=malloc(nred*sizeof(double));
+  Abar=calloc(nred*ldad,sizeof(double));
+  pivot=malloc(nred*sizeof(int));
 
 
 
@@ -590,13 +638,13 @@ void chapeau_solve_secure ( chapeau * ch ) {
   }
 
   // Allocating the size. TODO: En este bloque me parece que con malloc basta.
-  bbar=(double*)malloc(nred*sizeof(double));
-  work=(double*)malloc(4*nred*sizeof(double));
-  Abar=(double*)calloc(nred*ch->ldad,sizeof(double));
-  Dbar=(double*)calloc(nred,sizeof(double));
-  Ebar=(double*)calloc(nred-1,sizeof(double));
-  U=(double*)calloc(nred*nred,sizeof(double));
-  VT=(double*)calloc(nred*nred,sizeof(double));
+  bbar=malloc(nred*sizeof(double));
+  work=malloc(4*nred*sizeof(double));
+  Abar=calloc(nred*ch->ldad,sizeof(double));
+  Dbar=calloc(nred,sizeof(double));
+  Ebar=calloc(nred-1,sizeof(double));
+  U=calloc(nred*nred,sizeof(double));
+  VT=calloc(nred*nred,sizeof(double));
 
   // The band storage scheme for a 
   // m = n = 6, kl = 2, ku = 2 example:
@@ -788,8 +836,8 @@ int chapeau_caneval_f2 ( chapeau * ch, double z1, double z2 ) {
   if ( z2 > ch->rmax[1] ) return 0;
   if ( z2 <= ch->rmin[1] ) return 0;
 
-  dx=(ch->r[0]-ch->rmin[0])*ch->idr[0]; 
-  dy=(ch->r[1]-ch->rmin[1])*ch->idr[1]; 
+  dx=(z1-ch->rmin[0])*ch->idr[0]; 
+  dy=(z2-ch->rmin[1])*ch->idr[1]; 
 
   i=(int)(dx);
   j=(int)(dy);
@@ -872,8 +920,8 @@ double chapeau_evalf_2simplex ( chapeau * ch, double z1, double z2 ) {
      |          |  
      |          |  
      *---------ni */
-  dx=(ch->r[0]-ch->rmin[0])*ch->idr[0]; 
-  dy=(ch->r[1]-ch->rmin[1])*ch->idr[1]; 
+  dx=(z1-ch->rmin[0])*ch->idr[0]; 
+  dy=(z2-ch->rmin[1])*ch->idr[1]; 
 
   i=(int)(dx);
   j=(int)(dy);
@@ -931,7 +979,129 @@ double chapeau_evalf_2simplex ( chapeau * ch, double z1, double z2 ) {
 
   return f;
 }  
+    
+double chapeau_evalfg_2simplex ( chapeau * ch, double z1, double z2, double * g ) {
+  // Evaluate the free energy and derivative of a given chapeau
+  int i,j,ni,nj,nk;
+  double f,dx,dy;
 
+  /*
+  -\|        -\|        -\|  
+  --*----------*----------*--
+    |-\|||||||||-\        |-\
+    |---\|1-y|||//-\      |  
+    |-----\|||||////-\    |  
+    |--1+x--\|||1-x-y -\  |  
+  -\|---------\|////////-\|  
+  --*----------*----------*--
+    |-\//1+x+y/|-\--------|-\
+    |  -\//////|||-\--1-x-|  
+    |    -\////|||||-\----|  
+    |      -\//||1+y||-\--|  
+  -\|        -\|||||||||-\|  
+  --*----------*----------*--
+    |-\        |-\        |-\
+
+  */
+ 
+  // Identifico el cuadrado, esto define dos nodos
+  /*nj----------*
+     |          |  
+     |          |  
+     |     x    |  
+     |          |  
+     |          |  
+     *---------ni */
+  dx=(z1-ch->rmin[0])*ch->idr[0]; 
+  dy=(z2-ch->rmin[1])*ch->idr[1]; 
+  // fprintf(stderr,"XXXXX  %.15f %.15f\n",ch->rmin[0],ch->rmin[1]);
+  // fprintf(stderr,"XXXXX  %.15f %.15f\n",ch->rmax[0],ch->rmax[1]);
+  // fprintf(stderr,"XXXXX  %d %d\n",ch->N[0],ch->N[1]);
+  // fprintf(stderr,"ZZZZZ  %.15f %.15f\n",z1,z2);
+  // fprintf(stderr,"XXXXX  %.15f %.15f\n",dx,dy);
+
+
+  // Esto no debería ocurrir nunca.... pero si ocurre genera un gradiente g[]
+  // indeterminado.  Como estoy usando int, me aseguro de estar adentro del
+  // cuadrado. Esto ocurria frecuentemente cuando se forzaba el M_PHI en my_getdihed
+  // cuando se usan dihedros como variables colectivas. Ya lo cambié ahi...
+  // pero bue, igualmente
+  if(z1==ch->rmax[0]) z1-=SMALL;
+  if(z2==ch->rmax[1]) z2-=SMALL;
+
+  i=(int)(dx);
+  j=(int)(dy);
+  // fprintf(stderr,"CCCCC  %d %d\n",i,j);
+  ni=j*ch->N[0]+i+1;
+  //nj=(j+1)*ch->N[0]+i;
+  nj=ni+ch->N[0]-1;
+         
+  // ahora el triangulo, define el tercer nodo
+  dx=dx-i; 
+  dy=dy-j;
+  // fprintf(stderr,"CCCCC  %.5f %.5f\n",dx,dy);
+  if(dy<1-dx) {
+    nk=ni-1;
+    /*nj----------* 
+       |-\        | 
+       |  -\      | 
+       |    -\    | 
+       |  x   -\  | 
+       |        -\| 
+      nk---------ni */
+
+    // Thus, the nk function is 1-x-y
+    //       the ni function is 1+x
+    //       the nj function is 1+y
+    // but taking into account the different centers:
+    //       the ni coordinates are (dx-1,dy)
+    //       the nj coordinates are (dx,dy-1)
+    // entonces:
+    f=(1-dx-dy)*ch->lam[nk];
+    f+=dx*ch->lam[ni];
+    f+=dy*ch->lam[nj];
+
+    g[0]=-ch->lam[nk];
+    g[0]+=ch->lam[ni];
+    g[1]=-ch->lam[nk];
+    g[1]+=ch->lam[nj];
+
+  } else {
+    nk=nj+1;
+    
+    /*nj---------nk
+       |-\        |  
+       |  -\   x  |  
+       |    -\    |  
+       |      -\  |  
+       |        -\|  
+       *---------ni */
+
+    // Thus, the nk function is 1+x+y
+    //       the ni function is 1-y
+    //       the nj function is 1-x
+    // but taking into account the different centers:
+    //       the nk coordinates are (dx-1,dy-1)
+    //       the ni coordinates are (dx-1,dy)
+    //       the nj coordinates are (dx,dy-1)
+    // entonces:
+    f=(dx+dy-1)*ch->lam[nk];
+    f+=(1-dy)*ch->lam[ni];
+    f+=(1-dx)*ch->lam[nj];
+
+    g[0]=ch->lam[nk];
+    g[0]-=ch->lam[nj];
+    g[1]=ch->lam[nk];
+    g[1]-=ch->lam[ni];
+  }
+
+  g[0]=g[0]*ch->idr[0];
+  g[1]=g[1]*ch->idr[1];
+  // fprintf(stderr,"DDDDD  %.5f %.5f\n",g[0],g[1]);
+
+
+  return f;
+}
 char * chapeau_serialize ( chapeau * ch ) {
   // return a str containing the serialized chapeau with partial statistics. If
   // this is the central replica, or non replica scheme is used, this serialize
@@ -945,7 +1115,7 @@ char * chapeau_serialize ( chapeau * ch ) {
   size += ch->m*ch->ldad*13;; // space for ch->A
   size += ch->m;;             // space for ch->hits
   size += 1;;                 // null character?
-  buf  = (char*) malloc(size*sizeof(char));
+  buf  = malloc(size*sizeof(char));
 
   // Seems that if I do this:
   //  return (char*)&ch
@@ -1092,9 +1262,147 @@ void chapeau_setserialized ( chapeau *ch, char * str ) {
 
   //TODO, give error if rmin and rmax are different
 }
+                  
+ int chapeau_simetrize2D( chapeau * ch ) { 
+  int i,j,ii,jj,n,nn,m,mm;
+  
+  // Copy statistics across the line y=x 
+  // Por ahora solo funciona cuando N[0]=N[1] TODO: facil de corregir
+  // No funciona con periodicidad (obvias razones, es imposible esta siemtria en ese caso)
 
- int accumulate_1D( chapeau * ch ) { 
+
+  /* Recorro el triangulo inferior de la simetria
+   
+           +----------------+
+           |              -/|
+           |            -/  |
+           |          -/    |
+           |        -/      |
+           |      -/        |
+           |    -/          |
+           |  -/     X      |
+           |-/              |
+           +----------------+
+    
+  */
+  for (i=0;i<ch->N[0];i++) {
+    for (j=0;j<i+1;j++) {
+
+      // convierto la notacion
+      n=j*ch->N[0]+i;
+
+      // consigo su reflejo
+      ii=j;
+      jj=i;
+      nn=jj*ch->N[0]+ii;
+ 
+      // b y hits
+      ch->b[n]              += ch->b[nn];
+      ch->hits[n]            =(ch->hits[n]||ch->hits[nn]);
+       
+      // Diagonal central de A
+      ch->A[ch->ku][n]      +=ch->A[ch->ku][nn];
+
+      // Elementos fuera de la diagonal
+
+      if(i!=ch->N[0]-1){
+ 
+        /* 1st upper diagonal: Considerando el triangulo inverior de la simetrica
+           esto es la interaccion horizontal con el nodo posterior, que en realidad
+           en el triangulo superior es la interaccion con el nodo superior (Nth
+           diagonal).
+
+           +----------------+
+           |  nn+1        -/|
+           |   |        -/  |
+           |   nn     -/    |
+           |        -/      |
+           |      -/        |
+           |    -/          |
+           |  -/   n-n+1    |
+           |-/              |
+           +----------------+
+            
+        */
+                  
+        m =n+1;
+        mm=nn+ch->N[0];
+
+        ch->A[ch->ku+(n-m)][m]+=ch->A[ch->ku+(nn-mm)][mm];     // This is A[n][m]
+        ch->A[ch->ku+(m-n)][n]+=ch->A[ch->ku+(mm-nn)][nn];     // This is A[m][n]
+      }
+ 
+      if(j!=i){ 
+  
+        /* Nst upper diagonal: Considerando el triangulo inverior de la simetrica
+           esto es la interaccion horizontal con el nodo posterior, que en realidad
+           en el triangulo superior es la interaccion con el nodo posterior (1st
+           diagonal).
+
+           +----------------+
+           |              -/|
+           |  nn-nn+1   -/  |
+           |          -/    |
+           |        -/      |
+           |      -/   n+1  |
+           |    -/      |   |
+           |  -/        n   |
+           |-/              |
+           +----------------+
+            
+        */
+           
+        m =n+ch->N[0];
+        mm=nn+1;
+
+        ch->A[ch->ku+(n-m)][m]+=ch->A[ch->ku+(nn-mm)][mm];     // This is A[n][m]
+        ch->A[ch->ku+(m-n)][n]+=ch->A[ch->ku+(mm-nn)][nn];     // This is A[m][n]
+      }  
+      // Las interacciones hacia la izquierda y hacia abajo ya son contadas 
+      // en la interaccion anterior
+
+    }
+  }
+
+  // Igualo al triangulo superior
+  for (i=0;i<ch->N[0];i++) {
+    for (j=i;j<ch->N[1];j++) {
+                      
+      // convierto la notacion
+      n=j*ch->N[0]+i;
+
+      // consigo su reflejo
+      ii=j;
+      jj=i;
+      nn=jj*ch->N[0]+ii;
+             
+      ch->b[n]         = ch->b[nn];
+      ch->hits[n]      = (ch->hits[n]||ch->hits[nn]);
+      ch->A[ch->ku][n] = ch->A[ch->ku][nn];
+
+      if(i!=j){
+        m = n+1;
+        mm = nn+ch->N[0];
+        ch->A[ch->ku+(n-m)][m] = ch->A[ch->ku+(nn-mm)][mm];     // This is A[n][m]
+        ch->A[ch->ku+(m-n)][n] = ch->A[ch->ku+(mm-nn)][nn];     // This is A[m][n]
+      }
+
+      if(j!=ch->N[1]-1){
+        m  = n+ch->N[0];
+        mm = nn+1;
+        ch->A[ch->ku+(n-m)][m] = ch->A[ch->ku+(nn-mm)][mm];     // This is A[n][m]
+        ch->A[ch->ku+(m-n)][n] = ch->A[ch->ku+(mm-nn)][nn];     // This is A[m][n]
+      }
+    } 
+  }
+ 
+  return 0;
+}
+
+
+ int accumulate_1D( chapeau * ch, double bias ) { 
   int m,mm;
+  double boost;
   
   // Following the paper E definition A and b should be
   //
@@ -1115,6 +1423,8 @@ void chapeau_setserialized ( chapeau *ch, char * str ) {
                        
   //ch->nsample++;
 
+  //boost=1.;
+  boost=exp(bias);
 
   /* Interpolation R->m
         m R
@@ -1128,37 +1438,37 @@ void chapeau_setserialized ( chapeau *ch, char * str ) {
           / |n=m+1
          /  | 
     o---o-x-o---o--*/ 
-  ch->b[m+1]+=ch->f[0];
-  ch->A[ch->ku][m+1]+=1.0;
+  ch->b[m+1]+=ch->f[0]*boost;
+  ch->A[ch->ku][m+1]+=boost;
 
   /*    |\   -1/dz
      n=m| \
         |  \
     o---o-x-o---o--*/ 
-  ch->b[m]-=ch->f[0];
-  ch->A[ch->ku][m]+=1.0;
+  ch->b[m]-=ch->f[0]*boost;
+  ch->A[ch->ku][m]+=boost;
 
   /*    |\ /| 
        m| X |n=m+1
         |/ \| 
     o---o-x-o---o--*/ 
-  ch->A[ch->ku+1][m]-=1.0;
-  ch->A[ch->ku-1][m+1]-=1.0;
+  ch->A[ch->ku+1][m]-=boost;
+  ch->A[ch->ku-1][m+1]-=boost;
 
 
   if(ch->periodic[0]){
     if(m==ch->N[0]-2){
       // hit in the rightmost knot => copy to leftmost knot
       mm=-1;
-      ch->b[mm+1]+=ch->f[0];
-      ch->A[ch->ku][mm+1]+=1.0;
+      ch->b[mm+1]+=ch->f[0]*boost;
+      ch->A[ch->ku][mm+1]+=boost;
       ch->hits[mm+1]=1;
     }
     if(m==ch->N[0]-2){
       // hit in the leftmost knot => copy to rightmost knot
       mm=ch->N[0]-1;
-      ch->b[m]-=ch->f[0];
-      ch->A[ch->ku][m]+=1.0;
+      ch->b[m]-=ch->f[0]*boost;
+      ch->A[ch->ku][m]+=boost;
       ch->hits[m]=1;
     }
   }
@@ -1166,9 +1476,10 @@ void chapeau_setserialized ( chapeau *ch, char * str ) {
   return 0;
 }
  
-int accumulate_2D( chapeau * ch ) { 
+int accumulate_2D( chapeau * ch, double bias ) { 
   int i,j,ni,nj,nk,mi,mj,mk;
   double dx,dy,ratio,ratio2;
+  double boost;
   
   // Following the paper E definition A and b should be
   //
@@ -1180,10 +1491,10 @@ int accumulate_2D( chapeau * ch ) {
   // chapeau_solve procedure)
  
   // Early return to avoid interpolations out of the domain
-  if ( ch->r[0] > ch->rmax[0] ) return 0;
-  if ( ch->r[1] > ch->rmax[1] ) return 0;
-  if ( ch->r[0] <= ch->rmin[0] ) return 0;
-  if ( ch->r[1] <= ch->rmin[1] ) return 0;
+  if ( ch->r[0] >= ch->rmax[0] ) return 0;
+  if ( ch->r[1] >= ch->rmax[1] ) return 0;
+  if ( ch->r[0] < ch->rmin[0] ) return 0;
+  if ( ch->r[1] < ch->rmin[1] ) return 0;
 
   /* LA BASE
     
@@ -1211,14 +1522,17 @@ int accumulate_2D( chapeau * ch ) {
       |  -\      |  -\      |  -\
   
   */
-
+             
+  //boost=1.;
+  boost=exp(bias);
+            
   // The ratio allow me to transform the matrix A and vector b to make them
   // indpendent of the space. So, insted of solve Ax=b, I rather solve
   // (dr[0]*dr[0]*A)x/dr[0]=(dr[0]*b). Then, I have to remember multiply the
   // solution by dr[0]. The factor idr[0] in the terms of A and b are now
   // factor 1 and the terms with idr[1] are now the factor ratio. 
-  ratio=ch->dr[0]*ch->idr[1];
-  ratio2=ratio*ratio;
+  ratio=ch->dr[0]*ch->idr[1]*boost;
+  ratio2=ratio*ratio*boost;
 
   // Identifico el cuadrado, esto define dos nodos
   /*nj----------*
@@ -1269,21 +1583,21 @@ int accumulate_2D( chapeau * ch ) {
        |        -\| 
       nk---------ni */
     
-    ch->b[ni]         += ch->f[0];
-    ch->A[ch->ku][ni] += 1.0;            // This is A[ni][ni]
+    ch->b[ni]         += ch->f[0]*boost;
+    ch->A[ch->ku][ni] += boost;            // This is A[ni][ni]
 
     ch->b[nj]         += ratio*ch->f[1];
     ch->A[ch->ku][nj] += ratio2;         // This is A[nj][nj]
      
-    ch->b[nk]        -= ch->f[0];
+    ch->b[nk]        -= ch->f[0]*boost;
     ch->b[nk]        -= ratio*ch->f[1];
-    ch->A[ch->ku][nk]+= 1.0;             // This is A[nk][nk]
+    ch->A[ch->ku][nk]+= boost;             // This is A[nk][nk]
     ch->A[ch->ku][nk]+= ratio2;          // This is A[nk][nk]
     
     // TODO: Aca podria evitar 2 operaciones si eligiera el
     // triangulo superior de A (aprovechando la simetria)
-    ch->A[ch->ku+(ni-nk)][nk]-= 1.0;     // This is A[ni][nk]
-    ch->A[ch->ku+(nk-ni)][ni]-= 1.0;     // This is A[nk][ni]
+    ch->A[ch->ku+(ni-nk)][nk]-= boost;     // This is A[ni][nk]
+    ch->A[ch->ku+(nk-ni)][ni]-= boost;     // This is A[nk][ni]
     ch->A[ch->ku+(nj-nk)][nk]-= ratio2;  // This is A[nj][nk]
     ch->A[ch->ku+(nk-nj)][nj]-= ratio2;  // This is A[nk][nj]
 
@@ -1295,8 +1609,8 @@ int accumulate_2D( chapeau * ch ) {
       if(i==ch->N[0]-2){
         // hit in the rightmost knot => copy to leftmost knot
         mi=ni-ch->N[0]+1;
-        ch->b[mi]         += ch->f[0];
-        ch->A[ch->ku][mi] += 1.0;
+        ch->b[mi]         += ch->f[0]*boost;
+        ch->A[ch->ku][mi] += boost;
         ch->hits[mi]=1;
       }
       if(i==0){
@@ -1307,9 +1621,9 @@ int accumulate_2D( chapeau * ch ) {
         ch->hits[mj]=1;
 
         mk=nk+ch->N[0]-1;
-        ch->b[mk]         -= ch->f[0];
+        ch->b[mk]         -= ch->f[0]*boost;
         ch->b[mk]         -= ratio*ch->f[1];
-        ch->A[ch->ku][mk] += 1.0;         
+        ch->A[ch->ku][mk] += boost;         
         ch->A[ch->ku][mk] += ratio2;      
         ch->hits[mk]=1;
 
@@ -1329,29 +1643,29 @@ int accumulate_2D( chapeau * ch ) {
       if(j==0){
         // hit in the lowermost knot => copy to uppermost knot
         mi=ch->N[0]*(ch->N[1]-1)+i+1;
-        ch->b[mi]         += ch->f[0];
-        ch->A[ch->ku][mi] += 1.0;
+        ch->b[mi]         += ch->f[0]*boost;
+        ch->A[ch->ku][mi] += boost;
         ch->hits[mi]=1;
 
         mk=mi-1;
-        ch->b[mk]         -= ch->f[0];
+        ch->b[mk]         -= ch->f[0]*boost;
         ch->b[mk]         -= ratio*ch->f[1];
-        ch->A[ch->ku][mk] += 1.0;         
+        ch->A[ch->ku][mk] += boost;         
         ch->A[ch->ku][mk] += ratio2;      
         ch->hits[mk]=1;   
 
         // terminos cruzados que sobreviven (los otros estan en la otra replica)
-        ch->A[ch->ku+(mi-mk)][mk]-= 1.0;     // This is A[ni][nk]
-        ch->A[ch->ku+(mk-mi)][mi]-= 1.0;     // This is A[nk][ni]
+        ch->A[ch->ku+(mi-mk)][mk]-= boost;     // This is A[ni][nk]
+        ch->A[ch->ku+(mk-mi)][mi]-= boost;     // This is A[nk][ni]
       }  
     }
     if(ch->periodic[0] && ch->periodic[1]){
       if(i==0 && j==0){
         // hit the lower left korner => copy yo the upper right korner  
         mk=ch->N[0]*ch->N[1]-1;
-        ch->b[mk]     -= ch->f[0];
+        ch->b[mk]     -= ch->f[0]*boost;
         ch->b[mk]     -= ratio*ch->f[1];
-        ch->A[ch->ku][mk]+= 1.0;         
+        ch->A[ch->ku][mk]+= boost;         
         ch->A[ch->ku][mk]+= ratio2;      
         ch->hits[nk]=1;   
       }
@@ -1371,18 +1685,18 @@ int accumulate_2D( chapeau * ch ) {
     ch->b[ni]         -= ratio*ch->f[1];
     ch->A[ch->ku][ni] += ratio2;
                      
-    ch->b[nj]         -= ch->f[0];
-    ch->A[ch->ku][nj] += 1.0;
+    ch->b[nj]         -= ch->f[0]*boost;
+    ch->A[ch->ku][nj] += boost;
                      
-    ch->b[nk]         += ch->f[0];
+    ch->b[nk]         += ch->f[0]*boost;
     ch->b[nk]         += ratio*ch->f[1];
-    ch->A[ch->ku][nk] += 1.0;
+    ch->A[ch->ku][nk] += boost;
     ch->A[ch->ku][nk] += ratio2;
 
     // TODO: Aca podria evitar 2 operaciones si eligiera el
     // triangulo superior de A (aprovechando la simetria)
-    ch->A[ch->ku+(nk-nj)][nj] -= 1.0;      // This is A[nk][nj]
-    ch->A[ch->ku+(nj-nk)][nk] -= 1.0;      // This is A[nj][nk]
+    ch->A[ch->ku+(nk-nj)][nj] -= boost;      // This is A[nk][nj]
+    ch->A[ch->ku+(nj-nk)][nk] -= boost;      // This is A[nj][nk]
     ch->A[ch->ku+(nk-ni)][ni] -= ratio2;   // This is A[nk][ni]
     ch->A[ch->ku+(ni-nk)][nk] -= ratio2;   // This is A[ni][nk]
  
@@ -1399,9 +1713,9 @@ int accumulate_2D( chapeau * ch ) {
         ch->hits[mi]=1;
 
         mk=nk-ch->N[0]+1;
-        ch->b[mk]         += ch->f[0];
+        ch->b[mk]         += ch->f[0]*boost;
         ch->b[mk]         += ratio*ch->f[1];
-        ch->A[ch->ku][mk] += 1.0;
+        ch->A[ch->ku][mk] += boost;
         ch->A[ch->ku][mk] += ratio2;
         ch->hits[mk]=1;
         
@@ -1412,8 +1726,8 @@ int accumulate_2D( chapeau * ch ) {
       if(i==0){
         // hit in the leftmost knot => copy to rightmost knot
         mj=nj+ch->N[0]-1;
-        ch->b[mj]         -= ch->f[0];
-        ch->A[ch->ku][mj] += 1.0;
+        ch->b[mj]         -= ch->f[0]*boost;
+        ch->A[ch->ku][mj] += boost;
         ch->hits[mj]=1;
       }
     }  
@@ -1421,20 +1735,20 @@ int accumulate_2D( chapeau * ch ) {
       if(j==ch->N[1]-2){
         // hit in the uppermost knot => copy to lowermost knot
         mj=i;
-        ch->b[mj]         -= ch->f[0];
-        ch->A[ch->ku][mj] += 1.0;
+        ch->b[mj]         -= ch->f[0]*boost;
+        ch->A[ch->ku][mj] += boost;
         ch->hits[mj]=1;
               
         mk=mj+1;
-        ch->b[mk]         += ch->f[0];
+        ch->b[mk]         += ch->f[0]*boost;
         ch->b[mk]         += ratio*ch->f[1];
-        ch->A[ch->ku][mk] += 1.0;
+        ch->A[ch->ku][mk] += boost;
         ch->A[ch->ku][mk] += ratio2;
         ch->hits[mk]=1;
         
         // terminos cruzados que sobreviven (los otros estan en la otra replica)
-        ch->A[ch->ku+(mk-mj)][mj] -= 1.0;      // This is A[nk][nj]
-        ch->A[ch->ku+(mj-mk)][mk] -= 1.0;      // This is A[nj][nk]
+        ch->A[ch->ku+(mk-mj)][mj] -= boost;      // This is A[nk][nj]
+        ch->A[ch->ku+(mj-mk)][mk] -= boost;      // This is A[nj][nk]
       }
       if(j==0){
         // hit in the lowermost knot => copy to uppermost knot
@@ -1448,9 +1762,9 @@ int accumulate_2D( chapeau * ch ) {
       if(i==ch->N[0]-2 && j==ch->N[1]-2){
         // hit the upper right korner => copy to the lower left korner  
         mk=0;
-        ch->b[mk]         += ch->f[0];
+        ch->b[mk]         += ch->f[0]*boost;
         ch->b[mk]         += ratio*ch->f[1];
-        ch->A[ch->ku][mk] += 1.0;
+        ch->A[ch->ku][mk] += boost;
         ch->A[ch->ku][mk] += ratio2;
         ch->hits[mk]=1;   
       }

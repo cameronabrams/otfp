@@ -1,0 +1,44 @@
+#!/bin/bash
+set -o nounset
+set -o errexit
+set -o pipefail
+
+plt+=${0%.blt}
+
+
+# Lettuce: pLot
+
+gnuplot << HEREGNUPLOT
+
+load 'terminal_paper'
+set output "$plt.tex"
+
+set size square
+set grid
+
+ymax=pi
+ymin=-pi
+yn=150
+ 
+xmax=pi
+xmin=-pi
+xn=150
+
+load 'histograms'
+
+# set table 'data-heatmap.dat'
+# plot '< paste phi psi' u (cell(\$1,\$3)):(1.) smooth freq 
+# unset table
+#  
+# plot 'data-heatmap.dat' u (xcell(\$1)):(ycell(\$1)):2 w p pt 5 ps 0.05 lc palette notit
+  
+plot '< paste phi psi | Histo2D -g 1 3' u 1:2:(-log(\$3)) w image t ''
+
+HEREGNUPLOT
+
+
+
+# Tomato: Compiling Tex file
+
+pdflatex ${plt[0]}.tex
+pdfcrop ${plt[0]}.pdf

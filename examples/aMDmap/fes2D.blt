@@ -1,0 +1,163 @@
+#!/bin/bash
+set -o nounset
+set -o errexit
+set -o pipefail
+
+# Data input list
+
+sim+=('chaps.bsp')
+    
+
+# Auxiliary files list
+
+aux1+=( ${sim[@]/.bsp/.LAMBDA} )
+aux2+=( ${sim[@]/.bsp/.fes2D} )
+
+
+# Plot list
+
+plt+=(${0%.blt})
+     
+
+# Control this script
+
+bacon=0
+force=0
+while getopts "rb" option; do
+  case $option in
+   r) rm -f ${aux1[@]} 
+      rm -f ${aux2[@]};;
+      # force=1 ;; # restart
+   b) bacon=1         ;; # exit after Builds
+  esac
+done
+shift $(($OPTIND - 1))
+
+
+# Prerequisites
+
+# pre+=('cv.dat')
+# [ $force == 1 ] && bash ions.blt -rb 
+       
+
+
+# Bacon: Build the auxiliary files
+
+if [ ! -e ${aux1[0]} ]; then 
+	../../src/catbinsp -f ${sim[0]} -ol 1 \
+    | awk '(NR>1){$1="";$2="";print $0}' \
+    > ${aux1[0]}
+fi
+                       
+
+
+# 2D
+if [ ! -e ${aux2[0]} ]; then 
+awk -v Nx=151 -v Ny=151       \
+    -v xmin=-3.1415 -v xmay=3.1415 \
+    -v ymin=-3.1415 -v ymay=3.1415 \
+    'END{                             
+      auy=(ymay-ymin)/(Ny-1)
+      aux=(xmay-xmin)/(Nx-1)
+      for (j=0;j<Ny;j++){              
+        for (i=0;i<Nx;i++){            
+          a=i+j*Nx+1
+          print xmin+aux*i,ymin+auy*j,$a
+        }                             
+        print ""                      
+      }                               
+    }' ${aux1[0]} > ${aux2[0]}
+fi
+
+
+# Lettuce: pLot
+
+gnuplot << HEREGNUPLOT
+
+
+set contour base
+set cntrparam level incremental 0, 1, 40
+unset surface
+set table 'cont.dat'
+
+Is0(x)=((x==0.) ? 1/0 : x)
+stats '${aux2[0]}' u (Is0(\$3))
+fesmin=STATS_min
+
+splot [][][] '${aux2[0]}' u 1:2:(Is0(\$3)-fesmin) notit
+unset table
+reset
+
+set size square
+
+load 'cpalette_tex'
+TERM_header=TC
+load 'terminal_paper'
+# eval TERM_2x1_1x1
+
+                     
+
+
+set size square
+load 'terminal_paper'
+# eval TERM_2x1_1x1
+set output "${plt[0]}.tex"
+
+Is0(x)=((x==0.) ? 1/0 : x)
+stats '${aux2[0]}' u (Is0(\$3))
+fesmin=STATS_min
+
+# Filtro valores ridiculos
+fmin=STATS_mean-20
+fmax=STATS_mean+15
+filter(x)=((x<fmin || x>fmax) ? 1/0 : Is0(x))
+stats [fesmin:] '${aux2[0]}' u (filter(\$3))
+fesmin=STATS_min
+fesmax=STATS_max
+
+set pm3d map
+set ylabel '\$\\omega\$ (T167-P168)'
+set xlabel 'new CV'
+
+
+set xrange [:]
+set yrange [:]
+
+set cbrange [:16]
+set grid
+
+# set palette rgbformulae 33,13,10
+
+f(x,a,b,c)=(abs(a*(x-c))<pi)?-b*(1+cos(a*(x-c))):0
+g(x,b)=-b*(1+cos(2*x))
+
+a=1.34877 
+b=0.549508
+c=1.09189 
+d=15.727  
+e=0
+   
+r(x,y,a)=x*cos(a)-y*sin(a)
+s(x,y,a)=x*sin(a)+y*cos(a)
+
+e=0  
+
+# fit [-1:1][-1:1][] f(r(x,y,e),a,b,0)*f(s(x,y,e),c,d,0) '${aux2[0]}' u 1:2:(Is0(\$3)-fesmin) via a,b,c,d,e
+# fit [-1:1][-1:1][]  d*Gauss2D(x,y,a,b,c)+e '${aux2[0]}' u 1:2:(Is0(\$3)-fesmin) via a,b,c,d
+
+plot [-pi:pi][-pi:pi][] '${aux2[0]}' u 1:2:(Is0(\$3)-fesmin) w image notit
+
+# plot [:][:][] '${aux2[0]}' u 1:2:(Is0(\$3)-fesmin-d*Gauss2D(\$1,\$2,a,b,c)-e) w image notit
+# plot [:][:][] '${aux2[0]}' u 1:2:(d*Gauss2D(\$1,\$2,a,b,c)) w image notit
+
+# plot [:][:][] '${aux2[0]}' u 1:2:(d*Gauss2D(\$1,\$2,a,b,c)) w image notit
+# splot [][][:] '${aux2[0]}' u 1:2:(Is0(\$3)-fesmin) notit
+
+HEREGNUPLOT
+
+
+
+# Tomato: Compiling Tex file
+
+pdflatex ${plt[0]}.tex
+pdfcrop ${plt[0]}.pdf

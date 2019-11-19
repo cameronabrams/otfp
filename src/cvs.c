@@ -1,4 +1,8 @@
+#include "chapeau_obj.h"
+#include "chapeau.h"
+#include "cvs_obj.h"
 #include "cvs.h"
+
 
 // global variables
 
@@ -6,6 +10,9 @@ enum {ZSDCIRCLE,
       ZSDXRANGE, 
       ZSDRING, 
       RMSD, 
+      CHARMMD,
+      GAUSS2D,
+      D2CHAP,
       LINE, 
       BOND,
       BONDS,
@@ -26,6 +33,9 @@ char * CVSTRINGS[NULL_CV] = {
       "ZSDXRANGE",
       "ZSDRING",
       "RMSD",
+      "CHARMMD",
+      "GAUSS2D",
+      "D2CHAP",
       "LINE",
       "BOND",
       "BONDS",
@@ -51,8 +61,6 @@ double zsdr_x,zsdr_y;
 double zsdr_r1; //internal radius of the cilinder
 double zsdr_r2; //external radius of the cilinder
 double zsdr_s; //radius of the lipids
-
-
 // Constructores
 
 cv * cv_init ( char * typ, int nC, int * ind, 
@@ -63,12 +71,13 @@ cv * cv_init ( char * typ, int nC, int * ind,
 
   c->nC=nC;
   c->val=0.0;
+  c->amd=0;
 
   c->ind=calloc(nC,sizeof(int));
   for (i=0;i<nC;i++) c->ind[i]=ind[i];
 
-  c->gr=(double**)malloc(nC*sizeof(double*));
-  for (i=0;i<nC;i++) c->gr[i]=(double*)malloc(3*sizeof(double));
+  c->gr=malloc(nC*sizeof(double*));
+  for (i=0;i<nC;i++) c->gr[i]=malloc(3*sizeof(double));
 
   c->typ=cv_getityp(typ);
   switch(c->typ) {
@@ -76,13 +85,27 @@ cv * cv_init ( char * typ, int nC, int * ind,
     case ZSDXRANGE:   c->calc = calccv_zsd_xrange; break;
     case ZSDRING:     c->calc = calccv_zsd_ring; break;
     case RMSD:        c->calc = calccv_rmsd; 
-                      c->ref = (double**)malloc(nC*sizeof(double*));
+                      c->ref = malloc(nC*sizeof(double*));
                       for (i=0;i<nC;i++) c->ref[i] = calloc(3,sizeof(double));
                       break;
+    case D2CHAP:      c->calc = calccv_d2chap;
+                      c->ref = malloc(1*sizeof(double*));
+                      c->ref[0] = calloc(1,sizeof(double));
+                      break;
+    case GAUSS2D:     c->calc = calccv_gauss2d; 
+                      c->ref = malloc(1*sizeof(double*));
+                      c->ref[0] = calloc(4,sizeof(double));
+                      // ref will hold k,delta and n for charmm potential
+                      break; 
+    case CHARMMD:     c->calc = calccv_charmmd; 
+                      c->ref = malloc(1*sizeof(double*));
+                      c->ref[0] = calloc(3,sizeof(double));
+                      // ref will hold k,delta and n for charmm potential
+                      break; 
     case LINE:    c->calc = calccv_line; 
-                      c->ref = (double**)malloc(nC*sizeof(double*));
+                      c->ref = malloc(nC*sizeof(double*));
                       for (i=0;i<nC;i++) c->ref[i] = calloc(3,sizeof(double));
-                      c->ref2 = (double**)malloc(nC*sizeof(double*));
+                      c->ref2 = malloc(nC*sizeof(double*));
                       for (i=0;i<nC;i++) c->ref2[i] = calloc(3,sizeof(double));
                       break;
     case BOND:        c->calc = calccv_bond; break;
@@ -109,9 +132,11 @@ cv * cv_init ( char * typ, int nC, int * ind,
   c->max=zmax;
   c->half_domain=0.5*(zmax-zmin);
   c->boundk=boundk;
+  c->d2ch=NULL;
   if     (!strcmp(boundstr,"SOFTUPPER")) {c->boundFunc = cv_SoftUpperWall;}
   else if(!strcmp(boundstr,"SOFTLOWER")) {c->boundFunc = cv_SoftLowerWall;} 
   else if(!strcmp(boundstr,"SOFT"     )) {c->boundFunc = cv_SoftWalls    ;} 
+  else if(!strcmp(boundstr,"AMD"      )) {c->boundFunc = cv_amd; c->amd=1;} 
   else if(!strcmp(boundstr,"NADA"     )) {c->boundFunc = cv_nada         ;} 
   else {
     fprintf(stderr, "Error: boundary type not recognized");
@@ -162,7 +187,7 @@ char * cv_getstyp ( int ityp ) {
 int calccv_rmsd (cv * c, double ** R ) {
   int l,i,d;
 
-  double aux, sum2;
+  double aux;
 
   //  optimal rotation ? 
   //
@@ -192,10 +217,14 @@ int calccv_rmsd (cv * c, double ** R ) {
   return 0;
 
 }
+     
+int set_d2chap (cv * c, char * filename) {
+  c->d2ch=chapeau_allocloadstate(filename);
+  return 0;
+}
 
 int set_line (cv * c) {
-  int l,i,d;
-  double aux;
+  int l,d;
 
   // // Corrects COG of ref
   // for (d=0;d<3;d++) {
@@ -236,8 +265,6 @@ int set_line (cv * c) {
 
 int calccv_line (cv * c, double ** R ) {
   int l,i,d;
-  double cog[3];
-  double aux;
 
   //Correct COG
 
@@ -547,7 +574,7 @@ int calccv_zsd_ring ( cv * c, double ** R ) {
 int calccv_bonds ( cv * c, double ** R ) {
   /* BONDS is a bond network not normalized */
   int j,k,l;
-  double r,aux;
+  double r;
 
   c->val=0.;
   for (j=0;j<c->nC;j+=2) {
@@ -578,10 +605,120 @@ int calccv_angle ( cv * c, double ** R ) {
 			    c->gr[0],        c->gr[1],        c->gr[2]);
   return 0;
 }
+             
+int calccv_d2chap ( cv * c, double ** R ) {
+  double phi, psi;
+  double gphi[4][3], gpsi[4][3];
+  double g[2],a;
+  int l,j;
+               
 
+  a=c->ref[0][0];
+
+  phi=my_getdihed(R[c->ind[0]],R[c->ind[1]],R[c->ind[2]],R[c->ind[3]],
+  		                 gphi[0],     gphi[1],     gphi[2],    gphi[3]);
+                
+  psi=my_getdihed(R[c->ind[1]],R[c->ind[2]],R[c->ind[3]],R[c->ind[4]],
+  		                 gpsi[0],     gpsi[1],     gpsi[2],    gpsi[3]);
+ 		                  
+    
+   // fprintf(stderr,"AAAAAAAA  %.5f %.5f\n",phi,psi);
+   // fprintf(stderr,"AAAAAAAA  %.5f %.5f\n",gphi[0][0],gpsi[0][0]);
+   // fprintf(stderr,"AAAAAAAA  %.5f %.5f\n",gphi[0][1],gpsi[0][1]);
+   // fprintf(stderr,"CAAAAAAA  %.5f %.5f\n",gphi[0][2],gpsi[0][2]);
+     
+  // Function
+  c->val=a*chapeau_evalfg_2simplex(c->d2ch,phi,psi,g); 
+  g[0]=a*g[0];
+  g[1]=a*g[1];
+   // fprintf(stderr,"CAAAAAAA  %.5f\n",c->val);
+   // fprintf(stderr,"CAAAAAAA  %.5f %.5f\n",g[0],g[1]);
+
+  // Set gradient to cero
+  for (l=0;l<5;l++) {
+    for (j=0;j<3;j++) {
+      c->gr[l][j]=0.;
+    }
+  }
+                  
+  // Compute phi gradient
+  for (l=0;l<4;l++) {
+    for (j=0;j<3;j++) {
+      c->gr[l][j]+=gphi[l][j]*g[0];
+    }
+  }
+     
+  // Compute psi gradient
+  for (l=1;l<5;l++) {
+    for (j=0;j<3;j++) {
+      c->gr[l][j]+=gpsi[l-1][j]*g[1];
+    }
+  }
+              
+  return 0;
+}
+
+
+int calccv_gauss2d ( cv * c, double ** R ) {
+  double phi, psi;
+  double dphi,dpsi,aux, a, b, d, e;
+  double g[3][3];
+  int l,j;
+                
+  phi=my_getdihed(R[c->ind[0]],R[c->ind[1]],R[c->ind[2]],R[c->ind[3]],
+  		              c->gr[0],    c->gr[1],    c->gr[2],    c->gr[3]);
+                
+  psi=my_getdihed(R[c->ind[1]],R[c->ind[2]],R[c->ind[3]],R[c->ind[4]],
+  		                  g[0],        g[1],        g[2],    c->gr[4]);
+
+  a=c->ref[0][0];
+  b=c->ref[0][1];
+  d=c->ref[0][2];
+  e=c->ref[0][3];
+ 
+  aux=a*exp(-b*phi*phi-d*psi*psi-e*phi*psi);
+  c->val=aux;
+  dphi=aux*(-2*b*phi-e*psi);
+  dpsi=aux*(-2*d*psi-e*phi);
+
+  for (j=0;j<3;j++) {
+    c->gr[0][j]=c->gr[0][j]*dphi;
+    c->gr[4][j]=c->gr[4][j]*dpsi;
+  }
+  for (l=1;l<4;l++) {
+    for (j=0;j<3;j++) {
+      c->gr[l][j]=c->gr[l][j]*dphi+g[l-1][j]*dpsi;
+    }
+  } 
+  return 0;
+}
+             
+int calccv_charmmd ( cv * c, double ** R ) {
+  double phi;
+  double deriv, k, d;
+  int n,l,j;
+
+  phi=my_getdihed(R[c->ind[0]],R[c->ind[1]],R[c->ind[2]],R[c->ind[3]],
+  		              c->gr[0],    c->gr[1],    c->gr[2],    c->gr[3]);
+
+  n=floor(c->ref[0][0]);
+  k=c->ref[0][1];
+  d=c->ref[0][2];
+
+  c->val=k*(1+cos(n*phi-d));
+  deriv=-k*n*sin(n*phi-d);
+
+  for (l=0;l<c->nC;l++) {
+    for (j=0;j<3;j++) {
+      c->gr[l][j]=c->gr[l][j]*deriv;
+    }
+  }
+  return 0;
+}
+ 
 int calccv_dihed ( cv * c, double ** R ) {
   c->val=my_getdihed(R[c->ind[0]],R[c->ind[1]],R[c->ind[2]],R[c->ind[3]],
-  		             c->gr[0],        c->gr[1],       c->gr[2],        c->gr[3]);
+  		                 c->gr[0],    c->gr[1],    c->gr[2],    c->gr[3]);
 #ifdef _PARANOIA_
 	if (_PARANOIA_) {
 	  if (c->val!=c->val) {
@@ -748,8 +885,15 @@ int cv_nada ( cv * c ) {
 int cv_SoftWalls ( cv * c ) {
   cv_SoftUpperWall(c);
   cv_SoftLowerWall(c);
+  return 0;
 }
- 
+   
+int cv_amd ( cv * c ) {
+  c->f-=1.;
+  c->u+=c->val;
+  return 0;
+}  
+
 int cv_SoftLowerWall ( cv * c ) {
   double aux;
   aux=c->val-c->min;

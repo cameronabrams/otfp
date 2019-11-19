@@ -52,7 +52,7 @@ proc getArg { argv key altkey def } {
 } 
 
 
-proc Tcl_UpdateDataSpace { ds lC groups first timestep } {
+proc Tcl_UpdateDataSpace { ds lC groups first timestep bias } {
     upvar $lC p
 
     # Move group center positions to dataspace
@@ -64,13 +64,14 @@ proc Tcl_UpdateDataSpace { ds lC groups first timestep } {
     MyParanoiaCheck $ds "tripped after moving data to dataspace"
 
     # Compute CV's within dataspace
-    DataSpace_ComputeCVs $ds
+    set localbias [DataSpace_ComputeCVs $ds]
+    set bias [expr $localbias+$bias]
     MyParanoiaCheck $ds "tripped after computing CV's"
     # At this point, the (x,y,z) position data is no longer needed.
     # We can now write into its space the (x,y,z) restraint forces.
 
     # Compute restraining forces
-    DataSpace_RestrainingForces $ds $first $timestep    
+    DataSpace_RestrainingForces $ds $first $timestep $bias   
     MyParanoiaCheck $ds "tripped after computing restraining forces"
 
     # Transmit forces back to groups
@@ -79,6 +80,7 @@ proc Tcl_UpdateDataSpace { ds lC groups first timestep } {
         addforce $g [ArrayToList [DataSpace_centerPos $ds $i] 3]
         incr i
     }
+    # puts "FUERZAS g1 [ArrayToList [DataSpace_centerPos $ds 0] 3]" 
 
     # Add restraint energy to NAMD energy structure
     addenergy [DataSpace_RestraintEnergy $ds]
@@ -154,6 +156,8 @@ if {[info exists CFACV_doAnalyticalCalc]} {
   if {$CFACV_doAnalyticalCalc == 1} {
     if {![info exists USETAMDFORCES]} {set USETAMDFORCES 0}
 
+    if {$restr(num) == 0} {error "No restraints to set a dataspace chapeau"}
+    
     # Replica exechange mode: 
     if {![info exists NUMREP]} {set NUMREP 1}
     # TODO: NUMREP podria ser un numero de chapeaus distintos (estilo el
@@ -168,8 +172,20 @@ if {[info exists CFACV_doAnalyticalCalc]} {
 
     # Saving for allocate chapeau functions
     chapeau_setup $NUMREP $ds $DIMEN $SPLINEMIN $NKNOTS $CUTOFF $PERIODIC $BEGINEVOLVEPARAMETERS  $BEGINSOLVELAM $USETAMDFORCES $BINREPORTPARAMFILE $BINREPORTPARAMFREQ $BINOUTPUTLEVEL $LAMUPDATEINTERVAL
+  } else {
+    if {[info exists CUTOFF]} {error "Chapeau are not initialized"}
+    if {[info exists DIMEN]} {error "Chapeau are not initialized"}
+    if {[info exists SPLINEMIN]} {error "Chapeau are not initialized"}
+    if {[info exists NKNOTS]} {error "Chapeau are not initialized"}
+    if {[info exists PERIODIC]} {error "Chapeau are not initialized"}
   }
-}
+} else {
+  if {[info exists CUTOFF]} {error "Chapeau are not initialized"}
+  if {[info exists DIMEN]} {error "Chapeau are not initialized"}
+  if {[info exists SPLINEMIN]} {error "Chapeau are not initialized"}
+  if {[info exists NKNOTS]} {error "Chapeau are not initialized"}
+  if {[info exists PERIODIC]} {error "Chapeau are not initialized"}
+} 
 
 # Some default values regarding output
 if {![info exists TAMDof]}          {set TAMDof 1 }

@@ -1,3 +1,4 @@
+.SECONDARY:
 
 # This makefile will compile all c stuff in a shared object
 # that, thanks to SWIG, is ready to be loaded in tcl scripts
@@ -10,9 +11,11 @@ ifeq ($(CC),icc)
 endif
 
 ifeq ($(CC),gcc)
-#  CFLAGS+=-g
-#  CFLAGS+=-O0 
-#  CFLAGS+=-O3 
+   
+  # CFLAGS+=--debug
+  # CFLAGS+=-ggdb3
+  # CFLAGS+=-O0 
+  # CFLAGS+=-O3 
 # CFLAGS+=-static
 # CFLAGS+=-Wall
 # CFLAGS+=-Wpedantic
@@ -37,7 +40,7 @@ GIT_VERSION := $(shell git describe --abbrev=4 --dirty --always 2>/dev/null || c
 CFLAGS+=-DVERSION=\"$(GIT_VERSION)\"
 
 
-all: cfacv.so cvs.so chapadd catbinsp
+all: cfacv.so cvs.so chapadd chapsim catbinsp
  
 %.so:  $(OBJ) %_wrap.o
 	$(CC) $(CFLAGS) -shared -o $@ $^ $(LIBS)
@@ -55,17 +58,19 @@ version: force
 catbinsp: catbinsp.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
  
+chapsim: simetrize.o chapeau.o
+	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
+
 chapadd: addchapeaus.o chapeau.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
 measurements.o : measurements.h
 chapeau.o : chapeau.h
+simetrize.o : chapeau.h
 addchapeaus.o : chapeau.h
 centers.o : centers.h
-cfacv.h : cvs.h measurements.h chapeau.h centers.h
 cfacv.o : cfacv.h version
-cvs.h : measurements.h
-cvs.o : cvs.h cfacv.h 
+cvs.o : measurements.o cvs.h chapeau.h
         
 
 .PHONY: clean force
