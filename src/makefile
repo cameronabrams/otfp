@@ -24,11 +24,15 @@ ifeq ($(CC),gcc)
 # CFLAGS+=-Wall -g -rdynamic
 #
 # LIBS += -lgsl -lgslcblas
-LIBS += -llapack
+LIBS += -llapack -lblas
 LIBS += -lm
 endif
 
-LIBS+=-ltcl8.6
+LIBS+=-ltcl8.6 
+# Set  /home/alexis/apps/local/librsb/lib that shuld be in the LD_LIBRARY_PATH
+# LIBS+= -I/home/alexis/apps/local/librsb/include/ -lrsb 
+# Set  /home/alexis/apps/git/SuiteSparse/
+LIBS+= -I/home/alexis/apps/git/SuiteSparse/include/ -lumfpack -lamd -lcholmod -lsuitesparseconfig -lm -llapack -lblas
 
 OBJ += measurements.o
 OBJ += chapeau.o
@@ -40,7 +44,7 @@ GIT_VERSION := $(shell git describe --abbrev=4 --dirty --always 2>/dev/null || c
 CFLAGS+=-DVERSION=\"$(GIT_VERSION)\"
 
 
-all: cfacv.so cvs.so chapadd chapsim catbinsp
+all: cfacv.so cvs.so chapadd chapsim catbinsp chapcrop
  
 %.so:  $(OBJ) %_wrap.o
 	$(CC) $(CFLAGS) -shared -o $@ $^ $(LIBS)
@@ -64,13 +68,17 @@ chapsim: simetrize.o chapeau.o
 chapadd: addchapeaus.o chapeau.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
+chapcrop: cropchapeaus.o chapeau.o
+	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
+
 measurements.o : measurements.h
-chapeau.o : chapeau.h
-simetrize.o : chapeau.h
-addchapeaus.o : chapeau.h
+chapeau.o : chapeau.h chapeau_obj.h
+simetrize.o : chapeau.h chapeau_obj.h
+addchapeaus.o : chapeau.h chapeau_obj.h
+cropchapeaus.o : chapeau.h chapeau_obj.h
 centers.o : centers.h
-cfacv.o : cfacv.h version
-cvs.o : measurements.o cvs.h chapeau.h
+cfacv.o : cfacv.h version cfacv_obj.h
+cvs.o : measurements.o cvs.h chapeau.h cvs_obj.h chapeau_obj.h
         
 
 .PHONY: clean force

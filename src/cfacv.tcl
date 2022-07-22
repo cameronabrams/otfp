@@ -26,6 +26,7 @@ proc cfacv_banner { argv } {
     cfacvBanner
     print "CFACV) 2009-2014, Cameron F Abrams, Drexel University"
     print "CFACV) 2014-2015, Sergio A Paz, Drexel University"
+    print "CFACV) 2016-2019, Sergio A Paz, Universidad Nacional de Córdoba - INFIQC/CONICET"
     print "================================================"
     print "Base directory: $CFACV_BASEDIR"
     print "argv: $argv"

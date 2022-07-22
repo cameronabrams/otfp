@@ -1,21 +1,22 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include "chapeau_obj.h"
+#include "chapeau_mkl_obj.h"
 #include "chapeau.h"
 
 #define SMALL 1.e-10
 
 int chapeau_init ( chapeau * ch, int dm, double * rmin, double * rmax, int * N, int * periodic) {
-  int i;
+  int i,n;
+  MKL_INT err;
 
-  if (periodic[1]||periodic[2]) {
-    fprintf(stderr,"OTFP: Intel MKL Direct Sparse Solver is required for periodicty.\n");
+  if (!periodic[1]&&!periodic[2]) {
+    fprintf(stderr,"OTFP: No periodicity implies a banded matrix. Consider using lapack for better performance.\n");
     exit(-1);
-  }
-  
+  }  
+
   //TODO: check size of argument vectors and write the errors
-  
+      
   ch->ofp=NULL;
   ch->nupdate     = 0;
   ch->outputFreq  = 0;
@@ -51,6 +52,7 @@ int chapeau_init ( chapeau * ch, int dm, double * rmin, double * rmax, int * N, 
     ch->m=ch->m*N[i];
   }
           
+
   // Allocating the vectors
   ch->lam=calloc(ch->m,sizeof(double));
   ch->hits=calloc(ch->m,sizeof(int));
@@ -58,45 +60,90 @@ int chapeau_init ( chapeau * ch, int dm, double * rmin, double * rmax, int * N, 
   ch->bfull=calloc(ch->m,sizeof(double));
   ch->norm=1.;
                  
-  // chapeau 1D => 1 uperdiagonals
-  // chapeau 2D => ch->N[0] uperdiagonals
-  if (ch->dm==1) {
-    ch->ku=1;
-  } else{
-    // TODO: En realidad si entiendo bien, la mayoria de estas diagonales van a tener ceros.
-    // salvo la primera y la ch->N[0], osea que aca quizas se podría dejar
-    // en 2 no N[0] si es que se pudiera empaquetar así.
-    ch->ku=ch->N[0];
-  }  
-  ch->ldad=2*ch->ku+1;
 
-  // The stiffness matrix:
-  // An m-by-n band matrix with kl subdiagonals and ku
-  // superdiagonals may be stored compactly in a
-  // two-dimensional array with kl+ku+1 rows and n columns.
-  // Columns of the matrix are stored in corresponding columns
-  // of the array, and diagonals of the matrix are stored in
-  // rows of the array.
-  // The band storage scheme for a m = n = 6, kl = 2, ku = 2 example:
-  //
-  //   *    *   a02  a13  a24  a35 (second uperdiagonal)
-  //   *   a01  a12  a23  a34  a45 (first uperdiagonal)
-  //  a00  a11  a22  a33  a44  a55 (diagonal)
-  //  a10  a21  a32  a43  a54   *  (first lowerdiagonal)
-  //  a20  a31  a42  a53   *    *  (second lowerdiagonal) 
-  //
-  // storage[ku+(i-j)][j]=a[i][j]; 
-  //
-  // TODO: This storage can be reduced if I choose to store
-  // the upper or lower triangle since the matrix is
-  // symmetric.
-              
-  ch->A=calloc(ch->ldad,sizeof(double*));
-  ch->Afull=calloc(ch->ldad,sizeof(double*));
-  for (i=0;i<ch->ldad;i++) {
-    ch->A[i]=calloc(ch->m,sizeof(double));
-    ch->Afull[i]=calloc(ch->m,sizeof(double));
+  // Initialize the handler
+  err=dss_create(ch->handle, MKL_DSS_ZERO_BASED_INDEXING);
+  if (err!=MKL_DSS_SUCCESS) { 
+    fprintf(stderr,"OTFP: dss_create returns %0i.\n",err);
+    exit(-1);
+  }  
+      
+  // Count the non0 elements. Start with the diagonal
+  i=ch->m;
+
+  // En 1D se puede asignar 1 interaccion por nodo (sin repetir, upertriangular matrix)
+  // En 2D se puede asignar 2 interaccion por nodo (sin repetir, upertriangular matrix)
+  // Por ende:
+  i+=ch->dm*ch->m;
+  
+  // Si el sistema no es periodico, algunas interacciones
+  // estan truncadas y hay que restarselas a este total.
+  if (ch->dm==1) {
+    if (!periodic[0]) i=i-1;
+  } else if (ch->dm==2) {
+    if (!periodic[0]) i=i-ch->N[1];
+    if (!periodic[1]) i=i-ch->N[0];
   }
+       
+  // Allocate the matrix
+  ch->non0=i;
+  ch->nRows=ch->m;
+  ch->rowIndex=malloc(ch->m+1,sizeof(int*));
+  ch->columns=malloc(i,sizeof(int*));
+  ch->A=calloc(i,sizeof(double*));
+  ch->Afull=calloc(i,sizeof(double*));
+
+  // Fill with the structure info
+  n=0;
+  for (i = 0; i < ch->m; i++) { 
+
+    ch->rowIndex[i]=n;
+
+    // Diagonal 
+    ch->columns[n]=i; n++;
+                    
+    // All but the rightmost nodes add the first uppper diagonal
+    if ((i+1)%ch->N[0]!=0) {
+      ch->columns[n]=i+1; n++;
+    }
+       
+    // A leftmost node might have periodicity (the sparse Nth-1 diagonal)
+    if (periodic[0]) {
+      if (i%ch->N[0]==0) {
+        ch->columns[n]=i+ch->N[0]-1; n++;
+      }
+    }
+         
+    if (ch->dm==2) {
+          
+      // The Nth diagonal
+      ch->columns[n]=ch->N[0]; n++;
+
+      // An lowermost node might have periodicity (the korner block)
+      if (periodic[1]) {
+        if (i<ch->N[0]) {
+          ch->columns[n]=ch->m-ch->N[0]+i; n++;
+        }
+      }
+    }
+  }
+
+  // Last element to hold rowIndex[i+1]-rowIndex[i] relationship
+  ch->rowIndex[ch->m]=n;
+     
+  // Pass to handle
+  err=dss_define_structure(ch->handle, MKL_DSS_SYMMETRIC, ch->rowIndex,ch->nRows,ch->nRows, ch->columns, ch->non0);
+  if (err!=MKL_DSS_SUCCESS) { 
+    fprintf(stderr,"OTFP: dss_structure returns %0i.\n",err);
+    exit(-1);
+  }  
+
+  // Reorder
+  err=dss_reorder(ch->handle);
+  if (err!=MKL_DSS_SUCCESS) { 
+    fprintf(stderr,"OTFP: dss_reorder returns %0i.\n",err);
+    exit(-1);
+  }  
 
   return 0;
 }
@@ -128,12 +175,9 @@ void chapeau_free ( chapeau * ch ) {
   free(ch->hits);
   free(ch->b);
   free(ch->bfull);
-  for (i = 0; i < ch->ldad; i++) { 
-      free(ch->A[i]);
-      free(ch->Afull[i]);
-  }
+  free(ch->rowIndex);
+  free(ch->columns);
   free(ch->A);
-  free(ch->Afull);
   
   free(ch);
   ch=NULL;
@@ -142,7 +186,7 @@ void chapeau_free ( chapeau * ch ) {
 int chapeau_comparesize ( chapeau * ch1,  chapeau * ch2) {
   if (ch1->dm       != ch2->dm      ) return 0;
   if (ch1->m        != ch2->m       ) return 0;
-  if (ch1->ldad     != ch2->ldad    ) return 0;
+  if (ch1->non0     != ch2->non0    ) return 0;
   return 1;
 }
  
@@ -159,93 +203,11 @@ int chapeau_comparegrid ( chapeau * ch1,  chapeau * ch2) {
     if (ch1->dr[i]    != ch2->dr[i]   ) return 0;
     if (ch1->idr[i]   != ch2->idr[i]  ) return 0;
     if (ch1->N[i]  != ch2->N[i] ) return 0;
+    if (ch1->periodic[i]  != ch2->periodic[i] ) return 0;
   }
   return 1;
 }
 
-chapeau * chapeau_crop (chapeau * ch, double * rmin, double * rmax) {
-  //Retrun in cho a portion (in z space) of ch
-  int i,j;
-  int min[2],max[2];
-  int ni,nj,nk;
-  int mi,mj,mk;
-  chapeau * cho;
- 
-  int periodic[ch->dm],N[ch->dm];
-   
-  for (i=0;i<ch->dm;i++) {
-
-    if ( rmax[i] > ch->rmax[i] ) rmax[i]=ch->rmax[i];
-    if ( rmin[i] < ch->rmin[i] ) rmin[i]=ch->rmin[i];
-
-    min[i]=(int)((rmin[i]-ch->rmin[i])*ch->idr[i]); 
-    max[i]=(int)((rmax[i]-ch->rmin[i])*ch->idr[i]); 
-
-    rmin[i]=min[i]*ch->dr[i]+ch->rmin[i]; 
-    rmax[i]=max[i]*ch->dr[i]+ch->rmin[i]; 
-    N[i]=max-min+1;
-
-    // Lost periodicity... I guess
-    periodic[i]=0;
-  }
-
-  cho = chapeau_alloc(ch->dm, rmin, rmax, N, periodic);
-     
-  // Igualo al triangulo superior
-  for (i=0;i<ch->N[0];i++) {
-
-    if (i<min[0]) continue;
-    if (i>max[0]) continue;
-
-    for (j=0;j<ch->N[1];j++) {
-      if (j<min[1]) continue;
-      if (j>max[1]) continue;
-      // Identifico el punto de red y sus equivalentes en el nuevo espacio
-      /*nj----------* 
-         |-\        | 
-         |  -\      | 
-         |    -\    | 
-         |  x   -\  | 
-         |        -\| 
-        nk---------ni */
-     
-      mk=j*ch->N[0]+i;
-      mi=mk-1;
-      mj=mi+ch->N[0]-1;
-      
-      nk=j*cho->N[0]+i;
-      ni=nk-1;
-      nj=ni+cho->N[0]-1;
- 
-      cho->b[nk] = ch->b[mk];
-      cho->bfull[nk] = ch->bfull[mk];
-      cho->hits[nk] = ch->hits[mk];
-
-      // Diagonal
-      cho->A[cho->ku][nk] = ch->A[ch->ku][mk];  // This is A[ni][ni]
-
-      // Off diagonal
-      cho->A[ch->ku+(ni-nk)][nk] = cho->A[ch->ku+(mi-mk)][mk]; // This is A[ni][nk]
-      cho->A[ch->ku+(nk-ni)][ni] = cho->A[ch->ku+(mk-mi)][mi]; // This is A[nk][ni]
-      cho->A[ch->ku+(nj-nk)][nk] = cho->A[ch->ku+(mj-mk)][mk]; // This is A[nj][nk]
-      cho->A[ch->ku+(nk-nj)][nj] = cho->A[ch->ku+(mk-mj)][mj]; // This is A[nk][nj]
- 
-      // Diagonal
-      cho->Afull[cho->ku][nk] = ch->Afull[ch->ku][mk];  // This is Afull[ni][ni]
-
-      // Off diagonal
-      if (i<max[0]) {
-        cho->Afull[ch->ku+(ni-nk)][nk] = cho->Afull[ch->ku+(mi-mk)][mk]; // This is Afull[ni][nk]
-        cho->Afull[ch->ku+(nk-ni)][ni] = cho->Afull[ch->ku+(mk-mi)][mi]; // This is Afull[nk][ni]
-      }
-      if (j<max[1]) {
-        cho->Afull[ch->ku+(nj-nk)][nk] = cho->Afull[ch->ku+(mj-mk)][mk]; // This is Afull[nj][nk]
-        cho->Afull[ch->ku+(nk-nj)][nj] = cho->Afull[ch->ku+(mk-mj)][mj]; // This is Afull[nk][nj]
-      }
-    }
-  }
-}
- 
 void chapeau_sum ( chapeau * ch1, chapeau * ch2 ) {
   //Overwrite ch1 with ch1+ch2
   int i,j;
@@ -265,11 +227,20 @@ void chapeau_sum ( chapeau * ch1, chapeau * ch2 ) {
     ch1->b[i] += ch2->b[i];
     ch1->bfull[i] += ch2->bfull[i];
     ch1->hits[i] = ch1->hits[i]+ch2->hits[i];
-    for (j=0;j<ch1->ldad;j++) {
-      ch1->A[j][i] += ch2->A[j][i];
-      ch1->Afull[j][i] += ch2->Afull[j][i];
+    if (ch1->rowIndex[j]!=ch2->rowIndex[j]!) {
+      fprintf(stderr,"OTFP: ERROR: you can not sum chapeau objects with different rows\n");
+      exit(-1);
     }
   }
+
+  for (j=0;j<ch1->non0;j++) {
+    if (ch1->columns[j]!=ch2->columns[j]!) {
+      fprintf(stderr,"OTFP: ERROR: you can not sum chapeau objects with different columns\n");
+      exit(-1);
+    }
+    ch1->A[j] += ch2->A[j];
+    ch1->Afull[j] += ch2->Afull[j];
+  } 
 
   //gsl_vector_add(ch1->lam ,ch2->lam); // irrelevant?
 
@@ -325,10 +296,10 @@ void chapeau_savestate ( chapeau * ch, char * filename ) {
   fwrite(ch, sizeof(*ch), 1, ofs);
 
   //TODO
-  // fwrite(ch->periodic.. );
   // fwrite(ch->norm.. );
   // fwrite(ch->ku.. );
   
+  fwrite(ch->periodic,sizeof(*(ch->periodic)),ch->dm,ofs);
   fwrite(ch->rmin,sizeof(*(ch->rmin)),ch->dm,ofs);
   fwrite(ch->rmax,sizeof(*(ch->rmax)),ch->dm,ofs);
   fwrite(ch->N,sizeof(*(ch->N)),ch->dm,ofs);
@@ -338,14 +309,9 @@ void chapeau_savestate ( chapeau * ch, char * filename ) {
   // getchar();
   fwrite(ch->hits,sizeof(*(ch->hits)),ch->m,ofs);
 
-  for (i=0;i<ch->ldad;i++) {
-    fwrite(ch->A[i],sizeof(*(ch->A[i])),ch->m,ofs);
-  }
+  fwrite(ch->A,sizeof(*(ch->A)),ch->non0,ofs);
   fwrite(ch->b,sizeof(*(ch->b)),ch->m,ofs);
-
-  for (i=0;i<ch->ldad;i++) {
-    fwrite(ch->Afull[i],sizeof(*(ch->Afull[i])),ch->m,ofs);
-  }
+  fwrite(ch->Afull,sizeof(*(ch->Afull)),ch->non0,ofs);
   fwrite(ch->bfull,sizeof(*(ch->bfull)),ch->m,ofs);
 
   fclose(ofs);
@@ -375,9 +341,9 @@ void chapeau_loadstate ( chapeau * ch, char * filename ) {
             
     // This variables are alredy set during allocation, might be better to
     // compare them instead
-    ch->dm      = chaux->dm;
+    ch->dm   = chaux->dm;
     ch->m    = chaux->m;
-    ch->ldad    = chaux->ldad;
+    ch->non0 = chaux->non0;
     
     // This variables might be not set
     ch->nupdate     = chaux->nupdate    ;
@@ -385,6 +351,7 @@ void chapeau_loadstate ( chapeau * ch, char * filename ) {
     ch->outputLevel = chaux->outputLevel;
     
     // Read directly
+    fread(ch->periodic,sizeof(*(ch->periodic)),ch->dm,ofs);
     fread(ch->rmin,sizeof(*(ch->rmin)),ch->dm,ofs);
     fread(ch->rmax,sizeof(*(ch->rmax)),ch->dm,ofs);
     fread(ch->N,sizeof(*(ch->N)),ch->dm,ofs);
@@ -397,14 +364,9 @@ void chapeau_loadstate ( chapeau * ch, char * filename ) {
     fread(ch->lam,sizeof(*(ch->lam)),ch->m,ofs);
     fread(ch->hits,sizeof(*(ch->hits)),ch->m,ofs);
 
-    for (i=0;i<ch->ldad;i++) {
-      fread(ch->A[i],sizeof(*(ch->A[i])),ch->m,ofs);
-    }
+    fread(ch->A,sizeof(*(ch->A)),ch->non0,ofs);
     fread(ch->b,sizeof(*(ch->b)),ch->m,ofs);
-
-    for (i=0;i<ch->ldad;i++) {
-      fread(ch->Afull[i],sizeof(*(ch->Afull[i])),ch->m,ofs);
-    }
+    fread(ch->Afull,sizeof(*(ch->Afull)),ch->non0,ofs);
     fread(ch->bfull,sizeof(*(ch->bfull)),ch->m,ofs);
              
     fclose(ofs);
@@ -430,13 +392,13 @@ chapeau * chapeau_allocloadstate ( char * filename ) {
     fread(ch, sizeof(*ch), 1,ofs);
 
     // Alloc minimal info to run initializacion of the chapeau
-    periodic=calloc(ch->dm,sizeof(int));
+    periodic=malloc(ch->dm*sizeof(int));
     rmin=malloc(ch->dm*sizeof(double));
     rmax=malloc(ch->dm*sizeof(double));
     N=malloc(ch->dm*sizeof(int));          
 
     // Read the minimal informacion
-    // TODO: Read periodic vector
+    fwrite(ch->periodic,sizeof(*(ch->periodic)),ch->dm,ofs);
     fread(rmin,sizeof(*rmin),ch->dm,ofs);
     fread(rmax,sizeof(*rmax),ch->dm,ofs);
     fread(N,sizeof(*N),ch->dm,ofs);
@@ -447,17 +409,12 @@ chapeau * chapeau_allocloadstate ( char * filename ) {
     // Read the rest of the information
     fread(ch->lam,sizeof(*(ch->lam)),ch->m,ofs);
     fread(ch->hits,sizeof(*(ch->hits)),ch->m,ofs);
-
-    for (i=0;i<ch->ldad;i++) {
-      fread(ch->A[i],sizeof(*(ch->A[i])),ch->m,ofs);
-    }
+        
+    fread(ch->A,sizeof(*(ch->A)),ch->non0,ofs);
     fread(ch->b,sizeof(*(ch->b)),ch->m,ofs);
-
-    for (i=0;i<ch->ldad;i++) {
-      fread(ch->Afull[i],sizeof(*(ch->Afull[i])),ch->m,ofs);
-    }
+    fread(ch->Afull,sizeof(*(ch->Afull)),ch->non0,ofs);
     fread(ch->bfull,sizeof(*(ch->bfull)),ch->m,ofs);
-             
+
     fclose(ofs);     
     
     return ch;
@@ -485,7 +442,7 @@ void chapeau_loadlambda ( chapeau * ch, char * filename ) {
     // compare them instead
     ch->dm      = chaux->dm;
     ch->m    = chaux->m;
-    ch->ldad    = chaux->ldad;
+    ch->non0    = chaux->non0;
                                                  
     for (i=0;i<ch->dm;i++) {
       ch->rmin[i] = chaux->rmin[i];
@@ -513,17 +470,51 @@ void chapeau_solve ( chapeau * ch ) {
   double lb;
   double * Abar;
   double * bbar;
-  int * pivot;
+  int * rbar,cbar;
   int nred;
   int ldad;
   char aux; 
 
   // Only evolve the places with ch->hits[i]=1
   nred=0;
-  for (i=0;i<ch->m;i++)  if (ch->hits[i]) nred++;
+  for (i=0;i<ch->m;i++)  {
+    cols[i]=-1;
+    if (ch->hits[i]) nred++;
+    cols[i]=nred;
+  }
+
+  // Allocating the size as ch->dm times nred. This can be
+  // an upper bound if there is not periodicity in all directions
+  // but, that is fine, it shouldn't hurt to have larger arrays.
+  i=ch->dm*nred;
+  bbar=malloc(nred,sizeof(double));
+  rbar=malloc(nred,sizeof(double));
+  Abar=calloc(i,sizeof(double));
+  cbar=malloc(i,sizeof(double));
+  
+  // Fill with the structure info
+  n=0;
+  nred=0;
+  for (i=0;i<ch->m;i++) {
+
+    if (!ch->hits[i]) continue
+
+    m=ch->rowIndex[i];
+    l=ch->rowIndex[i+1];
+
+    rbar[nred]=n;
+
+    for (j=m;j<l;j++) {
+      cbar[n]=ch->column[j]-(i-nred); 
+      Abar[n]=ch->A[j];
+      n++;
+    }
+
+    nred++;
+  }
       
   // If the nred is small, singular matrix can occur easily
-  if (nred<ch->ku+1) {
+  if (nred<10) {
    // Avoiding to print this for REOTFP simulations
    // fprintf(stderr,"Warning: No chapeau update, nred (%d) < nro diagonals (%d)\n",nred,ch->ku);
    return;
@@ -532,75 +523,8 @@ void chapeau_solve ( chapeau * ch ) {
   fprintf(stdout,"OTFP) Inverting matrix A (%dx%d)\n",nred,nred);
   fflush(stdout);
 
-  // Allocating the size. 
-  // TODO: En este bloque me parece que con malloc basta.
-  // TODO: Habria que ver si se puede hacer un malloc global
-  // y acomodar todo en el comienzo de la matriz y pasar solo nred
-  // cosa de evitar el allocatamiento en cada solve.
-  ldad=ch->ldad+ch->ku;
-  bbar=malloc(nred*sizeof(double));
-  Abar=calloc(nred*ldad,sizeof(double));
-  pivot=malloc(nred*sizeof(int));
 
 
-
-  // The nxn stiffness matrix ku subdigonals and superdiagonals is stored
-  // compactly in a two-dimensional array with ldad=2*ku+1 rows and n columns:
-  //
-  //   ch->a[ku+(i-j)][j]=a[i][j]; 
-  //
-  // From netlib (and considering a symmetric matrix): when a band matrix is
-  // supplied for LU factorization, space must be allowed to store an
-  // additional ku superdiagonals, generated by fill-in as a result of row
-  // interchanges.  This means that the matrix is stored according to the above
-  // scheme, but with 2*ku superdiagonals.  Thus, the band storage scheme for a
-  // m = n = 6, ku = 2 example is:
-  //
-  //   *    *    *    *    +    +  (needed for LU)    
-  //   *    *    *    +    +    +  (needed for LU)        
-  //   *    *   a02  a13  a24  a35 (second uperdiagonal)
-  //   *   a01  a12  a23  a34  a45 (first uperdiagonal) 
-  //  a00  a11  a22  a33  a44  a55 (diagonal)
-  //  a10  a21  a32  a43  a54   *  (first lowerdiagonal) 
-  //  a20  a31  a42  a53   *    *  (second lowerdiagonal)
-  //
-  //   Abar[2*ku+(i-j)][j]=a[i][j]; 
-  //
-  // Now, what happens if column 2 is always cero and a reduced matrix is
-  // needed. This is a frequent case when regions of the CV space are not
-  // sampled. Since matrix A is symetric row 2 is also cero. 
-  //
-  //   *    *    *    *    +    +      
-  //   *    *    *    +    +    +      
-  //   *    *    0   a13   0   a35
-  //   *   a01   0    0   a34  a45 (uperdiagonal)
-  //  a00  a11   0   a33  a44  a55 (diagonal)
-  //  a10    0   0   a43  a54   * 
-  //    0  a31   0   a53   *    * 
-  //
-  // The reduced matrix does not have this row and column. So the relabel is
-  // 1->1, 2 disapear, 3->2 and go on in all columns and rows.
-  //
-  //   *    *        *        *        +        +                 
-  //   *    *        *        +        +        +                 
-  //   *    *        0 ( - )  0 ( 0 ) A24(a35)  -                 
-  //   *   a01      A12(a13) A23(a34) A34(a45)  -  (uperdiagonal) 
-  //  a00  a11      A22(a33) A33(a44) A44(a55)  -  (diagonal)     
-  //  a10  A21(a31) A32(a43) A43(a54) A54(a65)  *                 
-  //    0   *       A42(a53) A53(a64)  * (a75)  *                 
-  //
-  //   The net flux is:
-  //
-  //   *    *    *    *    +    +      
-  //   *    *    *    +    +    +      
-  //   *    *        L         <-
-  //   *   a01            <-   <-
-  //  a00  a11       <-   <-   <-
-  //  a10            <-   <-   <-
-  //        ^        <-   <-   <-
-  //                       
-  // So it is better to loop in the other space!
-  
   // Add the new and old statistic to the reduced matrix
   J=0;
   for (j=0;j<ch->m;j++) {
@@ -1865,8 +1789,10 @@ int accumulate_2D( chapeau * ch, double bias ) {
         // ch->A[ch->ku+(mk-nj)][nj] -= boost;    // This is A[nk][nj]
         // ch->A[ch->ku+(nj-mk)][mk] -= boost;    // This is A[nj][nk]
       }
-    }
+      }
+    } 
   }
+ 
   return 0;
 }
  

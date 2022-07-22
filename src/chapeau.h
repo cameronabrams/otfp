@@ -5,6 +5,7 @@ extern int chapeau_comparesize ( chapeau * ch1,  chapeau * ch2);
 extern int chapeau_comparegrid ( chapeau * ch1,  chapeau * ch2);
 
 extern void chapeau_sum ( chapeau * ch1, chapeau * ch2 );
+extern chapeau * chapeau_crop (chapeau * ch, double * rmin, double * rmax);
 
 
 // Output system

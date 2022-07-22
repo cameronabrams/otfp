@@ -628,11 +628,18 @@ int calccv_d2chap ( cv * c, double ** R ) {
    // fprintf(stderr,"CAAAAAAA  %.5f %.5f\n",gphi[0][2],gpsi[0][2]);
      
   // Function
-  c->val=a*chapeau_evalfg_2simplex(c->d2ch,phi,psi,g); 
-  g[0]=a*g[0];
-  g[1]=a*g[1];
-   // fprintf(stderr,"CAAAAAAA  %.5f\n",c->val);
-   // fprintf(stderr,"CAAAAAAA  %.5f %.5f\n",g[0],g[1]);
+  l=chapeau_caneval_f2 (c->d2ch,phi,psi);
+
+  if(l){
+    c->val=a*chapeau_evalfg_2simplex(c->d2ch,phi,psi,g); 
+    g[0]=a*g[0];
+    g[1]=a*g[1];
+  } else {
+    c->val=0.;
+    g[0]=0.;
+    g[1]=0.;
+  }
+   
 
   // Set gradient to cero
   for (l=0;l<5;l++) {

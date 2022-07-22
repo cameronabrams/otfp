@@ -1,16 +1,17 @@
-# ON THE FLY PARAMETERIZATION 
+# On The Fly Parameterization 
 
 OTFP computes free-energy profiles in MD simulations via temperature-acceleration. 
+ 
+It is written in C and use [SWIG](http://www.swig.org) to provida a TCL
+interface to be used with [NAMD](www.ks.uiuc.edu/Research/namd) via TCLforce.
 
-# ABOUT THE CODE
+# About
 
-OTFP is a C code that use [SWIG](http://www.swig.org) to construct a TCL interface to be used as a
-TCLforce script for [NAMD](www.ks.uiuc.edu/Research/namd).
+This is a [fork](https://github.com/alexispaz/otfp) from the original OTFP code
+is hosted in Cameron Abrams' [github](https://github.com/cameronabrams/otfp).
+It mantains the same BSD-2-Clause license of the original repo.
 
-
-
-
-# CITATIONS
+# Citations
 
 The OTFP method is explained in detail in the original publication:
 

@@ -55,6 +55,7 @@ int main ( int argc, char * argv[] ) {
   // Output of the sum
   chapeau_solve(ch[0]);
   chapeau_output(ch[0],1);
+  chapeau_savestate (ch[0],"added.ch");
                    
   fflush(ch[0]->ofp);
                      

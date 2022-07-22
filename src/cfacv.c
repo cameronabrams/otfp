@@ -65,7 +65,7 @@ void handler(int sig) {
 }
 
 void cfacvBanner ( void ) {
-  printf("CFACV/C) Version (Git Hash): %s\n",VERSION);
+  printf("OTFP: Version (Git Hash): %s\n",VERSION);
 }
 
 FILE * my_fopen ( char * name, char * code ) {
@@ -210,7 +210,7 @@ int smdOptInit ( smdOptStruct * smd, double initval) {
   //  } 
   //}
   smd->increment=dist*smd->invinterval;
-  printf("CFACV/C) smd increment is %.5f based on target %.5f and initval %.5f\n",
+  printf("OTFP: smd increment is %.5f based on target %.5f and initval %.5f\n",
          smd->increment,smd->target,smd->initval);
   return 0;
   
@@ -252,7 +252,7 @@ void ds_loadrestrains ( DataSpace * ds, char * filename ) {
     r=ds->restr[i];
     fread(&(r->z),sizeof(double),1,ofs);
     fread(&(r->val),sizeof(double),1,ofs);
-    printf("CFACV/C) Recovering restraint %i, z=%.5f; val=%.5f \n",i,r->z,r->val);
+    printf("OTFP: Recovering restraint %i, z=%.5f; val=%.5f \n",i,r->z,r->val);
   }
 
   fclose(ofs);
@@ -506,7 +506,7 @@ int DataSpace_SetupChapeau ( DataSpace * ds, int numrep, int dm, double*  min, i
   
   ds->doAnalyticalCalc=1;
   ds->useTAMDforces=useTAMDforces;
-  if (ds->useTAMDforces) fprintf(stdout,"CFACV/C) INFO: using TAMD forces instead of analytical forces.\n");
+  if (ds->useTAMDforces) fprintf(stdout,"OTFP: INFO: using TAMD forces instead of analytical forces.\n");
 
   // This is to let the system equilibrate
   ds->evolveAnalyticalParameters=1;
@@ -782,7 +782,7 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep, doubl
     }
   }
 
-  //printf("CFACV/C) %i restraint %i val %.4f targ %.4f\n",timestep,i,r->val,r->z);
+  //printf("OTFP: %i restraint %i val %.4f targ %.4f\n",timestep,i,r->val,r->z);
 
   /* compute forces on all restraints */
   for (i=0;i<ds->K;i++) {
