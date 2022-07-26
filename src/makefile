@@ -44,7 +44,7 @@ GIT_VERSION := $(shell git describe --abbrev=4 --dirty --always 2>/dev/null || c
 CFLAGS+=-DVERSION=\"$(GIT_VERSION)\"
 
 
-all: cfacv.so cvs.so chapadd chapsim catbinsp chapcrop
+all: cfacv.so cvs.so chapadd chapsim catbinsp chapcrop chapconv
  
 %.so:  $(OBJ) %_wrap.o
 	$(CC) $(CFLAGS) -shared -o $@ $^ $(LIBS)
@@ -65,6 +65,9 @@ catbinsp: catbinsp.o
 chapsim: simetrize.o chapeau.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
+chapconv: convchapeau.o chapeau.o
+	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
+
 chapadd: addchapeaus.o chapeau.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
@@ -76,6 +79,7 @@ chapeau.o : chapeau.h chapeau_obj.h
 simetrize.o : chapeau.h chapeau_obj.h
 addchapeaus.o : chapeau.h chapeau_obj.h
 cropchapeaus.o : chapeau.h chapeau_obj.h
+convchapeaus.o : chapeau.h chapeau_obj.h chapeau_old.h
 centers.o : centers.h
 cfacv.o : cfacv.h version cfacv_obj.h
 cvs.o : measurements.o cvs.h chapeau.h cvs_obj.h chapeau_obj.h
