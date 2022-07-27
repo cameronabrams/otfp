@@ -171,7 +171,15 @@ chapeau * chapeau_crop (chapeau * ch, double * rmin, double * rmax) {
   int mi,mj,mk;
   chapeau * cho;
  
-  int periodic[ch->dm],N[ch->dm];
+  // int * periodic[ch->dm],N[ch->dm];
+  int * N;
+  int * periodic;
+
+  periodic=calloc(ch->dm,sizeof(int));
+  N=calloc(ch->dm,sizeof(int));
+  for (i=0;i<ch->dm;i++) {
+    periodic[i]=0;
+  }
    
   for (i=0;i<ch->dm;i++) {
 
@@ -182,8 +190,8 @@ chapeau * chapeau_crop (chapeau * ch, double * rmin, double * rmax) {
     max[i]=(int)((rmax[i]-ch->rmin[i])*ch->idr[i]); 
 
     rmin[i]=min[i]*ch->dr[i]+ch->rmin[i]; 
-    rmax[i]=max[i]*ch->dr[i]+ch->rmin[i]; 
-    N[i]=max-min+1;
+    rmax[i]=(max[i]+1)*ch->dr[i]+ch->rmin[i]; 
+    N[i]=max[i]-min[i]+1;
 
     // Lost periodicity... I guess
     periodic[i]=0;
@@ -191,7 +199,6 @@ chapeau * chapeau_crop (chapeau * ch, double * rmin, double * rmax) {
 
   cho = chapeau_alloc(ch->dm, rmin, rmax, N, periodic);
      
-  // Igualo al triangulo superior
   for (i=0;i<ch->N[0];i++) {
 
     if (i<min[0]) continue;
@@ -208,14 +215,13 @@ chapeau * chapeau_crop (chapeau * ch, double * rmin, double * rmax) {
          |  x   -\  | 
          |        -\| 
         nk---------ni */
-     
-      mk=j*ch->N[0]+i;
-      mi=mk-1;
+      mi=j*ch->N[0]+i+1;
       mj=mi+ch->N[0]-1;
+      mk=mi-1;
       
-      nk=j*cho->N[0]+i;
-      ni=nk-1;
+      ni=(j-min[1])*cho->N[0]+(i-min[0])+1;
       nj=ni+cho->N[0]-1;
+      nk=ni-1;
  
       cho->b[nk] = ch->b[mk];
       cho->bfull[nk] = ch->bfull[mk];
@@ -225,25 +231,26 @@ chapeau * chapeau_crop (chapeau * ch, double * rmin, double * rmax) {
       cho->A[cho->ku][nk] = ch->A[ch->ku][mk];  // This is A[ni][ni]
 
       // Off diagonal
-      cho->A[ch->ku+(ni-nk)][nk] = cho->A[ch->ku+(mi-mk)][mk]; // This is A[ni][nk]
-      cho->A[ch->ku+(nk-ni)][ni] = cho->A[ch->ku+(mk-mi)][mi]; // This is A[nk][ni]
-      cho->A[ch->ku+(nj-nk)][nk] = cho->A[ch->ku+(mj-mk)][mk]; // This is A[nj][nk]
-      cho->A[ch->ku+(nk-nj)][nj] = cho->A[ch->ku+(mk-mj)][mj]; // This is A[nk][nj]
+      cho->A[cho->ku+(ni-nk)][nk] = ch->A[ch->ku+(mi-mk)][mk]; // This is A[ni][nk]
+      cho->A[cho->ku+(nk-ni)][ni] = ch->A[ch->ku+(mk-mi)][mi]; // This is A[nk][ni]
+      cho->A[cho->ku+(nj-nk)][nk] = ch->A[ch->ku+(mj-mk)][mk]; // This is A[nj][nk]
+      cho->A[cho->ku+(nk-nj)][nj] = ch->A[ch->ku+(mk-mj)][mj]; // This is A[nk][nj]
  
       // Diagonal
       cho->Afull[cho->ku][nk] = ch->Afull[ch->ku][mk];  // This is Afull[ni][ni]
 
       // Off diagonal
       if (i<max[0]) {
-        cho->Afull[ch->ku+(ni-nk)][nk] = cho->Afull[ch->ku+(mi-mk)][mk]; // This is Afull[ni][nk]
-        cho->Afull[ch->ku+(nk-ni)][ni] = cho->Afull[ch->ku+(mk-mi)][mi]; // This is Afull[nk][ni]
+        cho->Afull[cho->ku+(ni-nk)][nk] = ch->Afull[ch->ku+(mi-mk)][mk]; // This is Afull[ni][nk]
+        cho->Afull[cho->ku+(nk-ni)][ni] = ch->Afull[ch->ku+(mk-mi)][mi]; // This is Afull[nk][ni]
       }
       if (j<max[1]) {
-        cho->Afull[ch->ku+(nj-nk)][nk] = cho->Afull[ch->ku+(mj-mk)][mk]; // This is Afull[nj][nk]
-        cho->Afull[ch->ku+(nk-nj)][nj] = cho->Afull[ch->ku+(mk-mj)][mj]; // This is Afull[nk][nj]
+        cho->Afull[cho->ku+(nj-nk)][nk] = ch->Afull[ch->ku+(mj-mk)][mk]; // This is Afull[nj][nk]
+        cho->Afull[cho->ku+(nk-nj)][nj] = ch->Afull[ch->ku+(mk-mj)][mj]; // This is Afull[nk][nj]
       }
     }
   }
+  return cho;
 }
  
 void chapeau_sum ( chapeau * ch1, chapeau * ch2 ) {

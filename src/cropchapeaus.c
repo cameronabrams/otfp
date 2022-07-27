@@ -27,7 +27,6 @@ int main ( int argc, char * argv[] ) {
     fprintf(stderr,"--- ch idr %.5f\n",ch->idr[j]); 
   }
    
-  
   rmin[0]=atof(argv[2]);
   rmax[0]=atof(argv[3]);
   if (ch->dm==2) {
@@ -37,9 +36,8 @@ int main ( int argc, char * argv[] ) {
 
   cho=chapeau_crop(ch,rmin,rmax);
   
-  
   // Output of the first chapeau before add in it
-  chapeau_setupoutput(cho,"chaps.bsp","chaps",1,1);
+  chapeau_setupoutput(cho,"croped.bsp","croped",1,1);
   cho->nupdate=1;
   chapeau_solve(cho);
   chapeau_output(cho,1);
