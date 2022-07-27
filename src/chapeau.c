@@ -187,15 +187,16 @@ chapeau * chapeau_crop (chapeau * ch, double * rmin, double * rmax) {
     if ( rmin[i] < ch->rmin[i] ) rmin[i]=ch->rmin[i];
 
     min[i]=(int)((rmin[i]-ch->rmin[i])*ch->idr[i]); 
-    max[i]=(int)((rmax[i]-ch->rmin[i])*ch->idr[i]); 
+    max[i]=(int)((rmax[i]-ch->rmin[i])*ch->idr[i])+1; 
 
     rmin[i]=min[i]*ch->dr[i]+ch->rmin[i]; 
-    rmax[i]=(max[i]+1)*ch->dr[i]+ch->rmin[i]; 
+    rmax[i]=max[i]*ch->dr[i]+ch->rmin[i]; 
     N[i]=max[i]-min[i]+1;
 
     // Lost periodicity... I guess
     periodic[i]=0;
   }
+
 
   cho = chapeau_alloc(ch->dm, rmin, rmax, N, periodic);
      
@@ -207,6 +208,7 @@ chapeau * chapeau_crop (chapeau * ch, double * rmin, double * rmax) {
     for (j=0;j<ch->N[1];j++) {
       if (j<min[1]) continue;
       if (j>max[1]) continue;
+
       // Identifico el punto de red y sus equivalentes en el nuevo espacio
       /*nj----------* 
          |-\        | 
@@ -226,30 +228,58 @@ chapeau * chapeau_crop (chapeau * ch, double * rmin, double * rmax) {
       cho->b[nk] = ch->b[mk];
       cho->bfull[nk] = ch->bfull[mk];
       cho->hits[nk] = ch->hits[mk];
+      cho->lam[nk] = ch->lam[mk];
 
       // Diagonal
-      cho->A[cho->ku][nk] = ch->A[ch->ku][mk];  // This is A[ni][ni]
-
-      // Off diagonal
-      cho->A[cho->ku+(ni-nk)][nk] = ch->A[ch->ku+(mi-mk)][mk]; // This is A[ni][nk]
-      cho->A[cho->ku+(nk-ni)][ni] = ch->A[ch->ku+(mk-mi)][mi]; // This is A[nk][ni]
-      cho->A[cho->ku+(nj-nk)][nk] = ch->A[ch->ku+(mj-mk)][mk]; // This is A[nj][nk]
-      cho->A[cho->ku+(nk-nj)][nj] = ch->A[ch->ku+(mk-mj)][mj]; // This is A[nk][nj]
- 
-      // Diagonal
-      cho->Afull[cho->ku][nk] = ch->Afull[ch->ku][mk];  // This is Afull[ni][ni]
+      cho->A[cho->ku][nk] = ch->A[ch->ku][mk];  // This is A[nk][nk]
+      cho->Afull[cho->ku][nk] = ch->Afull[ch->ku][mk];  // This is Afull[nk][nk]
 
       // Off diagonal
       if (i<max[0]) {
+        cho->A[cho->ku+(ni-nk)][nk] = ch->A[ch->ku+(mi-mk)][mk]; // This is A[ni][nk]
+        cho->A[cho->ku+(nk-ni)][ni] = ch->A[ch->ku+(mk-mi)][mi]; // This is A[nk][ni]
         cho->Afull[cho->ku+(ni-nk)][nk] = ch->Afull[ch->ku+(mi-mk)][mk]; // This is Afull[ni][nk]
         cho->Afull[cho->ku+(nk-ni)][ni] = ch->Afull[ch->ku+(mk-mi)][mi]; // This is Afull[nk][ni]
       }
       if (j<max[1]) {
+        cho->A[cho->ku+(nj-nk)][nk] = ch->A[ch->ku+(mj-mk)][mk]; // This is A[nj][nk]
+        cho->A[cho->ku+(nk-nj)][nj] = ch->A[ch->ku+(mk-mj)][mj]; // This is A[nk][nj]
         cho->Afull[cho->ku+(nj-nk)][nk] = ch->Afull[ch->ku+(mj-mk)][mk]; // This is Afull[nj][nk]
         cho->Afull[cho->ku+(nk-nj)][nj] = ch->Afull[ch->ku+(mk-mj)][mj]; // This is Afull[nk][nj]
       }
     }
   }
+
+  //Korner
+  j=max[1];
+  i=max[0];
+  mi=j*ch->N[0]+i+1;
+  mj=mi+ch->N[0]-1;
+  mk=mj+1;
+  
+  ni=(j-min[1])*cho->N[0]+(i-min[0])+1;
+  nj=ni+cho->N[0]-1;
+  nk=nj+1;
+ 
+  cho->b[nk] = ch->b[mk];
+  cho->bfull[nk] = ch->bfull[mk];
+  cho->hits[nk] = ch->hits[mk];
+  cho->lam[nk] = ch->lam[mk];
+
+  // Diagonal
+  cho->A[cho->ku][nk] = ch->A[ch->ku][mk];  // This is A[nk][nk]
+  cho->Afull[cho->ku][nk] = ch->Afull[ch->ku][mk];  // This is Afull[nk][nk]
+
+  // Off diagonal
+  cho->A[cho->ku+(ni-nk)][nk] = ch->A[ch->ku+(mi-mk)][mk]; // This is A[ni][nk]
+  cho->A[cho->ku+(nk-ni)][ni] = ch->A[ch->ku+(mk-mi)][mi]; // This is A[nk][ni]
+  cho->Afull[cho->ku+(ni-nk)][nk] = ch->Afull[ch->ku+(mi-mk)][mk]; // This is Afull[ni][nk]
+  cho->Afull[cho->ku+(nk-ni)][ni] = ch->Afull[ch->ku+(mk-mi)][mi]; // This is Afull[nk][ni]
+  cho->A[cho->ku+(nj-nk)][nk] = ch->A[ch->ku+(mj-mk)][mk]; // This is A[nj][nk]
+  cho->A[cho->ku+(nk-nj)][nj] = ch->A[ch->ku+(mk-mj)][mj]; // This is A[nk][nj]
+  cho->Afull[cho->ku+(nj-nk)][nk] = ch->Afull[ch->ku+(mj-mk)][mk]; // This is Afull[nj][nk]
+  cho->Afull[cho->ku+(nk-nj)][nj] = ch->Afull[ch->ku+(mk-mj)][mj]; // This is Afull[nk][nj]
+  
   return cho;
 }
  

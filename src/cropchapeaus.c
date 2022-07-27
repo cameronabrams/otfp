@@ -21,6 +21,7 @@ int main ( int argc, char * argv[] ) {
   
   for (j=0;j<ch->dm;j++) {
     fprintf(stderr,"--- ch dm %d/%d\n",j,ch->dm); 
+    fprintf(stderr,"--- ch N %d\n",ch->N[j]); 
     fprintf(stderr,"--- ch rmin %.5f\n",ch->rmin[j]); 
     fprintf(stderr,"--- ch rmax %.5f\n",ch->rmax[j]); 
     fprintf(stderr,"--- ch dr %.5f\n",ch->dr[j]); 
@@ -35,14 +36,25 @@ int main ( int argc, char * argv[] ) {
   }
 
   cho=chapeau_crop(ch,rmin,rmax);
+  fprintf(stderr,"-----------\n"); 
   
   // Output of the first chapeau before add in it
   chapeau_setupoutput(cho,"croped.bsp","croped",1,1);
+ 
+  for (j=0;j<ch->dm;j++) {
+    fprintf(stderr,"--- ch dm %d/%d\n",j,cho->dm); 
+    fprintf(stderr,"--- ch N %d\n",cho->N[j]); 
+    fprintf(stderr,"--- ch rmin %.5f\n",cho->rmin[j]); 
+    fprintf(stderr,"--- ch rmax %.5f\n",cho->rmax[j]); 
+    fprintf(stderr,"--- ch dr %.5f\n",cho->dr[j]); 
+    fprintf(stderr,"--- ch idr %.5f\n",cho->idr[j]); 
+  }
+
   cho->nupdate=1;
   chapeau_solve(cho);
   chapeau_output(cho,1);
   chapeau_savestate (cho,"croped.ch");
-
+             
   fflush(cho->ofp);
                      
   return 0;

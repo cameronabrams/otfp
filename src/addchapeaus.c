@@ -23,6 +23,7 @@ int main ( int argc, char * argv[] ) {
   
     for (j=0;j<ch[i-1]->dm;j++) {
       fprintf(stderr,"--- ch dm %d/%d\n",j,ch[i-1]->dm); 
+      fprintf(stderr,"--- ch N %d\n",ch[i-1]->N[j]); 
       fprintf(stderr,"--- ch rmin %.5f\n",ch[i-1]->rmin[j]); 
       fprintf(stderr,"--- ch rmax %.5f\n",ch[i-1]->rmax[j]); 
       fprintf(stderr,"--- ch dr %.5f\n",ch[i-1]->dr[j]); 
@@ -32,7 +33,6 @@ int main ( int argc, char * argv[] ) {
   }
   
   // Output of the first chapeau before add in it
-  chapeau_setupoutput(ch[0],"chaps.bsp","chaps",1,1);
   ch[0]->nupdate=1;
   chapeau_solve(ch[0]);
   chapeau_output(ch[0],1);
@@ -53,6 +53,7 @@ int main ( int argc, char * argv[] ) {
   }
 
   // Output of the sum
+  chapeau_setupoutput(ch[0],"added.bsp","added",1,1);
   chapeau_solve(ch[0]);
   chapeau_output(ch[0],1);
   chapeau_savestate (ch[0],"added.ch");

@@ -56,7 +56,7 @@ int main ( int argc, char * argv[] ) {
           
      
   // Output of the first chapeau before add in it
-  chapeau_setupoutput(ch,"chaps.bsp","chaps",1,1);
+  chapeau_setupoutput(ch,"coverted.bsp","converted",1,1);
 
   //Prepare the output of the rest to the same file
   ch->outputFreq =och->outputFreq;
