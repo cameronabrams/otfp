@@ -52,6 +52,7 @@ int main ( int argc, char * argv[] ) {
 
   cho->nupdate=1;
   chapeau_solve(cho);
+  // chapeau_solve_secure(cho);
   chapeau_output(cho,1);
   chapeau_savestate (cho,"croped.ch");
              

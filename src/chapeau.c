@@ -9,7 +9,7 @@
 int chapeau_init ( chapeau * ch, int dm, double * rmin, double * rmax, int * N, int * periodic) {
   int i;
 
-  if (periodic[1]||periodic[2]) {
+  if (periodic[0]||periodic[1]) {
     fprintf(stderr,"OTFP: Intel MKL Direct Sparse Solver is required for periodicty.\n");
     exit(-1);
   }
@@ -177,9 +177,6 @@ chapeau * chapeau_crop (chapeau * ch, double * rmin, double * rmax) {
 
   periodic=calloc(ch->dm,sizeof(int));
   N=calloc(ch->dm,sizeof(int));
-  for (i=0;i<ch->dm;i++) {
-    periodic[i]=0;
-  }
    
   for (i=0;i<ch->dm;i++) {
 
@@ -198,7 +195,7 @@ chapeau * chapeau_crop (chapeau * ch, double * rmin, double * rmax) {
   }
 
 
-  cho = chapeau_alloc(ch->dm, rmin, rmax, N, periodic);
+  cho=chapeau_alloc(ch->dm, rmin, rmax, N, periodic);
      
   for (i=0;i<ch->N[0];i++) {
 
@@ -250,35 +247,36 @@ chapeau * chapeau_crop (chapeau * ch, double * rmin, double * rmax) {
     }
   }
 
-  //Korner
-  j=max[1];
-  i=max[0];
-  mi=j*ch->N[0]+i+1;
-  mj=mi+ch->N[0]-1;
-  mk=mj+1;
-  
-  ni=(j-min[1])*cho->N[0]+(i-min[0])+1;
-  nj=ni+cho->N[0]-1;
-  nk=nj+1;
- 
-  cho->b[nk] = ch->b[mk];
-  cho->bfull[nk] = ch->bfull[mk];
-  cho->hits[nk] = ch->hits[mk];
-  cho->lam[nk] = ch->lam[mk];
-
-  // Diagonal
-  cho->A[cho->ku][nk] = ch->A[ch->ku][mk];  // This is A[nk][nk]
-  cho->Afull[cho->ku][nk] = ch->Afull[ch->ku][mk];  // This is Afull[nk][nk]
-
-  // Off diagonal
-  cho->A[cho->ku+(ni-nk)][nk] = ch->A[ch->ku+(mi-mk)][mk]; // This is A[ni][nk]
-  cho->A[cho->ku+(nk-ni)][ni] = ch->A[ch->ku+(mk-mi)][mi]; // This is A[nk][ni]
-  cho->Afull[cho->ku+(ni-nk)][nk] = ch->Afull[ch->ku+(mi-mk)][mk]; // This is Afull[ni][nk]
-  cho->Afull[cho->ku+(nk-ni)][ni] = ch->Afull[ch->ku+(mk-mi)][mi]; // This is Afull[nk][ni]
-  cho->A[cho->ku+(nj-nk)][nk] = ch->A[ch->ku+(mj-mk)][mk]; // This is A[nj][nk]
-  cho->A[cho->ku+(nk-nj)][nj] = ch->A[ch->ku+(mk-mj)][mj]; // This is A[nk][nj]
-  cho->Afull[cho->ku+(nj-nk)][nk] = ch->Afull[ch->ku+(mj-mk)][mk]; // This is Afull[nj][nk]
-  cho->Afull[cho->ku+(nk-nj)][nj] = ch->Afull[ch->ku+(mk-mj)][mj]; // This is Afull[nk][nj]
+  // This makes segfault
+  // //Korner
+  // j=max[1];
+  // i=max[0];
+  // mi=j*ch->N[0]+i+1;
+  // mj=mi+ch->N[0]-1;
+  // mk=mj+1;
+  //
+  // ni=(j-min[1])*cho->N[0]+(i-min[0])+1;
+  // nj=ni+cho->N[0]-1;
+  // nk=nj+1;
+  //
+  // cho->b[nk] = ch->b[mk];
+  // cho->bfull[nk] = ch->bfull[mk];
+  // cho->hits[nk] = ch->hits[mk];
+  // cho->lam[nk] = ch->lam[mk];
+  //
+  // // Diagonal
+  // cho->A[cho->ku][nk] = ch->A[ch->ku][mk];  // This is A[nk][nk]
+  // cho->Afull[cho->ku][nk] = ch->Afull[ch->ku][mk];  // This is Afull[nk][nk]
+  //
+  // // Off diagonal
+  // cho->A[cho->ku+(ni-nk)][nk] = ch->A[ch->ku+(mi-mk)][mk]; // This is A[ni][nk]
+  // cho->A[cho->ku+(nk-ni)][ni] = ch->A[ch->ku+(mk-mi)][mi]; // This is A[nk][ni]
+  // cho->Afull[cho->ku+(ni-nk)][nk] = ch->Afull[ch->ku+(mi-mk)][mk]; // This is Afull[ni][nk]
+  // cho->Afull[cho->ku+(nk-ni)][ni] = ch->Afull[ch->ku+(mk-mi)][mi]; // This is Afull[nk][ni]
+  // cho->A[cho->ku+(nj-nk)][nk] = ch->A[ch->ku+(mj-mk)][mk]; // This is A[nj][nk]
+  // cho->A[cho->ku+(nk-nj)][nj] = ch->A[ch->ku+(mk-mj)][mj]; // This is A[nk][nj]
+  // cho->Afull[cho->ku+(nj-nk)][nk] = ch->Afull[ch->ku+(mj-mk)][mk]; // This is Afull[nj][nk]
+  // cho->Afull[cho->ku+(nk-nj)][nj] = ch->Afull[ch->ku+(mk-mj)][mj]; // This is Afull[nk][nj]
   
   return cho;
 }
