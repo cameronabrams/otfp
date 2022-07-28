@@ -9,17 +9,17 @@ ifeq ($(CC),icc)
   
   # LIBS+=-lmkl_intel_ilp64 -lmkl_sequential -lmkl_core -lpthread -lm -ldl
 endif
-
-ifeq ($(CC),gcc)
    
-  # CFLAGS+=--debug
-  # CFLAGS+=-ggdb3
-  # CFLAGS+=-O0 
+  CFLAGS+=--debug
+  CFLAGS+=-g
+  CFLAGS+=-O0 
   # CFLAGS+=-O3 
 # CFLAGS+=-static
 # CFLAGS+=-Wall
 # CFLAGS+=-Wpedantic
-#
+#  
+ifeq ($(CC),gcc)
+  
 # Profile
 # CFLAGS+=-Wall -g -rdynamic
 #

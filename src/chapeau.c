@@ -180,8 +180,8 @@ chapeau * chapeau_crop (chapeau * ch, double * rmin, double * rmax) {
    
   for (i=0;i<ch->dm;i++) {
 
-    if ( rmax[i] > ch->rmax[i] ) rmax[i]=ch->rmax[i];
-    if ( rmin[i] < ch->rmin[i] ) rmin[i]=ch->rmin[i];
+    // if ( rmax[i] > ch->rmax[i] ) rmax[i]=ch->rmax[i];
+    // if ( rmin[i] < ch->rmin[i] ) rmin[i]=ch->rmin[i];
 
     min[i]=(int)((rmin[i]-ch->rmin[i])*ch->idr[i]); 
     max[i]=(int)((rmax[i]-ch->rmin[i])*ch->idr[i])+1; 
@@ -237,7 +237,7 @@ chapeau * chapeau_crop (chapeau * ch, double * rmin, double * rmax) {
         cho->A[cho->ku+(nk-ni)][ni] = ch->A[ch->ku+(mk-mi)][mi]; // This is A[nk][ni]
         cho->Afull[cho->ku+(ni-nk)][nk] = ch->Afull[ch->ku+(mi-mk)][mk]; // This is Afull[ni][nk]
         cho->Afull[cho->ku+(nk-ni)][ni] = ch->Afull[ch->ku+(mk-mi)][mi]; // This is Afull[nk][ni]
-      }
+      } 
       if (j<max[1]) {
         cho->A[cho->ku+(nj-nk)][nk] = ch->A[ch->ku+(mj-mk)][mk]; // This is A[nj][nk]
         cho->A[cho->ku+(nk-nj)][nj] = ch->A[ch->ku+(mk-mj)][mj]; // This is A[nk][nj]
@@ -247,6 +247,28 @@ chapeau * chapeau_crop (chapeau * ch, double * rmin, double * rmax) {
     }
   }
 
+  // Border gross correction... FIXME
+  // if (min[0]>0) {
+  //   i=0;
+  //   for (j=0;j<cho->N[1];j++) {
+  //     ni=j*cho->N[0]+i;
+  //     cho->A[cho->ku][ni]     = .5*cho->A[cho->ku][ni]     ; 
+  //     cho->Afull[cho->ku][ni] = .5*cho->Afull[cho->ku][ni] ;
+  //     cho->b[ni]     = .5*cho->b[ni];    
+  //     cho->bfull[ni] = .5*cho->bfull[ni];
+  //   }
+  // }
+  // if (max[0]<ch->N[0]) {
+  //   i=cho->N[0];
+  //   for (j=0;j<cho->N[1];j++) {
+  //     ni=j*cho->N[0]+i;
+  //     cho->A[cho->ku][ni]     = .5*cho->A[cho->ku][ni]     ; 
+  //     cho->Afull[cho->ku][ni] = .5*cho->Afull[cho->ku][ni] ;
+  //     cho->b[ni]     = .5*cho->b[ni];    
+  //     cho->bfull[ni] = .5*cho->bfull[ni];
+  //   }
+  // }
+   
   // This makes segfault
   // //Korner
   // j=max[1];
