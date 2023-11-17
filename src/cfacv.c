@@ -1,5 +1,44 @@
-#include "cfacv.h"
+/* Collective Variables module for NAMD via tclForces
+ * Cameron F. Abrams
+ *
+ * Adapted for On-the-fly free-energy parameterization via TAMD
+ * Sergio A. Paz
+ *
+ * This header declares structured data types and functions for
+ * handling collective variables and their restraints. 
+ * 
+ * The central concept is that of a "restraint" which is applied to
+ * one or a linear combination of "collective variables".  A restraint
+ * computes a force on a collective variable ($\theta$) based on its
+ * value and the value of a "target" or "auxiliary" variable ($z$).
+ * The auxiliary variable can be constant, or driven according to
+ * steered MD or temperature-accelerated MD.  It is the job of the
+ * cfacv module to compute these forces after receiving from the NAMD
+ * tclforces "calcforces" function the positions of all atoms or
+ * atom-groups that participate in each CV owned by each restraint.
+ * It is the job of the tclforces module to receive those forces and
+ * transmit them to the atoms. This two-way communication happens
+ * once per timestep on the master node during NAMD execution.
+ *
+ * In this particular OTFP impelementation, we are using linear chapeau
+ * functions as the basis functions.  We use this to compute effective pair
+ * potentials between centers of mass of atomgroups (like water molecules).
+ *
+ */
+ 
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
 
+#include "cfacv_obj.h"
+ 
+//#include "wrapcoords.h"
+#include "chapeau.h"       // basis functions
+#include "measurements.h"  // random numbers
+ 
+#include "cvs.h"
+#include "cfacv.h"
+                    
 // Handling SIGSEGV or SIGINT signal to make a call stack using backtrace.
 // The call stack can be used to profile the program
 // See for instance:
@@ -26,7 +65,7 @@ void handler(int sig) {
 }
 
 void cfacvBanner ( void ) {
-  printf("CFACV/C) Version (Git Hash): %s\n",VERSION);
+  printf("OTFP: Version (Git Hash): %s\n",VERSION);
 }
 
 FILE * my_fopen ( char * name, char * code ) {
@@ -79,7 +118,7 @@ restraint * New_restraint (
   newr->z=z;
   newr->u=newr->f=0.0;
   newr->nCV=nCV;
-  newr->cvc=(double*)malloc(nCV*sizeof(double));
+  newr->cvc=malloc(nCV*sizeof(double));
   if (cvc) for (i=0;i<nCV;i++) newr->cvc[i]=cvc[i];
   else for (i=0;i<nCV;i++) newr->cvc[i]=0;
 
@@ -171,7 +210,7 @@ int smdOptInit ( smdOptStruct * smd, double initval) {
   //  } 
   //}
   smd->increment=dist*smd->invinterval;
-  printf("CFACV/C) smd increment is %.5f based on target %.5f and initval %.5f\n",
+  printf("OTFP: smd increment is %.5f based on target %.5f and initval %.5f\n",
          smd->increment,smd->target,smd->initval);
   return 0;
   
@@ -213,7 +252,7 @@ void ds_loadrestrains ( DataSpace * ds, char * filename ) {
     r=ds->restr[i];
     fread(&(r->z),sizeof(double),1,ofs);
     fread(&(r->val),sizeof(double),1,ofs);
-    printf("CFACV/C) Recovering restraint %i, z=%.5f; val=%.5f \n",i,r->z,r->val);
+    printf("OTFP: Recovering restraint %i, z=%.5f; val=%.5f \n",i,r->z,r->val);
   }
 
   fclose(ofs);
@@ -403,20 +442,20 @@ int uniformvelocity ( restraint * r, double f ) {
 // DATA SPACE
 
 
-DataSpace * NewDataSpace ( int N, int ncv, int K, long int seed ) {
+DataSpace * NewDataSpace ( int Nctr, int Ncv, int Nrstr, long int seed ) {
   DataSpace * ds = malloc(sizeof(DataSpace));
   int i;
-  ds->N=N;
-  ds->K=K;
+  ds->N=Nctr;
+  ds->K=Nrstr;
   ds->iN=0;
   ds->iK=0;
 
-  ds->ncv=ncv;   ds->icv=0;
+  ds->ncv=Ncv;   ds->icv=0;
 
   // This will not work with numbers less that 16 bits!
   //// Random seed. I deatached this from the data space a do it global
   //// for all the file (see for example HarmonicCart_cutoff function)
-  //Xi=(unsigned short *)malloc(3*sizeof(unsigned short));
+  //Xi=malloc(3*sizeof(unsigned short));
   //Xi[0]=(seed & 0xffff00000000) >> 32;
   //Xi[1]=(seed & 0x0000ffff0000) >> 16;
   //Xi[2]= 0x330e;
@@ -433,17 +472,19 @@ DataSpace * NewDataSpace ( int N, int ncv, int K, long int seed ) {
   //srand48(kkk);
   //oldptr=seed48(&Xi[0]);
    
-  ds->R=(double**)malloc(N*sizeof(double*));
-  for (i=0;i<N;i++) ds->R[i]=calloc(3,sizeof(double));
+  ds->R=malloc(Nctr*sizeof(double*));
+  for (i=0;i<Nctr;i++) ds->R[i]=calloc(3,sizeof(double));
 
-  ds->ac = (atomCenterStruct**)malloc(N*sizeof(atomCenterStruct*));
+  ds->ac = malloc(Nctr*sizeof(atomCenterStruct*));
 
-  ds->cv=(cv**)malloc(ncv*sizeof(cv*));
-  ds->restr=(restraint**)malloc(K*sizeof(restraint*));
+  ds->cv=malloc(Ncv*sizeof(cv*));
+  ds->restr=malloc(Nrstr*sizeof(restraint*));
 
   ds->doAnalyticalCalc=0;
   ds->evolveAnalyticalParameters=0;
   ds->beginaccum=0;
+
+  ds->ch=NULL;
 
   return ds;
 }
@@ -453,7 +494,7 @@ chapeau * DataSpace_get_chapeauadress ( DataSpace * ds, int i ) {
 }
   
 int DataSpace_SetupChapeau ( DataSpace * ds, int numrep, int dm, double*  min, int * nKnots,
-    double * max, int periodic, int beginaccum, int beginsolve, int useTAMDforces, char * outfile, 
+    double * max, int * periodic, int beginaccum, int beginsolve, int useTAMDforces, char * outfile, 
     int outfreq, int outlevel, int nupdate) {
   // Initialize chapeaus objects in DataSpace. Since Data space might not have
   // any chapeau allocated, the number of chapeaus is not indicated in the
@@ -465,7 +506,7 @@ int DataSpace_SetupChapeau ( DataSpace * ds, int numrep, int dm, double*  min, i
   
   ds->doAnalyticalCalc=1;
   ds->useTAMDforces=useTAMDforces;
-  if (ds->useTAMDforces) fprintf(stdout,"CFACV/C) INFO: using TAMD forces instead of analytical forces.\n");
+  if (ds->useTAMDforces) fprintf(stdout,"OTFP: INFO: using TAMD forces instead of analytical forces.\n");
 
   // This is to let the system equilibrate
   ds->evolveAnalyticalParameters=1;
@@ -474,7 +515,7 @@ int DataSpace_SetupChapeau ( DataSpace * ds, int numrep, int dm, double*  min, i
   if (beginaccum < 0) ds->evolveAnalyticalParameters=0;
 
   ds->ch_num=numrep;
-  ds->ch=(chapeau**)malloc(ds->ch_num*sizeof(chapeau*));
+  ds->ch=malloc(ds->ch_num*sizeof(chapeau*));
 
   for (i=0;i<ds->ch_num;i++) {
     ds->ch[i]=chapeau_alloc(dm,min,max,nKnots,periodic);
@@ -677,19 +718,22 @@ void restr_output ( restraint * r ) {
   fflush(r->ofp);
 }
 
-int DataSpace_ComputeCVs ( DataSpace * ds ) {
+double DataSpace_ComputeCVs ( DataSpace * ds ) {
   int i;
+  double bias;
  
+  bias=0;
   if (!ds) return -1;
   for (i=0;i<ds->ncv;i++){
     ds->cv[i]->calc(ds->cv[i],ds->R);
+    if (ds->cv[i]->amd) bias+=ds->cv[i]->val;
   }
  
-  return 0;
+  return bias;
 }
 
 
-int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
+int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep, double bias ) {
   int i,j,jj;
   double * cvc;
   int d=0;
@@ -738,7 +782,7 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
     }
   }
 
-  //printf("CFACV/C) %i restraint %i val %.4f targ %.4f\n",timestep,i,r->val,r->z);
+  //printf("OTFP: %i restraint %i val %.4f targ %.4f\n",timestep,i,r->val,r->z);
 
   /* compute forces on all restraints */
   for (i=0;i<ds->K;i++) {
@@ -826,7 +870,7 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
         ch->f[r->chdm]=-r->f; // F=k(\theta-z)
       }
       for (i=0;i<ds->ch_num;i++) {
-        ds->ch[i]->accumulate(ds->ch[i]);
+        ds->ch[i]->accumulate(ds->ch[i],bias);
       }
     }
 
@@ -838,6 +882,7 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
 
         if (timestep>ds->beginsolve && !(timestep % ch->nupdate)) {
           // chapeau_savestate(ch,"after.ch0\0");
+         // getchar();
           chapeau_solve(ch);
 
           //for (j=0;j<K;j++) {
@@ -878,7 +923,9 @@ int DataSpace_RestrainingForces ( DataSpace * ds, int first, int timestep ) {
   }
 
   //Save restr trajectory for future restart
-  if (!(timestep % ds->restrsavefreq)) ds_saverestrains(ds,ds->filename);
+  if(K>0) {
+    if (!(timestep % ds->restrsavefreq)) ds_saverestrains(ds,ds->filename);
+  }
 
   return 0;
 }

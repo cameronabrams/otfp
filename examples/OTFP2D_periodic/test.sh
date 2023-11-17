@@ -3,14 +3,11 @@ set -o nounset
 set -o errexit
 set -o pipefail
 
-# Run simulations
-if [ -n "$(which mpirun 2>/dev/null)" ]; then
-  mpirun -n 12 namd2 job0.namd 2>&1 | tee job0.log
-  mpirun -n 12 namd2 job1.namd 2>&1 | tee job1.log
-else
-  namd2 +p12 job0.namd 2>&1 | tee job0.log
-  namd2 +p12 job1.namd 2>&1 | tee job1.log
-fi
+namd=~/opt/src/NAMD_2.13_Source/Linux-x86_64-g++/namd2
+
+# # Run simulations
+$namd job0.namd 2>&1 | tee job0.log
+$namd job1.namd 2>&1 | tee job1.log
 
 for file in $(ls *bsp); do
 
@@ -52,7 +49,7 @@ for file in $(ls *bsp); do
   set xlabel 'φ' norotate
   set ylabel 'ψ' offset 1,0
   set pm3d map
-  splot [-pi:pi][-pi:pi]\
+  splot [-4:4][-4:4]\
       '${f}.fes' u 2:1:(Is0(\$3)-fesmin) notit
 
 HEREGNUPLOT

@@ -11,8 +11,9 @@ double get_double(double *a, int index) {
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "cvs_obj.h"
+#include "chapeau.h"
 #include "cvs.h"
 %}
-double * cv_access_ref ( cv * c, int i );
-double * cv_access_ref2( cv * c, int i );
-int set_line (cv * c);
+%include "chapeau.h"
+%include "cvs.h"

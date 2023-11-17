@@ -1,0 +1,73 @@
+RESI ALAD        0.00 ! Alanine dipeptide
+GROUP
+ATOM CL   CT3   -0.27
+ATOM HL1  HA3    0.09
+ATOM HL2  HA3    0.09
+ATOM HL3  HA3    0.09
+GROUP
+ATOM CLP  C      0.51
+ATOM OL   O     -0.51
+GROUP
+ATOM NL   NH1   -0.47
+ATOM HL   H      0.31
+ATOM CA   CT1    0.07
+ATOM HA   HB1    0.09
+GROUP
+ATOM CB   CT3   -0.27  !     HL1     OL           OR           HR1
+ATOM HB1  HA3    0.09  !       \     ||   HL  HA  ||   HR      /
+ATOM HB2  HA3    0.09  !        \    ||   |   |   ||   |      /
+ATOM HB3  HA3    0.09  !   HL2---CL--CLP--NL--CA--CRP--NR---CR---HR2
+GROUP                  !        /             |               \
+ATOM CRP  C      0.51  !       /         HB1--CB--HB3          \
+ATOM OR   O     -0.51  !     HL3              |                HR3
+GROUP                  !                     HB2
+ATOM NR   NH1   -0.47
+ATOM HR   H      0.31
+ATOM CR   CT3   -0.11
+ATOM HR1  HA3    0.09
+ATOM HR2  HA3    0.09
+ATOM HR3  HA3    0.09
+
+BOND CL  CLP   CLP NL    NL  CA
+BOND CA  CRP   CRP NR    NR  CR
+DOUBLE  CLP OL    CRP OR
+BOND NL  HL    NR  HR
+BOND CA  HA    CA  CB
+BOND CL  HL1   CL  HL2   CL  HL3
+BOND CB  HB1   CB  HB2   CB  HB3
+BOND CR  HR1   CR  HR2   CR  HR3
+IMPR CLP CL NL OL    NL CLP CA HL
+IMPR CRP CA NR OR    NR CRP CR HR
+
+CMAP CLP NL CA CRP NL CA CRP NR
+
+ic clp nl  ca  crp  0.0 0.0  180.0  0.0 0.0 ! Phi
+ic ca  clp *nl hl   0.0 0.0  180.0  0.0 0.0
+ic hl  nl  ca  crp  0.0 0.0    0.0  0.0 0.0
+ic nl  ca  crp nr   0.0 0.0  180.0  0.0 0.0 ! Psi
+ic ca  nr  *crp or  0.0 0.0  180.0  0.0 0.0
+ic nl  ca  crp or   0.0 0.0    0.0  0.0 0.0
+ic cl  clp nl  ca   0.0 0.0  180.0  0.0 0.0 ! Omega Left
+ic nl  cl  *clp ol  0.0 0.0  180.0  0.0 0.0
+ic ol  clp nl  ca   0.0 0.0    0.0  0.0 0.0
+ic ca  crp nr  cr   0.0 0.0  180.0  0.0 0.0 ! Omega Right
+ic crp cr  *nr hr   0.0 0.0  180.0  0.0 0.0
+ic ca  crp nr  hr   0.0 0.0  180.0  0.0 0.0
+ic nl  crp *ca ha   0.0 0.0  240.0  0.0 0.0
+ic nl  crp *ca cb   0.0 0.0  120.0  0.0 0.0
+ic hl1 cl  clp nl   0.0 0.0  180.0  0.0 0.0
+ic hl2 cl  clp nl   0.0 0.0   60.0  0.0 0.0
+ic hl3 cl  clp ol   0.0 0.0  120.0  0.0 0.0
+ic ha  ca  cb  hb1  0.0 0.0  180.0  0.0 0.0
+ic nl  ca  cb  hb2  0.0 0.0  180.0  0.0 0.0
+ic crp ca  cb  hb3  0.0 0.0  180.0  0.0 0.0
+ic crp nr  cr  hr1  0.0 0.0  180.0  0.0 0.0
+ic crp nr  cr  hr2  0.0 0.0   60.0  0.0 0.0
+ic hr  nr  cr  hr3  0.0 0.0  120.0  0.0 0.0
+ic ca  clp *nl hl   0.0 0.0  180.0  0.0 0.0
+ic ca  nr  *crp or  0.0 0.0  180.0  0.0 0.0
+ic hb1 hb2 *cb hb3  0.0 0.0  120.0  0.0 0.0
+ic hl1 hl2 *cl hl3  0.0 0.0  240.0  0.0 0.0
+ic hr1 hr2 *cr hr3  0.0 0.0  240.0  0.0 0.0
+ic ha  ca  nl  hl   0.0 0.0  240.0  0.0 0.0
+patch first none last none

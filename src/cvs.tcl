@@ -13,23 +13,21 @@ proc parse_pdb {pdbfile pdbarray} {
   close $inStream
   set lines [split $data \n]
 
+  set j 0 
+
   foreach line $lines {
 
-    # Check if we have an ATOM
+    # Check if we have an ATOM. NAMD does not pay atention to pdb atom index so
+    # we will just count.
     set cardstr [string range $line 0 3]
     if {$cardstr ne "ATOM"} continue
+ 
+    # Retrive atom index
+    incr j
  
     # Check and retrive center index
     set i [expr int([string trim [string range $line 60 65]])]
     if {$i == 0} continue
-
-    # Retrive atom index
-    set j [string trim [string range $line 6 11]]
-    if {[string is integer $j]} {
-      set serl [expr $j]
-        } else {
-      set serl [expr 0x$j]
-    }
 
     # Save center data
     if {![info exists pdb($i.atoms)]} {incr pdb(nctrs)}
@@ -69,6 +67,8 @@ proc cvs_setup { pdbarray } {
       SOFTLOWER {
         if {![info exists cv($i.min)]}    {error "CFACV) ERROR: cv need max value"}
         if {![info exists cv($i.boundk)]} {error "CFACV) ERROR: cv need boundk value"}
+      }     
+      AMD {
       }     
       SOFT {
         if {![info exists cv($i.min)]}    {error "CFACV) ERROR: cv need max value"}
@@ -124,17 +124,29 @@ proc cvs_setup { pdbarray } {
         set_zsd_ring [lindex $cv($i.type) 1] [lindex $cv($i.type) 2] [lindex $cv($i.type) 3]  [lindex $cv($i.type) 4] [lindex $cv($i.type) 5]
       }
       RMSD {
-        cv_readref $i [lindex $cv($i.type) 1]
+        set_zsd_ring $i [lindex $cv($i.type) 1]
+      }
+      CHARMMD {
+        ListToArray_Data [cv_access_ref $cv($i.address) 0] [list $cv($i.n) $cv($i.k) $cv($i.d)]
+      }
+      GAUSS2D {
+        ListToArray_Data [cv_access_ref $cv($i.address) 0] [list $cv($i.a) $cv($i.b) $cv($i.c) $cv($i.d)]
+      }
+      D2CHAP {
+        if {![info exists cv($i.a)]}    {error "CFACV) ERROR: cv need parameter a"}
+        set_d2chap  $cv($i.address) [lindex $cv($i.type) 1]
+        ListToArray_Data [cv_access_ref $cv($i.address) 0] [list $cv($i.a)]
       }
       LINE {
         cv_readref $i [lindex $cv($i.type) 1]
         cv_readref2 $i [lindex $cv($i.type) 2]
-       set_line $cv($i.address)
+        set_line $cv($i.address)
       }
     }
     
   }
 }
+
 
 
 proc cv_readref { i pdbfile} {

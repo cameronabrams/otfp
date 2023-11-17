@@ -9,15 +9,18 @@ int main ( int argc, char * argv[] ) {
   FILE * fp=NULL;
   unsigned int fileOutputLevel;
   unsigned int desiredOutputLevel=1;
-  int n,i,ln,timestep;
+  int n,i,ln,timestep,n0,j;
   int reading;
   double * data[4];
   int * intdata;
   char flag[4];
 
+
+  n0=0;
   for (i=1;i<argc;i++) {
     if (!strcmp(argv[i],"-f")) fp=fopen(argv[++i],"r");
     else if (!strcmp(argv[i],"-ol")) desiredOutputLevel=atoi(argv[++i]);
+    else if (!strcmp(argv[i],"-n0")) n0=atoi(argv[++i]);
   }
   if (!fp) {
     fprintf(stderr,"ERROR: no input file specified.\n");
@@ -26,8 +29,9 @@ int main ( int argc, char * argv[] ) {
 
   fread(flag,sizeof(char),4,fp);
   fprintf(stdout,"#flag is %c%c%c%c\n",flag[0],flag[1],flag[2],flag[3]);
-  fread(&fileOutputLevel,sizeof(unsigned int),1,fp);
+  fread(&fileOutputLevel,sizeof(int),1,fp);
   fread(&n,sizeof(int),1,fp);
+  if (n0==0) n0=n;
   fprintf(stderr,"#INFO: outputLevel %u nKnots %i\n",fileOutputLevel,n);
   if (fileOutputLevel!=desiredOutputLevel) {
     fprintf(stderr,"#WARNING: desired output level does not match file output level.  Intersecting.\n");
@@ -47,13 +51,17 @@ int main ( int argc, char * argv[] ) {
 
     if (desiredOutputLevel & 1) {
       fprintf(stdout,"KNOTS    %i ",timestep);
-      for (i=0;i<n;i++) fprintf(stdout,"%12.5le ",data[0][i]);
-      fprintf(stdout,"\n");
+      for (i=0;i<n;i=i+n0) {
+        for (j=0;j<n0;j++) fprintf(stdout,"%25.10e ",data[0][j+i]);
+        fprintf(stdout,"\n");
+      }
     } 
     if (desiredOutputLevel & 2) {
       fprintf(stdout,"HITS     %i ",timestep);
-      for (i=0;i<n;i++) fprintf(stdout,"%1i ",intdata[i]);
-      fprintf(stdout,"\n");
+      for (i=0;i<n;i=i+n0) {
+        for (j=0;j<n0;j++) fprintf(stdout,"%1i ",intdata[j+i]);
+        fprintf(stdout,"\n");
+      }
     } 
     ln++;
 

@@ -12,7 +12,7 @@ typedef struct ATOMCENTERSTRUCT {
 } atomCenterStruct;
 
 
-atomCenterStruct * New_atomCenterStruct ( int n );
+extern atomCenterStruct * New_atomCenterStruct ( int n );
 
 typedef struct CENTERSTRUCT * pcenterStruct;
 typedef struct CENTERSTRUCT { 
@@ -26,15 +26,15 @@ typedef struct CENTERSTRUCT {
   pcenterStruct right;
 } centerStruct;
 
-centerStruct * New_centerStruct ( int id, int maxN );
-void centerStuct_addMember ( centerStruct * c, int i );
+extern centerStruct * New_centerStruct ( int id, int maxN );
+extern void centerStuct_addMember ( centerStruct * c, int i );
 
-void center_rg ( centerStruct * c, double * x, double * y, double * z );
+extern void center_rg ( centerStruct * c, double * x, double * y, double * z );
 
-int rgyr_sort ( centerStruct * c, int * bin, double * x, double * y, double * z, 
+extern int rgyr_sort ( centerStruct * c, int * bin, double * x, double * y, double * z, 
 		int nAtom, int minAtom, double * rg, unsigned int Seed  );
-centerStruct * Null_centerStruct ( void );
-int bin_sort ( int * bin, double * x, double * y, double * z, int nAtoms, int nCenters, int nCycles, 
+extern centerStruct * Null_centerStruct ( void );
+extern int bin_sort ( int * bin, double * x, double * y, double * z, int nAtoms, int nCenters, int nCycles, 
 	       unsigned int Seed );
 
 

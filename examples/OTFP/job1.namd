@@ -63,6 +63,9 @@ source OTFP.namd
 ds_loadrestrains $ds job0.rstr 
     
 # Restart chapeaus
+puts $chape(0.address)
+puts $NUMREP
+
 chapeau_loadstate $chape(0.address) job0.ch0
           
 run  2000000 ;# 4ns

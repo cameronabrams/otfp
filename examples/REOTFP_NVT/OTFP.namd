@@ -58,7 +58,7 @@ set restr(1.bound)    soft           ; # boundary behavior
  set restr(1.boundk)   100           
  set restr(1.max)      $CUTOFF       
  set restr(1.min)      $SPLINEMIN    
-set restr(1.outfile)  "C.dat"
+set restr(1.outfile)  "[format $job_output_root $replica_id].r"
  set restr(1.outfreq) 5000
 
 # Initialize OTFP program

@@ -1,0 +1,72 @@
+#!/bin/tclsh
+ 
+# Restart OTFP: There is two modes to restart otfp, chose one:
+# set restart_otfp cfacv_loadstate
+# set restart_chapeau chapeau_loadlambda
+                        
+set oname           job0
+set temperature     298
+set seed            923458
+seed                $seed
+ 
+
+# The molecules
+structure           ../systems/alavac_psfgen.psf
+coordinates         ../systems/alavac_psfgen.pdb
+temperature         $temperature
+
+firsttimestep       0
+timestep            1.0
+rigidBonds          none 
+
+wrapall             on   ;# wrap all the atoms
+
+# Potentials and parameters
+paraTypeCharmm      on
+parameters          ../systems/par_all36_prot.prm
+parameters          ../systems/par_all36_lipid.prm
+parameters          ../systems/par_all36_carb.prm
+parameters          ../systems/par_all36_cgenff.prm
+parameters          ../systems/toppar_water_ions_namd.str
+exclude             scaled1-4
+1-4scaling          1.0
+               
+# Non-bonding cutoff
+cutoff              10.0  ;#12.0 
+switching           on    ;# suavisado
+switchdist           9.0  ;#10.0 # Desde donde comienza el suavizado
+
+# Verlet List
+pairlistdist        11.5  ;#14.0 #Radio externo de Verlet
+# stepspercycle       10    ;#Pasos para el calculo de la lista de Verlet
+
+# Multiple time steps
+nonbondedFreq       1
+fullElectFrequency  2
+
+# Ensemble NVT
+langevin            on;             # do langevin dynamics
+langevinTemp        $temperature;   # bath temperature
+langevinHydrogen    no
+langevinDamping     50.
+
+# Output
+outputName          ${oname}
+outputEnergies      1000
+restartfreq         1000
+dcdfreq             1000
+outputTiming        1000
+
+source OTFP.namd
+
+run  10000000
+
+# BIAS GIVEN BY ACCELMD PLUGGIN
+# set kt1 [expr 1./($temperature*0.00198723310870534)]
+#
+# # variables needed for the tclforcesscript
+# for {set r 1} {$r <= 500000} {incr r} {
+#   run norepeat 1
+#   save_array
+#   set BIAS [expr $saved_array(MISC)*$kt1]
+# }

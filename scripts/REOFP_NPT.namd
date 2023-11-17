@@ -489,12 +489,6 @@ while {$i_run < $num_runs} {
     set dvol  [expr ($dvol-$VOLUME)]
     set delta [expr $dpot + $pressure*$dvol ]
       
-    # NO needed, energy already counted in POTENTIAL trough MISC COLUMN
-    # # Compute Delta Uk term
-    # set duk   [replicaRecv $replica(loc.$swap)]
-    # set duk   [expr ($duk-$u)]
-    # set delta [expr $delta + $duk]
-     
     # Compute Delta Free Energy of this replica
     set z2    [replicaSendrecv $z $replica(loc.$swap) $replica(loc.$swap)]
     set dfre  [chapeau_evalf_1simplex $chapeau $z2 ]
