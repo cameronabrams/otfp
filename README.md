@@ -7,8 +7,25 @@ OTFP computes free-energy profiles in MD simulations via temperature-acceleratio
  
 It is written in C and use [SWIG](http://www.swig.org) to provida a TCL
 interface to be used with [NAMD](www.ks.uiuc.edu/Research/namd) via TCLforce.
+ 
+## Build system
 
-# Citations
+There is a `src/makefile` file that can be used to build libraries and
+executables. It is also posible to compile using meson, e.g.:
+
+    git clone https://github.com/alexispaz/otfp.git
+    cd otfp
+    meson setup build 
+    cd build 
+    meson compile -v 
+    meson install 
+    cd ..
+
+Default prefix is `/usr` but can be changed with `--prefix`, for instance:
+
+    meson setup --prefix=$(realpath ./usr) build 
+ 
+## Citations
 
 The OTFP method is explained in detail in the original publication:
 
@@ -46,14 +63,14 @@ _"Testing Convergence of Different Free-Energy Methods in a Simple Analytical
 System with Hidden Barriers."_
 Computation, 6(2) (2018) 27.  https://doi.org/10.3390/computation6020027
 
-# License
+## License
 
 It mantains the same BSD-2-Clause license of the original code at [repo](https://github.com/cameronabrams/otfp).
 
 Original code was developed with support of the National Science Foundation
 through grant DMR-1207389.
  
-# Known issues
+## Known issues
 
 In [SWIG documentation](http://www.swig.org/Doc1.3/Tcl.html) it is written: 
 
@@ -85,7 +102,7 @@ version was used to compile NAMD. If using the tcl library of the actual system
 gives segmentation fault, sometimes the issue disappears if the user compile
 its own TCL library from source and use that one to compile of `cfacv.so`.
 
-# Examples of additional tools to handle chapeau object files
+## Examples of additional tools to handle chapeau object files
 
 Convert old format of chapeau object files, create `converted.ch`
 

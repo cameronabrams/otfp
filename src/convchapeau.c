@@ -9,8 +9,8 @@
 int main ( int argc, char * argv[] ) {
   chapeau * ch;
   old_chapeau * och;
-  int i,j;
-  int * periodic;
+  int i;
+  // int * periodic;
 
   och=old_chapeau_allocloadstate(argv[1]);
 

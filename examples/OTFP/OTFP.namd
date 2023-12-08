@@ -1,8 +1,8 @@
 #!/bin/tclsh
 
 tclforces             on
-set CFACV_BASEDIR     ../../src
-tclforcesscript       $CFACV_BASEDIR/calcforces.tcl
+set CFACV_BASEDIR     ../../builddir/aca/usr/local/
+tclforcesscript       $CFACV_BASEDIR/include/calcforces.tcl
 
 # Periodic Boundary Conditions
 set XSCFILE         off
@@ -60,5 +60,5 @@ set restr(1.bound)    soft           ; # boundary behavior
  set restr(1.min)      $SPLINEMIN    
 
 # Initialize OTFP program
-source $CFACV_BASEDIR/cfacv.tcl
+source $CFACV_BASEDIR/include/cfacv.tcl
 

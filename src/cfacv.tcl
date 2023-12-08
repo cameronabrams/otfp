@@ -8,13 +8,13 @@
 # exechange.
 
 # load the C-module
-load ${CFACV_BASEDIR}/cfacv.so cfa_cvlibc
+load ${CFACV_BASEDIR}/lib/libcfacv.so cfa_cvlibc
 
 # load tcl procedures
-source ${CFACV_BASEDIR}/data.tcl
-source ${CFACV_BASEDIR}/restraints.tcl
-source ${CFACV_BASEDIR}/cvs.tcl
-source ${CFACV_BASEDIR}/chapeau.tcl
+source ${CFACV_BASEDIR}/include/data.tcl
+source ${CFACV_BASEDIR}/include/restraints.tcl
+source ${CFACV_BASEDIR}/include/cvs.tcl
+source ${CFACV_BASEDIR}/include/chapeau.tcl
 
 # BEGIN FUNCTION DEFINITION ###############################
 

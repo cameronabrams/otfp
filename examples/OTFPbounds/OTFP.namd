@@ -2,7 +2,7 @@
 
 tclforces             on
 set CFACV_BASEDIR     ../../src
-tclforcesscript       $CFACV_BASEDIR/calcforces.tcl
+tclforcesscript       $CFACV_BASEDIR/include/calcforces.tcl
 
 # Periodic Boundary Conditions
 set XSCFILE         off
@@ -61,5 +61,5 @@ set restr(1.bound)    softlower      ; # boundary behavior
  set restr(1.min)      3.5
 
 # Initialize OTFP program
-source $CFACV_BASEDIR/cfacv.tcl
+source $CFACV_BASEDIR/include/cfacv.tcl
 

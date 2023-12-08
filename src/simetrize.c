@@ -9,7 +9,7 @@
 
 int main ( int argc, char * argv[] ) {
   chapeau* ch;
-  int i, j;
+  int j;
   
   
   fprintf(stdout,"reading %s\n",argv[1]); 

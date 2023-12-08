@@ -1,6 +1,6 @@
 
 # load the C-module
-load ${CFACV_BASEDIR}/cvs.so cvs
+load ${CFACV_BASEDIR}/lib/libcvs.so cvs
 
 proc parse_pdb {pdbfile pdbarray} {
   upvar $pdbarray pdb 

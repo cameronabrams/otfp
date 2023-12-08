@@ -103,7 +103,6 @@ int chapeau_init ( chapeau * ch, int dm, double * rmin, double * rmax, int * N, 
  
 chapeau * chapeau_alloc ( int dm, double * rmin, double * rmax, int * N, int * periodic) {
   chapeau * ch;
-  int i;
 
   // Allocating the object
   ch=malloc(sizeof(chapeau));
@@ -566,8 +565,7 @@ void chapeau_loadlambda ( chapeau * ch, char * filename ) {
 }
 
 void chapeau_solve ( chapeau * ch ) {
-  int i,j,J,I,s,k,l;
-  double lb;
+  int i,j,J,I,s,k;
   double * Abar;
   double * bbar;
   int * pivot;
@@ -1566,7 +1564,7 @@ void chapeau_setserialized ( chapeau *ch, char * str ) {
 
 
  int accumulate_1D( chapeau * ch, double bias ) { 
-  int m,mm;
+  int m;
   double boost;
   
   // Following the paper E definition A and b should be

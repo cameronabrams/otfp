@@ -2,7 +2,7 @@
 
 tclforces             on
 set CFACV_BASEDIR     ../../src
-tclforcesscript       $CFACV_BASEDIR/calcforces.tcl
+tclforcesscript       $CFACV_BASEDIR/include/calcforces.tcl
 
 # Periodic Boundary Conditions
 set XSCFILE         off
@@ -62,5 +62,5 @@ set restr(1.outfile)  "[format $job_output_root $replica_id].r"
  set restr(1.outfreq) 5000
 
 # Initialize OTFP program
-source $CFACV_BASEDIR/cfacv.tcl
+source $CFACV_BASEDIR/include/cfacv.tcl
 

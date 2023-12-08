@@ -11,7 +11,7 @@
 
 
 int main ( int argc, char * argv[] ) {
-  int i,j;
+  int j;
   chapeau * ch;
   chapeau * cho;
   double rmin[2],rmax[2];
