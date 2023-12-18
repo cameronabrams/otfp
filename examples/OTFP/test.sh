@@ -12,7 +12,7 @@ for file in $(ls *bsp); do
   f=${file%.*}
 
   # Decoding the FES
-  ../../src/catbinsp -f $file -ol 1 \
+  catbinsp -f $file -ol 1 \
     | awk 'BEGIN{a=""} (NR>1&&$2!=a){a=$2;$1="";$2="";print $0}'\
     > ${f}.LAMBDA
 

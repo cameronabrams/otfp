@@ -1,5 +1,6 @@
 
 # load the C-module
+if {![info exists CFACV_BASEDIR]} {set CFACV_BASEDIR $::env(CFACV_BASEDIR)}
 load ${CFACV_BASEDIR}/lib/libcvs.so cvs
 
 proc parse_pdb {pdbfile pdbarray} {

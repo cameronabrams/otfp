@@ -24,7 +24,14 @@ executables. It is also posible to compile using meson, e.g.:
 Default prefix is `/usr` but can be changed with `--prefix`, for instance:
 
     meson setup --prefix=$(realpath ./usr) build 
- 
+
+To run the examples, set the `CFACV_BASEDIR` environment variable to the OTFP
+prefix:
+
+    cd examples/OTFP/
+    export CFACV_BASEDIR=/usr
+    ./test.sh
+
 ## Citations
 
 The OTFP method is explained in detail in the original publication:

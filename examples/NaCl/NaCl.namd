@@ -111,8 +111,8 @@ outputpressure      1000
 
 # TAMD
 tclforces             on
-set CFACV_BASEDIR     ..
-tclforcesscript       $CFACV_BASEDIR/include/cfacv.tclforces.tcl
+if {![info exists CFACV_BASEDIR]} {set CFACV_BASEDIR $::env(CFACV_BASEDIR)}
+tclforcesscript       $CFACV_BASEDIR/include/cfacv.tcl
  
 # Setting restrPARAMS
 set K                 1600

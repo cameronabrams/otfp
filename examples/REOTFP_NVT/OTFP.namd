@@ -1,7 +1,7 @@
 #!/bin/tclsh
 
 tclforces             on
-set CFACV_BASEDIR     ../../src
+if {![info exists CFACV_BASEDIR]} {set CFACV_BASEDIR $::env(CFACV_BASEDIR)}
 tclforcesscript       $CFACV_BASEDIR/include/calcforces.tcl
 
 # Periodic Boundary Conditions

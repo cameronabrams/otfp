@@ -8,7 +8,9 @@
 # exechange.
 
 # load the C-module
+if {![info exists CFACV_BASEDIR]} {set CFACV_BASEDIR $::env(CFACV_BASEDIR)}
 load ${CFACV_BASEDIR}/lib/libcfacv.so cfa_cvlibc
+
 
 # load tcl procedures
 source ${CFACV_BASEDIR}/include/data.tcl
