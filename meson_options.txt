@@ -1,0 +1,4 @@
+option('blas', type: 'string', value: 'blas',
+        description: 'option for BLAS library switching')
+option('lapack', type: 'string', value: 'lapack',
+        description: 'option for LAPACK library switching')

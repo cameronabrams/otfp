@@ -1,8 +1,6 @@
 cc = meson.get_compiler('c')
 m = cc.find_library('m', required: false)
 
-lapack = dependency('lapack')
-blas = dependency('blas')
 tcl = dependency('tcl')
 
 swig = find_program('swig')
@@ -12,6 +10,14 @@ swig_gen = generator(
   arguments: ['-tcl8', '-o', './@OUTPUT@','@INPUT@'],
   depfile: '@BASENAME@.d',
 )
+
+# Check with `pkg-config --libs lapack` if lapack is found.
+# Check in PKG_CONFIG_PATH if proper .pc files are avaible.
+# Choose library with `meson configure -Dblas=openblas -Dlapack=openblas`
+blas_name = get_option('blas')
+lapack_name = get_option('lapack')
+blas = dependency(blas_name)
+lapack = dependency(lapack_name)
 
 install_headers('calcforces.tcl')
 install_headers('cfacv.tcl')
